@@ -1,4 +1,4 @@
-const catchError = (callback) => {
+export const catchError = (callback) => {
   return async (req, res, next) => {
     try {
       await callback(req, res, next);
@@ -11,8 +11,4 @@ const catchError = (callback) => {
       });
     }
   };
-};
-
-module.exports = {
-  catchError,
 };
