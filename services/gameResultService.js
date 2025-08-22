@@ -44,17 +44,26 @@ const createTestData = async () => {
   console.log(`Inserted ${docs.length} test records`);
 };
 
-const getResultsByDate = async (dateStr) => {
+const getResultsByDate = async (dateStr, mode) => {
   // Start of day: 2025-08-15 00:00:00
   const startOfDay = moment(dateStr, "YYYY-MM-DD").startOf("day").toDate();
   
   // End of day: 2025-08-15 23:59:59.999
   const endOfDay = moment(dateStr, "YYYY-MM-DD").endOf("day").toDate();
 
-  const results = await GameResults.find({
-    createdAt: { $gte: startOfDay, $lte: endOfDay }
-  }).sort({ createdAt: 1 }); // optional sorting by time
-
+  let results;
+  
+  if(mode == "analyse") {
+    results = await GameResults.find(
+      { createdAt: { $gte: startOfDay, $lte: endOfDay } }, 
+      { odd: 1, under: 1, _id: 0 }
+    ).sort({ createdAt: 1 }); // optional sorting by time
+  } else {
+    results = await GameResults.find({
+      createdAt: { $gte: startOfDay, $lte: endOfDay }
+    }).sort({ createdAt: -1 }); // optional sorting by time
+  }
+  
   return results;
 };
 
@@ -68,4 +77,5 @@ const getLatestResults = async () => {
 };
 
 
-export default { createTestData, getResultsByDate, getLatestResults};
+
+export default { createTestData, getResultsByDate, getLatestResults,};

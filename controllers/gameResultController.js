@@ -2,12 +2,12 @@ import gameResultService from "../services/gameResultService.js";
 
 export const getResultsByDate = async (req, res) => {
   try {
-    const { date } = req.query; // e.g., ?date=2025-08-15
+    const { date, mode } = req.query;
     if (!date) {
       return res.status(400).json({ error: "Date query parameter is required" });
     }
 
-    const results = await gameResultService.getResultsByDate(date);
+    const results = await gameResultService.getResultsByDate(date, mode);
     res.status(200).json(results);
   } catch (err) {
     console.error(err);
