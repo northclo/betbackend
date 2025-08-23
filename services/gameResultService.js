@@ -67,6 +67,23 @@ const getResultsByDate = async (dateStr, mode) => {
   return results;
 };
 
+const getResultsbyIndex = async (index, days) => {
+
+  let results;
+  if(days == -1) {
+   results = await GameResults.find(
+      { today_no: index }, 
+    ).sort({ createdAt: -1 });
+  } else {
+   results = await GameResults.find(
+      { today_no: index }, 
+    ).sort({ createdAt: -1 })
+    .limit(days); 
+  }
+ 
+  return results;
+};
+
 const getLatestResults = async () => {
 
   const results = await GameResults.find()
@@ -78,4 +95,4 @@ const getLatestResults = async () => {
 
 
 
-export default { createTestData, getResultsByDate, getLatestResults,};
+export default { createTestData, getResultsByDate, getLatestResults, getResultsbyIndex};

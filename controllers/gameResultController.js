@@ -24,3 +24,21 @@ export const getLatestResults = async (req, res) => {
     res.status(500).json({ error: "Failed to get results" });
   }
 };
+
+export const getResultsbyIndex = async (req, res) => {
+  try {
+    const { index, days } = req.query;
+    if (!index) {
+      return res.status(400).json({ error: "index query parameter is required" });
+    }
+    if (!days) {
+      return res.status(400).json({ error: "days query parameter is required" });
+    }
+
+    const results = await gameResultService.getResultsbyIndex(index, days);
+    res.status(200).json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to get results" });
+  }
+};
