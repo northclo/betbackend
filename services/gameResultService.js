@@ -1,4 +1,4 @@
-import moment from "moment";
+import moment from 'moment-timezone';
 import { v4 as uuidv4 } from "uuid";
 import GameResults from "../models/GameResult.js";
 
@@ -46,10 +46,13 @@ const createTestData = async () => {
 
 const getResultsByDate = async (dateStr, mode) => {
   // Start of day: 2025-08-15 00:00:00
-  const startOfDay = moment(dateStr, "YYYY-MM-DD").startOf("day").toDate();
-  
-  // End of day: 2025-08-15 23:59:59.999
-  const endOfDay = moment(dateStr, "YYYY-MM-DD").endOf("day").toDate();
+  const startOfDay = moment.tz(dateStr, 'YYYY-MM-DD', 'Asia/Tokyo')
+    .startOf('day')
+    .toDate();  // -> UTC Date covering 00:00 JST
+
+  const endOfDay = moment.tz(dateStr, 'YYYY-MM-DD', 'Asia/Tokyo')
+    .endOf('day')
+    .toDate();  // -> UTC Date covering 23:59:59.999 JST
 
   let results;
   
