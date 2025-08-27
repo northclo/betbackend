@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 
 import { catchError } from "../../middleware/error.js";
-import { login } from "../../controllers/auth/login.js";
+import { login } from "../../controllers/customer/auth/login.js";
 
 router.post("/", catchError(login));
 
