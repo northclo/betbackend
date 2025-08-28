@@ -22,7 +22,6 @@ export const login = async (req, res) => {
 
   if (isMatch) {
     let token = jwt.sign({ token: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
-    console.log("token :>> ", token);
     responseSuccess(res, "", { token: token });
   } else {
     responseBadRequest(res, "password isn't correct!");

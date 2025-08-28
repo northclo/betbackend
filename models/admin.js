@@ -3,9 +3,13 @@ const { Schema } = mongoose;
 
 const AdminSchema = new Schema(
   {
+    firstName: String,
+    lastName: String,
+    userName: String,
     email: String,
+    phoneNumber: String,
+    company: String,
     password: String,
-    token: String,
   },
   { timestamps: true }
 );

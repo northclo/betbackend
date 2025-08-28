@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
 import { config } from "../config/index.js";
-import { responseServerError, responseUnAutherized } from "../helper/response";
+import { responseServerError, responseUnAutherized } from "../helper/response.js";
 
 export const checkAuth = (req, res, next) => {
   try {
@@ -9,12 +9,14 @@ export const checkAuth = (req, res, next) => {
       return responseUnAutherized(res);
     }
 
-    let decoded = jwt.verify(
-      req.headers["autherization"],
-      config.JWT_SECRET_KEY
-    );
+    jwt.verify(req.headers["autherization"], config.JWT_SECRET_KEY, (err, decoded) => {
+      if (err) {
+        return responseUnAutherized(res);
+      }
 
-    next();
+      req.session = { _id: decoded.token };
+      next();
+    });
   } catch (error) {
     return responseServerError(res);
   }

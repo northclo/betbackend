@@ -33,7 +33,6 @@ export const forgotPassword = async (req, res) => {
   });
 
   let resetLink = `${config.CLIENT_URL}/auth/reset-password/${token}`;
-  console.log("token :>> ", token);
 
   try {
     // get domain from email
