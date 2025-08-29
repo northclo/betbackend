@@ -49,6 +49,16 @@ export const createMemberList = async (req, res) => {
 
 export const deleteMemberList = async (req, res) => {
     let { id } = req.params;
-    await UserModel.deleteOne({ _id: id })
+
+    let deleteFilter = []
+    id.split(',').forEach(element => {
+        deleteFilter.push({
+            _id: element
+        })
+    });
+
+    await UserModel.deleteMany({
+        $or: deleteFilter
+    })
     return responseSuccess(res)
 }
