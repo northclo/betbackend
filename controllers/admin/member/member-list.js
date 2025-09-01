@@ -20,7 +20,6 @@ export const getMemberList = async (req, res) => {
         };
     }
 
-    console.log('search :>> ', search);
     let users = await UserModel.find(filter).sort({ _id: -1 });
     return responseSuccess(res, "", users);
 };

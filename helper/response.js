@@ -9,7 +9,7 @@ export const responseSuccess = (res, message = "", data) => {
 
 export const responseNotFound = (res) => {
   return res.status(StatusCodes.NOT_FOUND).send({
-    message: "Page not found!",
+    message: "Requested API not found (404)",
     data: "",
   });
 };
@@ -30,7 +30,7 @@ export const responseUnAutherized = (res) => {
 
 export const responseServerError = (res) => {
   return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send({
-    message: "Server isn't response!",
+    message: "Server error (500). Please try again later.",
     data: "",
   });
 };
