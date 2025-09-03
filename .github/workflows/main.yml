@@ -3,8 +3,6 @@ name: CI to deploy backend to server
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
   workflow_dispatch:
 
@@ -29,22 +27,22 @@ jobs:
         with:
           switches: -avzr --delete
           path: ./*
-          remote_path: /var/www/betgame-backend
-          remote_host: ${{ secrets.ACEESS_HOST }}
-          remote_user: ${{ secrets.USER_NAME }}
-          remote_key: "${{ secrets.SSH_PRIVATE_KEY }}"
+          remote_path: /var/www/live-server/back-end
+          remote_host: ${{ secrets.MAIN_ACEESS_HOST }}
+          remote_user: ${{ secrets.MAIN_USER_NAME }}
+          remote_key: "${{ secrets.MAIN_SSH_PRIVATE_KEY }}"
 
       - name: SSH into EC2 instance
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.ACEESS_HOST }}
-          username: ${{ secrets.USER_NAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.MAIN_ACEESS_HOST }}
+          username: ${{ secrets.MAIN_USER_NAME }}
+          key: ${{ secrets.MAIN_SSH_PRIVATE_KEY }}
           port: 22
           script: |
             # Navigate to your app directory
 
-            cd /var/www/betgame-backend
+            cd /var/www/live-server/back-end
 
 
             # Set up nvm
