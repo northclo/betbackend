@@ -23,6 +23,6 @@ const GameSettingSchema = new Schema(
     { timestamps: true }
 );
 
-const GameSettingModel = mongoose.model("gameSetting", GameSettingSchema);
+const GameSettingModel = mongoose.model("game_setting", GameSettingSchema);
 
 export default GameSettingModel;

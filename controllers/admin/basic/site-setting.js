@@ -4,7 +4,14 @@ import SiteSettingModel from "../../../models/site-setting.js";
 
 export const getSiteSetting = async (req, res) => {
     const siteSetting = await SiteSettingModel.find();
-    responseSuccess(res, '', siteSetting);
+
+    let result;
+    if (isEmpty(siteSetting)) {
+        result = await SiteSettingModel.create({})
+    } else {
+        result = siteSetting;
+    }
+    responseSuccess(res, '', result);
 }
 
 export const updateSiteSetting = async (req, res) => {

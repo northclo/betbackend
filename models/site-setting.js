@@ -49,6 +49,6 @@ const SiteSettingSchema = new Schema(
     { timestamps: true }
 );
 
-const SiteSettingModel = mongoose.model("siteSetting", SiteSettingSchema);
+const SiteSettingModel = mongoose.model("site_setting", SiteSettingSchema);
 
 export default SiteSettingModel;
