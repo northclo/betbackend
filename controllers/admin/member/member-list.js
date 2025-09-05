@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 
-import UserModel from "../../../models/user.js";
+import UserModel from "../../../models/User.js";
 import { responseSuccess } from "../../../helper/response.js";
 
 export const getMemberList = async (req, res) => {

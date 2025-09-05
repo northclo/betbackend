@@ -2,7 +2,7 @@ import isEmpty from "is-empty";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-import UserModel from "../../models/user.js";
+import UserModel from "../../models/User.js";
 import { responseBadRequest, responseSuccess } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 
