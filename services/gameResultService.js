@@ -14,8 +14,8 @@ const createTestData = async () => {
 
     // Shuffle function (Fisher–Yates)
     for (let i = numbers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+      const j = Math.floor(Math.random() * (i + 1));
+      [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
     }
 
     let list = numbers;
@@ -41,7 +41,6 @@ const createTestData = async () => {
   }
 
   await GameResults.insertMany(docs);
-  console.log(`Inserted ${docs.length} test records`);
 };
 
 const getResultsByDate = async (dateStr, mode) => {
@@ -55,10 +54,10 @@ const getResultsByDate = async (dateStr, mode) => {
     .toDate();  // -> UTC Date covering 23:59:59.999 JST
 
   let results;
-  
-  if(mode == "analyse") {
+
+  if (mode == "analyse") {
     results = await GameResults.find(
-      { createdAt: { $gte: startOfDay, $lte: endOfDay } }, 
+      { createdAt: { $gte: startOfDay, $lte: endOfDay } },
       { odd: 1, under: 1, _id: 0 }
     ).sort({ createdAt: 1 }); // optional sorting by time
   } else {
@@ -66,36 +65,36 @@ const getResultsByDate = async (dateStr, mode) => {
       createdAt: { $gte: startOfDay, $lte: endOfDay }
     }).sort({ createdAt: -1 }); // optional sorting by time
   }
-  
+
   return results;
 };
 
 const getResultsbyIndex = async (index, days) => {
 
   let results;
-  if(days == -1) {
-   results = await GameResults.find(
-      { today_no: index }, 
+  if (days == -1) {
+    results = await GameResults.find(
+      { today_no: index },
     ).sort({ createdAt: -1 });
   } else {
-   results = await GameResults.find(
-      { today_no: index }, 
+    results = await GameResults.find(
+      { today_no: index },
     ).sort({ createdAt: -1 })
-    .limit(days); 
+      .limit(days);
   }
- 
+
   return results;
 };
 
 const getLatestResults = async () => {
 
   const results = await GameResults.find()
-  .sort({ createdAt: -1 })
-  .limit(50); // optional sorting by time
+    .sort({ createdAt: -1 })
+    .limit(50); // optional sorting by time
 
   return results;
 };
 
 
 
-export default { createTestData, getResultsByDate, getLatestResults, getResultsbyIndex};
+export default { createTestData, getResultsByDate, getLatestResults, getResultsbyIndex };
