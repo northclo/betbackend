@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import isEmpty from "is-empty";
 
-import AdminModel from "../../../models/admin.js";
 import {
   responseBadRequest,
   responseServerError,
@@ -12,6 +11,7 @@ import {
   smtpProviderForHotmail,
 } from "../../../helper/smtp-provider/index.js";
 import { config } from "../../../config/index.js";
+import UserModel from "../../../models/User.js";
 
 export const forgotPassword = async (req, res) => {
   let { email } = req.body;
@@ -21,7 +21,7 @@ export const forgotPassword = async (req, res) => {
   }
 
   // get admin info from db
-  let admin = await AdminModel.findOne({ email: email });
+  let admin = await UserModel.findOne({ user_email: email });
 
   // if cannot get admin info
   if (isEmpty(admin)) {

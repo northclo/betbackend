@@ -165,3 +165,63 @@ export const getPartner = async (req, res) => {
 
     responseSuccess(res, '', data);
 };
+
+// Clean and flatten data for response
+const cleanPartnerList = (node) => {
+    let data = [];
+
+    data.push({
+        role: node.role,
+        nickname: node.nickname,
+        id: node.partner_id,
+        betRateType: node.bet_rate_type,
+        deadline: node.deadline,
+        cancelBet: node.cancel_bet,
+        cancelBetRange: node.cancel_bet_range,
+        betMoneyUnit: node.bet_money_unit,
+        onetimeBetMin: node.onetime_bet_min,
+        onetimeBetMax: node.onetime_bet_max,
+        onetimeEarningMax: node.onetime_earning_max,
+        oneroundBetMax: node.oneround_bet_max,
+        oneroundEarningMax: node.oneround_earning_max,
+        oneroundBetMaxSlot: node.oneround_bet_max_slot,
+        oneroundEarningMaxSlot: node.oneround_earning_max_slot,
+        allRoundsBetMax: node.all_rounds_bet_max,
+        allRoundsBetMaxBySlots: node.all_rounds_bet_max_by_slots,
+    });
+
+    node.subs?.forEach(sub => {
+        data.push(...cleanPartnerList(sub));
+    });
+
+    return data;
+};
+
+export const getPartnerList = async (req, res) => {
+    const userId = req.session._id;
+
+    const results = await PartnerModel.aggregate([
+        {
+            $match: {
+                user_id: new mongoose.Types.ObjectId(userId),
+                role: partnerType.headquater,
+            }
+        },
+        {
+            $graphLookup: {
+                from: 'partners',
+                startWith: '$_id',
+                connectFromField: '_id',
+                connectToField: 'parent_partner_id',
+                as: 'subs'
+            }
+        },
+    ])
+
+    if (!results.length) return responseSuccess(res, '', [])
+
+    const root = results[0];
+    const partner = buildTree(root)
+
+    return responseSuccess(res, '', [partner])
+}
