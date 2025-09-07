@@ -9,8 +9,10 @@ const PartnerSchema = new Schema(
             enum: [partnerType.headquater, partnerType.branchOffice, partnerType.regionalOffice, partnerType.agency, partnerType.distributor, partnerType.store],
             default: partnerType.headquater
         },
-        user_id: { type: String },
-        sub_partner_id: { type: String },
+        nickname: { type: String },
+        partner_id: { type: String },
+        user_id: { type: mongoose.Types.ObjectId },
+        parent_partner_id: { type: mongoose.Types.ObjectId },
         currency_rolling: { type: Boolean, default: true },
         deposit_approved_amount: { type: Number, default: 0 },
         dashboard_access_permission: { type: Boolean, default: false },
@@ -18,7 +20,7 @@ const PartnerSchema = new Schema(
         user_creation_permission: { type: Boolean, default: false },
         sub_partner_settlement_rate: { type: Boolean, default: false },
         sub_partner_money_change: { type: Boolean, default: false },
-        bet_rate_type: { type: String },
+        bet_rate_type: { type: String, enum: ['A', 'B'], default: 'A' },
         deadline: { type: Number },
         cancel_bet: { type: Boolean, default: false },
         cancel_bet_range: {
@@ -31,7 +33,18 @@ const PartnerSchema = new Schema(
         onetime_bet_min: { type: Number },
         onetime_earning_min: { type: Number },
         onetime_earning_max: { type: Number },
-        oneround_bet_max: { type: Number }
+        oneround_bet_max: { type: Number },
+        oneround_earning_max: { type: Number },
+        oneround_bet_max_slot: { type: Number },
+        oneround_earning_max_slot: { type: Number },
+        all_rounds_bet_max: { type: Number },
+        all_rounds_bet_max_by_slots: [
+            {
+                bet_type: { type: String },
+                slot_bet_max: { type: Number },
+                public: { type: Boolean }
+            }
+        ]
     },
     { timestamps: true }
 );

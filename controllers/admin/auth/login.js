@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import geoip from "geoip-lite";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
