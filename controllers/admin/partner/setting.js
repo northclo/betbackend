@@ -18,6 +18,7 @@ export const getGameSetting = async (req, res) => {
 
 export const updateGameSetting = async (req, res) => {
     const { name } = req.query;
+
     await GameSettingModel.updateOne({ name: name }, req.body);
     responseSuccess(res)
 }
