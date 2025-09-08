@@ -1,8 +1,14 @@
-import { responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
 
 export const registerUser = async (req, res) => {
     const payload = req.body;
+
+    const user = await UserModel.findOne({ user_nickname: payload.nickname })
+
+    if (user) {
+        return responseBadRequest(res, "Nickname is exist")
+    }
 
     await UserModel.create({
         user_nickname: payload.nickname,

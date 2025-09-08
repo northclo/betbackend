@@ -1,6 +1,6 @@
+import moment from "moment";
 import PartnerMessageModal from "../../../models/PartnerMessage.js";
 import { responseSuccess } from "../../../helper/response.js";
-import moment from "moment";
 
 export const sendMessage = async (req, res) => {
     const { title, content, expire, type, partnerId } = req.body;

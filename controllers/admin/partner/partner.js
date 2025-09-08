@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import PartnerModel from '../../../models/Partner.js';
-import { responseSuccess, responseUnAutherized } from '../../../helper/response.js';
+import { responseBadRequest, responseSuccess, responseUnAutherized } from '../../../helper/response.js';
 import { partnerType } from '../../../const/type.js';
+import UserModel from '../../../models/User.js';
 
 // Build hierarchical tree from flat partner list
 const buildTree = (root) => {
@@ -40,8 +41,8 @@ const cleanData = (node, search) => {
             combinedBetRate: owner.combined_bet_rate || 0,
             matchNumberBetRate: owner.match_num_bet_rate || 0,
             betMoneyUnit: node.bet_money_unit,
-            holdingMoney: 0,
-            holdingPoint: 0
+            holdingMoney: owner.own_money || 0,
+            holdingPoint: owner.point || 0
         });
 
         node.members?.forEach(member => {
@@ -57,8 +58,8 @@ const cleanData = (node, search) => {
                 combinedBetRate: member.combined_bet_rate,
                 matchNumberBetRate: member.match_num_bet_rate,
                 betMoneyUnit: node.bet_money_unit,
-                holdingMoney: 0,
-                holdingPoint: 0
+                holdingMoney: member.own_money,
+                holdingPoint: member.point
             });
         });
     }
@@ -224,4 +225,32 @@ export const getPartnerList = async (req, res) => {
     const partner = buildTree(root)
 
     return responseSuccess(res, '', [partner])
+}
+
+export const deletePartner = async (req, res) => {
+    const { id, role } = req.query;
+
+    if (role == "user") {
+        await UserModel.deleteOne({ user_nickname: id })
+    }
+
+    responseSuccess(res)
+}
+
+export const increaseCash = async (req, res) => {
+    const { role, id, amount, currency } = req.body;
+
+    if (role === 'user') {
+        const user = await UserModel.findOne({ user_nickname: id });
+
+        if (!user || user.own_money < -amount) {
+            return responseBadRequest(res);
+        }
+
+        await UserModel.updateOne({ _id: user._id }, { own_money: Number(user.own_money) + amount });
+    } else {
+
+    }
+
+    responseSuccess(res)
 }

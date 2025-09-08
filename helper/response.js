@@ -14,7 +14,7 @@ export const responseNotFound = (res) => {
   });
 };
 
-export const responseBadRequest = (res, message = "", data) => {
+export const responseBadRequest = (res, message = "Invalid request!", data) => {
   return res.status(StatusCodes.BAD_REQUEST).send({
     message: message,
     data: data,
