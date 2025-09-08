@@ -1,6 +1,6 @@
 import isEmpty from "is-empty";
 import { responseSuccess } from "../../../helper/response.js"
-import GameSettingModel from "../../../models/game-setting.js"
+import GameSettingModel from "../../../models/GameSetting.js"
 
 export const getGameSetting = async (req, res) => {
     const { name } = req.query;

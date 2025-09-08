@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 
-const SiteSettingSchema = new Schema(
+const SettingSchema = new Schema(
     {
         siteActivation: {
             allow: { type: Boolean, default: true },
@@ -49,6 +49,6 @@ const SiteSettingSchema = new Schema(
     { timestamps: true }
 );
 
-const SiteSettingModel = mongoose.model("site_setting", SiteSettingSchema);
+const SettingModel = mongoose.model("setting", SettingSchema);
 
-export default SiteSettingModel;
+export default SettingModel;

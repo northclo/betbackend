@@ -1,13 +1,13 @@
 import isEmpty from "is-empty";
 import { responseSuccess } from "../../../helper/response.js";
-import SiteSettingModel from "../../../models/site-setting.js";
+import SettingModel from "../../../models/Setting.js";
 
 export const getSiteSetting = async (req, res) => {
-    const siteSetting = await SiteSettingModel.find();
+    const siteSetting = await SettingModel.find();
 
     let result;
     if (isEmpty(siteSetting)) {
-        result = await SiteSettingModel.create({})
+        result = await SettingModel.create({})
     } else {
         result = siteSetting;
     }
@@ -15,13 +15,13 @@ export const getSiteSetting = async (req, res) => {
 }
 
 export const updateSiteSetting = async (req, res) => {
-    const siteSetting = await SiteSettingModel.find();
+    const siteSetting = await SettingModel.find();
 
     if (isEmpty(siteSetting)) {
-        await SiteSettingModel.create(req.body);
+        await SettingModel.create(req.body);
         responseSuccess(res)
     } else {
-        await SiteSettingModel.updateOne({ _id: siteSetting[0]._id }, req.body);
+        await SettingModel.updateOne({ _id: siteSetting[0]._id }, req.body);
         responseSuccess(res)
     }
 }
