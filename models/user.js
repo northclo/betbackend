@@ -21,8 +21,8 @@ const UserSchema = new Schema(
         simple_bet_rate: { type: Number },
         combined_bet_rate: { type: Number },
         match_num_bet_rate: { type: Number },
-        own_money: { type: Number },
-        point: { type: Number },
+        own_money: { type: Number, default: 0 },
+        point: { type: Number, default: 0 },
         recommend_id: { type: String },
         user_status: {
             type: String,
@@ -36,7 +36,7 @@ const UserSchema = new Schema(
         },
         api_key: { type: String },
         consider_user: { type: Boolean },
-        login_status: { type: Boolean }
+        login_status: { type: Boolean, default: false }
     },
     { timestamps: true }
 );

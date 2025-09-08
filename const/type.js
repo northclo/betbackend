@@ -6,3 +6,8 @@ export const partnerType = {
     distributor: "distributor",
     store: "store"
 }
+
+export const messageType = {
+    groupMessasge: "groupMessage",
+    note: "note"
+}
