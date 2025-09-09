@@ -12,4 +12,6 @@ export const config = {
   GMAIL_PASS: process.env.GMAIL_PASS,
   HOTMAIL_USER: process.env.HOTMAIL_USER,
   HOTMAIL_PASS: process.env.HOTMAIL_PASS,
+  AUTH_KEY: process.env.AUTH_KEY,
+  ALLOW_IP: process.env.ALLOW_IP
 };
