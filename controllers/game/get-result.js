@@ -1,6 +1,7 @@
 import gameResultService from "../../services/gameResultService.js";
 
 export const getResultsByDate = async (req, res) => {
+    console.log('teststestet')
     try {
         const { date, mode } = req.query;
         if (!date) {
@@ -16,6 +17,7 @@ export const getResultsByDate = async (req, res) => {
 };
 
 export const getLatestResults = async (req, res) => {
+    console.log('teststestet')
     try {
         const results = await gameResultService.getLatestResults();
         res.status(200).json(results);
@@ -26,6 +28,7 @@ export const getLatestResults = async (req, res) => {
 };
 
 export const getResultsbyIndex = async (req, res) => {
+    console.log('teststestet')
     try {
         const { index, days } = req.query;
         if (!index) {
