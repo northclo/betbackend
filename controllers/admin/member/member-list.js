@@ -10,12 +10,12 @@ export const getMemberList = async (req, res) => {
     if (search && search.trim() !== "") {
         filter = {
             $or: [
-                { firstName: { $regex: search, $options: "i" } },
-                { lastName: { $regex: search, $options: "i" } },
-                { userName: { $regex: search, $options: "i" } },
-                { email: { $regex: search, $options: "i" } },
+                { first_name: { $regex: search, $options: "i" } },
+                { last_name: { $regex: search, $options: "i" } },
+                { user_name: { $regex: search, $options: "i" } },
+                { user_email: { $regex: search, $options: "i" } },
                 { company: { $regex: search, $options: "i" } },
-                { phoneNumber: { $regex: search, $options: "i" } },
+                { phone_number: { $regex: search, $options: "i" } },
             ]
         };
     }
