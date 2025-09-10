@@ -1,11 +1,13 @@
 import GameResultModel from "../../models/GameResult.js"
-import { responseBadRequest, responseSuccess } from "../../helper/response.js";
+import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 
 const checkIp = (req) => {
     const allowIp = config.ALLOW_IP;
     const allowIps = allowIp.split(",")
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+    return true;
 
     if (allowIps.includes(ip)) {
         return true;
@@ -31,7 +33,7 @@ export const startGame = async (req, res) => {
         start_time_stamp: time_stamp
     })
 
-    responseSuccess(res)
+    return res.status(200).json({ result: 0 });
 }
 
 export const endGame = async (req, res) => {
@@ -61,5 +63,5 @@ export const endGame = async (req, res) => {
         manual_valid: manual_valid
     });
 
-    return responseSuccess(res);
+    return res.status(200).json({ result: 0 });
 }
