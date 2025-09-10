@@ -57,12 +57,16 @@ const getResultsByDate = async (dateStr, mode) => {
 
   if (mode == "analyse") {
     results = await GameResults.find(
-      { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+      { 
+        createdAt: { $gte: startOfDay, $lte: endOfDay },
+        end_time_stamp: { $exists: true }
+      },
       { odd: 1, under: 1, _id: 0 }
     ).sort({ createdAt: 1 }); // optional sorting by time
   } else {
     results = await GameResults.find({
-      createdAt: { $gte: startOfDay, $lte: endOfDay }
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
+      end_time_stamp: { $exists: true }
     }).sort({ createdAt: -1 }); // optional sorting by time
   }
 
@@ -74,11 +78,17 @@ const getResultsbyIndex = async (index, days) => {
   let results;
   if (days == -1) {
     results = await GameResults.find(
-      { today_no: index },
+      { 
+        today_no: index,
+        end_time_stamp: { $exists: true }
+      },
     ).sort({ createdAt: -1 });
   } else {
     results = await GameResults.find(
-      { today_no: index },
+      { 
+        today_no: index,
+        end_time_stamp: { $exists: true }
+      },
     ).sort({ createdAt: -1 })
       .limit(days);
   }
@@ -88,13 +98,13 @@ const getResultsbyIndex = async (index, days) => {
 
 const getLatestResults = async () => {
 
-  const results = await GameResults.find()
-    .sort({ createdAt: -1 })
-    .limit(50); // optional sorting by time
+  const results = await GameResults.find(
+    { end_time_stamp: { $exists: true }}
+  ).sort({ createdAt: -1 })
+   .limit(50); // optional sorting by time
 
   return results;
 };
-
 
 
 export default { createTestData, getResultsByDate, getLatestResults, getResultsbyIndex };

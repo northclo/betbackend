@@ -4,10 +4,11 @@ import { config } from "../../config/index.js";
 
 const checkIp = (req) => {
     const allowIp = config.ALLOW_IP;
+    if(allowIp.length == 0) {
+        return true;
+    }
     const allowIps = allowIp.split(",")
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    return true;
 
     if (allowIps.includes(ip)) {
         return true;
