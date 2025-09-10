@@ -15,7 +15,7 @@ const checkIp = (req) => {
 }
 
 export const startGame = async (req, res) => {
-    if (!req.headers["autherization"] || req.headers["autherization"] !== config.AUTH_KEY) {
+    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) {
         return responseBadRequest(res)
     }
 
@@ -35,7 +35,7 @@ export const startGame = async (req, res) => {
 }
 
 export const endGame = async (req, res) => {
-    if (!req.headers["autherization"] || req.headers["autherization"] !== config.AUTH_KEY) {
+    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) {
         return responseBadRequest(res)
     }
 

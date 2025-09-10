@@ -5,11 +5,11 @@ import { responseServerError, responseUnAutherized } from "../helper/response.js
 
 export const checkAuth = (req, res, next) => {
   try {
-    if (!req.headers["autherization"]) {
+    if (!req.headers["authorization"]) {
       return responseUnAutherized(res);
     }
 
-    jwt.verify(req.headers["autherization"], config.JWT_SECRET_KEY, (err, decoded) => {
+    jwt.verify(req.headers["authorization"], config.JWT_SECRET_KEY, (err, decoded) => {
       if (err) {
         return responseUnAutherized(res);
       }
