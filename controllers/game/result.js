@@ -27,11 +27,22 @@ export const startGame = async (req, res) => {
 
     const { game_id, device_id, time_stamp } = req.body;
 
-    await GameResultModel.create({
-        game_id: game_id,
-        device_id: device_id,
-        start_time_stamp: time_stamp
-    })
+    const gameResult = await GameResultModel.findOne({ game_id: game_id });
+
+    if (gameResult) {
+        await GameResultModel.updateOne({ game_id: game_id },
+            {
+                device_id: device_id,
+                start_time_stamp: time_stamp
+            }
+        )
+    } else {
+        await GameResultModel.create({
+            game_id: game_id,
+            device_id: device_id,
+            start_time_stamp: time_stamp
+        })
+    }
 
     return res.status(200).json({ result: 0 });
 }
