@@ -1,9 +1,9 @@
 import express from "express";
 const router = express.Router();
 
-import pushGameResultRoute from './game/result.js';
+import serviceRoute from './service/index.js';
 
 // game Request
-router.use('/', pushGameResultRoute);
+router.use('/', serviceRoute);
 
 export default router;

@@ -21,6 +21,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map(origin => origin.trim())
   : [];
 
+  console.log("allowedOrigins-->", allowedOrigins.length);
 // Define Secure CORS config
 const secureCorsConfig = {
   origin: function (origin, callback) {
