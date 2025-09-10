@@ -7,7 +7,8 @@ const UserLoginHistorySchema = new Schema(
         login_date: { type: Number },
         ip_address: { type: String },
         location: { type: String },
-        device: { type: String }
+        device: { type: String },
+        mobile: { type: Boolean, default: false }
     },
     { timestamps: true }
 );

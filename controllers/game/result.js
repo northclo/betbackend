@@ -1,13 +1,10 @@
-import GameResultModel from "../../models/GameResult.js"
-import { responseBadRequest } from "../../helper/response.js";
+import gameResultService from "../../services/gameResultService.js";
 import { config } from "../../config/index.js";
 
 const checkIp = (req) => {
-    const allowIp = config.ALLOW_IP;
+    const allowIp = config.ALLOW_GAME_IP;
     const allowIps = allowIp.split(",")
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    return true;
 
     if (allowIps.includes(ip)) {
         return true;
@@ -16,63 +13,57 @@ const checkIp = (req) => {
     }
 }
 
-export const startGame = async (req, res) => {
-    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) {
-        return responseBadRequest(res)
+export const getResultsByDate = async (req, res) => {
+    try {
+        if (!checkIp(req)) {
+            return responseBadRequest(res);
+        }
+
+        const { date, mode } = req.query;
+        if (!date) {
+            return res.status(400).json({ error: "Date query parameter is required" });
+        }
+
+        const results = await gameResultService.getResultsByDate(date, mode);
+        res.status(200).json(results);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to get results" });
     }
+};
 
-    if (!checkIp(req)) {
-        return responseBadRequest(res);
+export const getLatestResults = async (req, res) => {
+    try {
+        if (!checkIp(req)) {
+            return responseBadRequest(res);
+        }
+
+        const results = await gameResultService.getLatestResults();
+        res.status(200).json(results);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to get results" });
     }
+};
 
-    const { game_id, device_id, time_stamp } = req.body;
+export const getResultsbyIndex = async (req, res) => {
+    try {
+        if (!checkIp(req)) {
+            return responseBadRequest(res);
+        }
 
-    const gameResult = await GameResultModel.findOne({ game_id: game_id });
+        const { index, days } = req.query;
+        if (!index) {
+            return res.status(400).json({ error: "index query parameter is required" });
+        }
+        if (!days) {
+            return res.status(400).json({ error: "days query parameter is required" });
+        }
 
-    if (gameResult) {
-        await GameResultModel.updateOne({ game_id: game_id },
-            {
-                device_id: device_id,
-                start_time_stamp: time_stamp
-            }
-        )
-    } else {
-        await GameResultModel.create({
-            game_id: game_id,
-            device_id: device_id,
-            start_time_stamp: time_stamp
-        })
+        const results = await gameResultService.getResultsbyIndex(index, days);
+        res.status(200).json(results);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Failed to get results" });
     }
-
-    return res.status(200).json({ result: 0 });
-}
-
-export const endGame = async (req, res) => {
-    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) {
-        return responseBadRequest(res)
-    }
-
-    if (!checkIp(req)) {
-        return responseBadRequest(res);
-    }
-
-    const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
-
-    const gameResult = await GameResultModel.findOne({ game_id: game_id });
-
-    if (!gameResult) {
-        return responseBadRequest(res);
-    }
-
-    await GameResultModel.updateOne({ game_id: game_id }, {
-        list: list,
-        total_no: total_no,
-        today_no: today_no,
-        end_time_stamp: time_stamp,
-        current_no: current_no,
-        device_id: device_id,
-        manual_valid: manual_valid
-    });
-
-    return res.status(200).json({ result: 0 });
-}
+};

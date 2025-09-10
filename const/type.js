@@ -1,7 +1,7 @@
 export const partnerType = {
     headquater: 'headquater',
-    branchOffice: 'branchOffice',
-    regionalOffice: 'regionalOffice',
+    branchOffice: 'branch_office',
+    regionalOffice: 'regional_office',
     agency: 'agency',
     distributor: 'distributor',
     store: 'store'
