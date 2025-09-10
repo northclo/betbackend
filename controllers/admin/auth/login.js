@@ -1,6 +1,5 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import geoip from "geoip-lite";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
@@ -30,5 +29,5 @@ export const login = async (req, res) => {
 
   const token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: "1h" });
 
-  return responseSuccess(res, "Login successful.", { token });
+  return responseSuccess(res, { token }, "Login successful.");
 };

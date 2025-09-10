@@ -31,8 +31,8 @@ export const resetPassword = async (req, res) => {
       password: hashedPassword,
     });
 
-    return responseSuccess(res, "Password reset successful");
+    return responseSuccess(res, {}, "Password reset successful");
   } catch (err) {
-    return responseBadRequest(res, "Invalid or expired token");
+    return responseBadRequest(res, {}, "Invalid or expired token");
   }
 };

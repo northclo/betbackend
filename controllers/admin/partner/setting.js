@@ -13,7 +13,7 @@ export const getGameSetting = async (req, res) => {
         result = gameSetting
     }
 
-    responseSuccess(res, '', result)
+    responseSuccess(res, result)
 }
 
 export const updateGameSetting = async (req, res) => {

@@ -1,6 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 
-export const responseSuccess = (res, message = "", data) => {
+export const responseSuccess = (res, data, message = "") => {
   return res.status(StatusCodes.OK).send({
     message: message,
     data: data,
@@ -14,10 +14,10 @@ export const responseNotFound = (res) => {
   });
 };
 
-export const responseBadRequest = (res, message = "Invalid request!", data) => {
+export const responseBadRequest = (res, message = "Invalid request!") => {
   return res.status(StatusCodes.BAD_REQUEST).send({
     message: message,
-    data: data,
+    data: {},
   });
 };
 

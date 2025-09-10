@@ -21,7 +21,7 @@ export const getMemberList = async (req, res) => {
     }
 
     let users = await UserModel.find(filter).sort({ _id: -1 });
-    return responseSuccess(res, "", users);
+    return responseSuccess(res, users);
 };
 
 export const updateMemberList = async (req, res) => {

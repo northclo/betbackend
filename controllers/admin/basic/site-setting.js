@@ -11,7 +11,7 @@ export const getSiteSetting = async (req, res) => {
     } else {
         result = siteSetting;
     }
-    responseSuccess(res, '', result);
+    responseSuccess(res, result);
 }
 
 export const updateSiteSetting = async (req, res) => {

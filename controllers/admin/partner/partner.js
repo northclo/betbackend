@@ -1,8 +1,7 @@
 import mongoose from 'mongoose';
 import PartnerModel from '../../../models/Partner.js';
-import { responseBadRequest, responseSuccess, responseUnAutherized } from '../../../helper/response.js';
-import { partnerType } from '../../../const/type.js';
 import UserModel from '../../../models/User.js';
+import { responseBadRequest, responseSuccess } from '../../../helper/response.js';
 
 // Build hierarchical tree from flat partner list
 const buildTree = (root) => {
@@ -29,6 +28,7 @@ const cleanData = (node, search) => {
 
     if (matchesSearch) {
         const owner = node.owner?.[0] || {};
+
         data.push({
             role: node.role,
             nickname: node.nickname,
@@ -42,7 +42,7 @@ const cleanData = (node, search) => {
             matchNumberBetRate: owner.match_num_bet_rate || 0,
             betMoneyUnit: node.bet_money_unit,
             holdingMoney: owner.own_money || 0,
-            holdingPoint: owner.point || 0
+            holdingPoint: owner.point || 0,
         });
 
         node.members?.forEach(member => {
@@ -76,13 +76,10 @@ export const getPartner = async (req, res) => {
     const { search = '' } = req.query;
     const userId = req.session._id;
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) return responseUnAutherized(res);
-
     const results = await PartnerModel.aggregate([
         {
             $match: {
                 user_id: new mongoose.Types.ObjectId(userId),
-                role: partnerType.headquater,
             }
         },
         {
@@ -155,7 +152,7 @@ export const getPartner = async (req, res) => {
         { $replaceRoot: { newRoot: '$root' } }
     ]);
 
-    if (!results.length) return responseSuccess(res, '', []);
+    if (!results.length) return responseSuccess(res, []);
 
     const root = results[0];
     root.owner = root.allPartners.owner;
@@ -164,7 +161,7 @@ export const getPartner = async (req, res) => {
     const partnerTree = buildTree(root);
     const data = cleanData(partnerTree, search);
 
-    responseSuccess(res, '', data);
+    responseSuccess(res, data);
 };
 
 // Clean and flatten data for response
@@ -205,7 +202,6 @@ export const getPartnerList = async (req, res) => {
         {
             $match: {
                 user_id: new mongoose.Types.ObjectId(userId),
-                role: partnerType.headquater,
             }
         },
         {
@@ -219,12 +215,12 @@ export const getPartnerList = async (req, res) => {
         },
     ])
 
-    if (!results.length) return responseSuccess(res, '', [])
+    if (!results.length) return responseSuccess(res, [])
 
     const root = results[0];
     const partner = buildTree(root)
 
-    return responseSuccess(res, '', [partner])
+    return responseSuccess(res, [partner])
 }
 
 export const deletePartner = async (req, res) => {
@@ -232,6 +228,8 @@ export const deletePartner = async (req, res) => {
 
     if (role == "user") {
         await UserModel.deleteOne({ user_nickname: id })
+    } else {
+        await PartnerModel.deleteOne({ role: role, partner_id: id })
     }
 
     responseSuccess(res)
