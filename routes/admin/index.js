@@ -7,11 +7,13 @@ import partnerRoute from './partner.js';
 import memberRoute from "./member.js";
 import gameSettingRoute from './game-setting.js';
 import siteSettingRoute from './site-setting.js';
+import gameRoute from './game.js'
 
 router.use("/auth", authRoute);
 router.use("/member", checkAuth, memberRoute);
 router.use("/partner", checkAuth, partnerRoute);
 router.use('/game-setting', checkAuth, gameSettingRoute);
 router.use('/site-setting', checkAuth, siteSettingRoute);
+router.use('/game', checkAuth, gameRoute)
 
 export default router;
