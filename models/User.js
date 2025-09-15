@@ -4,7 +4,6 @@ import { userStatus } from "../const/status.js";
 
 const UserSchema = new Schema(
     {
-        user_id: { type: String },
         user_nickname: { type: String, required: true },
         user_email: { type: String, required: true },
         password: { type: String },
