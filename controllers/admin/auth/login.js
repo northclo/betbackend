@@ -4,6 +4,7 @@ import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { config } from "../../../config/index.js";
+import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -26,6 +27,14 @@ export const login = async (req, res) => {
   if (partner && !partner.dashboard_access_permission) {
     return responseBadRequest(res, "Access denied.");
   }
+
+  await UserLoginHistoryModel.create({
+    user_id: user._id,
+    ip_address: '203.3.3.3',
+    login_date: Date.now(),
+    device: 'D2',
+    location: "Japan"
+  })
 
   const token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: "1h" });
 

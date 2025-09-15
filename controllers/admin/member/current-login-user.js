@@ -124,6 +124,12 @@ export const getCurrentLoginUser = async (req, res) => {
         },
     });
 
+    aggregation.push({
+        $match: {
+            "last_login_history.login_status": true, // only currently logged-in users
+        },
+    });
+
     const users = await UserModel.aggregate(aggregation);
     const blockIps = await BlockIpModel.find();
     const blockIpSet = new Set(blockIps.map(ip => ip.ip_address));

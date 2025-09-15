@@ -6,6 +6,7 @@ import { createMemberList, deleteMemberList, getMemberList, updateMemberList } f
 import { getMemberLoginInformation } from "../../controllers/admin/member/login-information.js";
 import { blockIp } from "../../controllers/admin/member/block-ip.js";
 import { getCurrentLoginUser } from "../../controllers/admin/member/current-login-user.js";
+import { logoutUser } from "../../controllers/admin/member/logout-user.js";
 
 router.get("/list", catchError(getMemberList));
 router.post('/list', catchError(updateMemberList))
@@ -13,6 +14,7 @@ router.put('/list', catchError(createMemberList))
 router.delete('/list/:id', catchError(deleteMemberList));
 router.get('/login', catchError(getMemberLoginInformation));
 router.put('/block-ip', catchError(blockIp));
-router.get('/current-login', catchError(getCurrentLoginUser))
+router.get('/current-login', catchError(getCurrentLoginUser));
+router.post('/logout', catchError(logoutUser))
 
 export default router;
