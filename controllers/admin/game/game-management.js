@@ -28,8 +28,10 @@ export const getGameManagement = async (req, res) => {
             gameStatus = 'r';
         } else if (element.start_time_stamp < Date.now() && Date.now() < element.end_time_stamp) {
             gameStatus = 's';
-        } else if (element.end_time_stamp < Date.now()) {
+        } else if (element.cancel_time_stamp && element.end_time_stamp < Date.now() && Date.now() < element.cancel_time_stamp) {
             gameStatus = 'e'
+        } else if (!element.cancel_time_stamp) {
+            gameStatus = 'f'
         }
         result.push({
             total_no: element.total_no,
