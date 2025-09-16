@@ -6,7 +6,7 @@ export const getCurrentLoginUser = async (req, res) => {
     const { start_date, end_date, search_field, search, user_status } = req.query;
 
     // USER filter
-    let filter = {};
+    let filter = { login_status: true };
     if ((search_field === "user_id" || search_field === "user_nickname") && search) {
         filter["user_nickname"] = { $regex: search, $options: "i" };
     }
@@ -121,12 +121,6 @@ export const getCurrentLoginUser = async (req, res) => {
             own_partner: { $arrayElemAt: ["$own_partners", -1] },
             partner: { $arrayElemAt: ["$partners", -1] },
             last_login_history: { $arrayElemAt: ["$login_history", -1] },
-        },
-    });
-
-    aggregation.push({
-        $match: {
-            "last_login_history.login_status": true, // only currently logged-in users
         },
     });
 
