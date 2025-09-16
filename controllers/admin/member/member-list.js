@@ -1,28 +1,404 @@
 import bcrypt from 'bcrypt';
 
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess } from "../../../helper/response.js";
 
 export const getMemberList = async (req, res) => {
-    let { search } = req.query;
+    let {
+        duration,
+        startDate,
+        endDate,
+        userStatus,
+        partner,
+        includeSub,
+        searchField,
+        search,
+        currentLoggedinUser,
+        considerUser,
+        sort
+    } = req.query;
+
+    // normalize dates
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(new Date(endDate).setHours(23, 59, 59, 999)) : null;
 
     let filter = {};
-    if (search && search.trim() !== "") {
-        filter = {
-            $or: [
-                { first_name: { $regex: search, $options: "i" } },
-                { last_name: { $regex: search, $options: "i" } },
-                { user_name: { $regex: search, $options: "i" } },
-                { user_email: { $regex: search, $options: "i" } },
-                { company: { $regex: search, $options: "i" } },
-                { phone_number: { $regex: search, $options: "i" } },
-            ]
-        };
+
+    // user_status filter
+    if (userStatus) {
+        filter.user_status = userStatus;
     }
 
-    let users = await UserModel.find(filter).sort({ _id: -1 });
-    return responseSuccess(res, users);
+    // current logged-in users filter
+    if (currentLoggedinUser === "true") {
+        filter.login_status = true;
+    }
+
+    // consider_user filter
+    if (considerUser === "true") {
+        filter.consider_user = true;
+    }
+
+    // handle partner filter (with includeSub)
+    let partnerIds = [];
+    if (partner) {
+        if (includeSub === "true") {
+            const rootPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
+            if (rootPartners.length) {
+                const roots = rootPartners.map(p => p._id);
+                const subTree = await PartnerModel.aggregate([
+                    {
+                        $match: { _id: { $in: roots } }
+                    },
+                    {
+                        $graphLookup: {
+                            from: "partners",
+                            startWith: "$_id",
+                            connectFromField: "_id",
+                            connectToField: "parent_partner_id",
+                            as: "all_subs"
+                        }
+                    }
+                ]);
+                partnerIds = [
+                    ...roots,
+                    ...subTree.flatMap(d => (d.all_subs || []).map(sp => sp._id))
+                ];
+            }
+        } else {
+            const directPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
+            partnerIds = directPartners.map(p => p._id);
+        }
+
+        if (partnerIds.length) {
+            filter.$or = [
+                { partner_id: { $in: partnerIds } },
+                { own_partner_id: { $in: partnerIds } }
+            ];
+        } else {
+            // no partners found -> return empty result
+            filter.$and = filter.$and || [];
+            filter.$and.push({ _id: { $exists: false } });
+        }
+    }
+
+    // flags for duration logic (only when dates present)
+    const isCreatedDate = duration === "created_date" && (start || end);
+    const isPasswordChangedDate = duration === "password_changed_date" && (start || end);
+    const isConnectedDate = duration === "connected_date" && (start || end);
+    const isImportExchangeBetting = duration === "import_exchange_betting" && (start || end);
+    const isLastImportDate = duration === "last_import_date" && (start || end);
+
+    // apply user-level date filters
+    if (isCreatedDate) {
+        if (start) filter.createdAt = { ...(filter.createdAt || {}), $gte: start };
+        if (end) filter.createdAt = { ...(filter.createdAt || {}), $lte: end };
+    }
+
+    if (isPasswordChangedDate) {
+        if (start) filter.password_change_time = { ...(filter.password_change_time || {}), $gte: start.getTime() };
+        if (end) filter.password_change_time = { ...(filter.password_change_time || {}), $lte: end.getTime() };
+    }
+
+    // build aggregate pipeline
+    const pipeline = [
+        { $match: filter },
+
+        // join partner references
+        {
+            $lookup: {
+                from: "partners",
+                localField: "own_partner_id",
+                foreignField: "_id",
+                as: "own_partners"
+            }
+        },
+        {
+            $lookup: {
+                from: "partners",
+                localField: "partner_id",
+                foreignField: "_id",
+                as: "partners"
+            }
+        },
+
+        // lookup last login (array) — we'll extract scalar last_login_time next
+        {
+            $lookup: {
+                from: "user_login_histories",
+                let: { userId: "$_id" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$user_id", "$$userId"] } } },
+                    { $sort: { createdAt: -1 } },
+                    { $limit: 1 },
+                    { $project: { createdAt: 1 } }
+                ],
+                as: "login_history"
+            }
+        },
+
+        // make scalar last_login_time for reliable filtering & sorting
+        {
+            $addFields: {
+                last_login_time: { $arrayElemAt: ["$login_history.createdAt", 0] }
+            }
+        },
+
+        // unwind login_history for cases where we need to preserve/exclude docs by connected_date
+        {
+            $unwind: {
+                path: "$login_history",
+                preserveNullAndEmptyArrays: !isConnectedDate
+            }
+        },
+
+        // join last import transaction (IMPORT + COMPLETE) — to expose last_import_time
+        {
+            $lookup: {
+                from: "transaction_histories",
+                let: { userId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $eq: ["$user_id", "$$userId"] },
+                                    { $eq: ["$fund_type", "IMPORT"] },
+                                    { $eq: ["$fund_status", "COMPLETE"] }
+                                ]
+                            }
+                        }
+                    },
+                    { $sort: { createdAt: -1 } },
+                    { $limit: 1 },
+                    { $project: { createdAt: 1 } }
+                ],
+                as: "last_import"
+            }
+        },
+        {
+            $addFields: {
+                last_import_time: { $ifNull: [{ $arrayElemAt: ["$last_import.createdAt", 0] }, null] }
+            }
+        },
+
+        // betting stats (earning, wins, betting amount)
+        {
+            $lookup: {
+                from: "betting_results",
+                let: { userId: "$_id" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$user_id", "$$userId"] } } },
+                    {
+                        $group: {
+                            _id: null,
+                            totalEarningAmount: { $sum: "$earning_amount" },
+                            totalWinCount: { $sum: { $cond: [{ $eq: ["$win", 1] }, 1, 0] } },
+                            totalBettingAmount: { $sum: "$bet_amount" }
+                        }
+                    }
+                ],
+                as: "betting_stats"
+            }
+        },
+        {
+            $addFields: {
+                totalEarningAmount: { $ifNull: [{ $arrayElemAt: ["$betting_stats.totalEarningAmount", 0] }, 0] },
+                totalWinCount: { $ifNull: [{ $arrayElemAt: ["$betting_stats.totalWinCount", 0] }, 0] },
+                totalBettingAmount: { $ifNull: [{ $arrayElemAt: ["$betting_stats.totalBettingAmount", 0] }, 0] }
+            }
+        },
+
+        // transaction totals (group by fund_type)
+        {
+            $lookup: {
+                from: "transaction_histories",
+                let: { userId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$user_id", "$$userId"] },
+                            fund_status: "COMPLETE"
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: "$fund_type",
+                            totalAmount: { $sum: "$fund_amount" }
+                        }
+                    }
+                ],
+                as: "transaction_totals"
+            }
+        },
+        {
+            $addFields: {
+                totalImportAmount: {
+                    $ifNull: [
+                        {
+                            $let: {
+                                vars: {
+                                    importTotal: {
+                                        $arrayElemAt: [
+                                            {
+                                                $filter: {
+                                                    input: "$transaction_totals",
+                                                    cond: { $eq: ["$$this._id", "IMPORT"] }
+                                                }
+                                            },
+                                            0
+                                        ]
+                                    }
+                                },
+                                in: "$$importTotal.totalAmount"
+                            }
+                        },
+                        0
+                    ]
+                },
+                totalExchangeAmount: {
+                    $ifNull: [
+                        {
+                            $let: {
+                                vars: {
+                                    exchangeTotal: {
+                                        $arrayElemAt: [
+                                            {
+                                                $filter: {
+                                                    input: "$transaction_totals",
+                                                    cond: { $eq: ["$$this._id", "EXCHANGE"] }
+                                                }
+                                            },
+                                            0
+                                        ]
+                                    }
+                                },
+                                in: "$$exchangeTotal.totalAmount"
+                            }
+                        },
+                        0
+                    ]
+                }
+            }
+        },
+
+        // compute total partner earning: sum earnings of members whose partner_id === this user's own_partner_id
+        {
+            $lookup: {
+                from: "users",
+                let: { partnerId: "$own_partner_id" },
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$partner_id", "$$partnerId"] } } },
+                    {
+                        $lookup: {
+                            from: "betting_results",
+                            let: { memberId: "$_id" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: ["$user_id", "$$memberId"] } } },
+                                { $group: { _id: null, memberEarning: { $sum: "$earning_amount" } } }
+                            ],
+                            as: "member_earnings"
+                        }
+                    },
+                    {
+                        $addFields: {
+                            memberEarning: { $ifNull: [{ $arrayElemAt: ["$member_earnings.memberEarning", 0] }, 0] }
+                        }
+                    },
+                    { $group: { _id: null, partnerTotalEarning: { $sum: "$memberEarning" } } }
+                ],
+                as: "partner_earnings"
+            }
+        },
+        {
+            $addFields: {
+                totalPartnerEarning: { $ifNull: [{ $arrayElemAt: ["$partner_earnings.partnerTotalEarning", 0] }, 0] }
+            }
+        }
+    ];
+
+    // connected_date filter (use scalar last_login_time)
+    if (isConnectedDate) {
+        const loginMatch = {};
+        if (start) loginMatch["last_login_time"] = { ...(loginMatch["last_login_time"] || {}), $gte: start };
+        if (end) loginMatch["last_login_time"] = { ...(loginMatch["last_login_time"] || {}), $lte: end };
+        if (Object.keys(loginMatch).length) pipeline.push({ $match: loginMatch });
+    }
+
+    // last_import_date filter (date restriction on last_import_time)
+    if (isLastImportDate) {
+        const importMatch = {};
+        if (start) importMatch["last_import_time"] = { ...(importMatch["last_import_time"] || {}), $gte: start };
+        if (end) importMatch["last_import_time"] = { ...(importMatch["last_import_time"] || {}), $lte: end };
+        if (Object.keys(importMatch).length) pipeline.push({ $match: importMatch });
+    }
+
+    // import_exchange_betting filter (only when duration & dates exist)
+    if (isImportExchangeBetting) {
+        pipeline.push({
+            $lookup: {
+                from: "transaction_histories",
+                let: { userId: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$user_id", "$$userId"] },
+                            fund_status: "COMPLETE",
+                            fund_type: { $in: ["IMPORT", "EXCHANGE"] }
+                        }
+                    },
+                    {
+                        $match: {
+                            ...(start ? { createdAt: { $gte: start } } : {}),
+                            ...(end ? { createdAt: { $lte: end } } : {})
+                        }
+                    }
+                ],
+                as: "import_exchange"
+            }
+        });
+        pipeline.push({ $match: { import_exchange: { $ne: [] } } });
+    }
+
+    // sorting logic (supports optional direction after colon, e.g. sort=created_date:asc)
+    if (sort) {
+        let sortStage = {};
+        switch (sort) {
+            case "created_date":
+                sortStage = { createdAt: -1 };
+                break;
+            case "owned_money":
+                sortStage = { own_money: -1 };
+                break;
+            case "owned_point":
+                sortStage = { point: -1 };
+                break;
+            case "connect_date":
+                sortStage = { last_login_time: -1 }; // use scalar field
+                break;
+            case "import_money":
+                sortStage = { totalImportAmount: -1 };
+                break;
+            case "exchange_money":
+                sortStage = { totalExchangeAmount: -1 };
+                break;
+            default:
+                sortStage = {};
+        }
+
+        console.log(sortStage)
+
+        if (Object.keys(sortStage).length) {
+            pipeline.push({ $sort: sortStage });
+        }
+    }
+
+    const users = await UserModel.aggregate(pipeline);
+
+    responseSuccess(res, users);
 };
+
 
 export const updateMemberList = async (req, res) => {
     if (req.body.password) {

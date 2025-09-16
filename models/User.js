@@ -8,8 +8,6 @@ const UserSchema = new Schema(
         user_email: { type: String, required: true },
         password: { type: String },
         user_name: { type: String },
-        user_first_name: { type: String },
-        user_last_name: { type: String },
         partner_id: { type: mongoose.Types.ObjectId },
         own_partner_id: { type: mongoose.Types.ObjectId },
         phone_number: { type: String },
@@ -24,6 +22,7 @@ const UserSchema = new Schema(
         own_money: { type: Number, default: 0 },
         point: { type: Number, default: 0 },
         recommend_id: { type: String },
+        password_change_time: { type: Number },
         user_status: {
             type: String,
             enum: [userStatus.wait, userStatus.normal, userStatus.stop, userStatus.cancel, userStatus.danger, userStatus.tester],

@@ -71,7 +71,6 @@ io.on("connection", (socket) => {
       const userId = await onlineUser(userToken, true);
       onlineUsers.set(userId, socket.id);
     } catch (err) {
-      console.error("Error setting user online:", err.message);
     }
   });
 
@@ -81,7 +80,6 @@ io.on("connection", (socket) => {
       const userId = await onlineUser(userToken, false);
       onlineUsers.delete(userId);
     } catch (err) {
-      console.error("Error setting user offline:", err.message);
     }
   });
 
