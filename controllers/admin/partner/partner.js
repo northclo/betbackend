@@ -236,19 +236,36 @@ export const deletePartner = async (req, res) => {
 }
 
 export const increaseCash = async (req, res) => {
-    const { role, id, amount, currency } = req.body;
+    const { role, id, amount } = req.body;
+    console.log(req.body)
 
-    if (role === 'user') {
-        const user = await UserModel.findOne({ user_nickname: id });
-
-        if (!user || user.own_money < -amount) {
-            return responseBadRequest(res);
-        }
-
-        await UserModel.updateOne({ _id: user._id }, { own_money: Number(user.own_money) + amount });
-    } else {
-
+    if (typeof amount !== "number") {
+        return responseBadRequest(res, "Invalid amount");
     }
 
-    responseSuccess(res)
-}
+    let user;
+
+    if (role === "user") {
+        user = await UserModel.findOne({ user_nickname: id });
+        if (!user) return responseBadRequest(res, "User not found");
+
+    } else {
+        const partner = await PartnerModel.findOne({ partner_id: id });
+        if (!partner) return responseBadRequest(res, "Partner not found");
+
+        user = await UserModel.findOne({ own_partner_id: partner._id });
+        if (!user) return responseBadRequest(res, "Linked user not found");
+    }
+
+    // Prevent balance from going below zero
+    if (user.own_money + amount < 0) {
+        return responseBadRequest(res, "Insufficient funds");
+    }
+
+    await UserModel.updateOne(
+        { _id: user._id },
+        { $inc: { own_money: amount } } // cleaner than Number(user.own_money) + amount
+    );
+
+    return responseSuccess(res);
+};
