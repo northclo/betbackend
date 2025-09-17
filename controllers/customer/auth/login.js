@@ -1,4 +1,3 @@
-import isEmpty from "is-empty";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -7,23 +6,22 @@ import { responseBadRequest, responseSuccess } from "../../../helper/response.js
 import { config } from "../../../config/index.js";
 
 export const login = async (req, res) => {
-  // get user from db
+  const { email, password } = req.body;
+
   let user = await UserModel.findOne({
-    email: req.body.email,
+    user_email: email,
   });
 
-  // if cannot find user
-  if (isEmpty(user)) {
-    return responseBadRequest(res, "cannot find user");
+  if (!user) {
+    return responseBadRequest(res, "Cannot find user");
   }
 
-  // check if password is correct
-  let isMatch = await bcrypt.compare(req.body.password, user.password);
+  let isMatch = await bcrypt.compare(password, user.password);
 
-  if (isMatch) {
-    let token = jwt.sign({ token: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
-    responseSuccess(res, { token: token });
-  } else {
-    responseBadRequest(res, "password isn't correct!");
+  if (!isMatch) {
+    return responseBadRequest(res, "Password isn't correct!");
   }
+
+  let token = jwt.sign({ token: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
+  responseSuccess(res, token);
 };
