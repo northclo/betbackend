@@ -194,7 +194,7 @@ export const getMemberList = async (req, res) => {
                         $group: {
                             _id: null,
                             totalEarningAmount: { $sum: "$earning_amount" },
-                            totalWinCount: { $sum: { $cond: [{ $eq: ["$win", 1] }, 1, 0] } },
+                            totalWinCount: { $sum: { $cond: [{ $eq: ["$win", true] }, 1, 0] } },
                             totalBettingAmount: { $sum: "$bet_amount" }
                         }
                     }
