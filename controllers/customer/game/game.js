@@ -10,23 +10,18 @@ export const getGameInitInfo = async (req, res) => {
     const userId = req.session._id;
 
     const user = await UserModel.findOne({ _id: userId });
-
     if (!user) {
         return responseUnAutherized(res)
     }
 
     const partnerId = user.own_partner_id || user.partner_id || ''
-
     if (!partnerId) {
         return responseBadRequest(res);
     }
 
     const partner = await PartnerModel.findOne({ _id: partnerId });
-
     const gameSetting = await GameSettingModel.find();
-
     const option = gameSetting[0]?.option.filter(item => item.name == partner.bet_rate_type);
-
     const game = await GameResultModel.find({ end_time_stamp: { $exists: false } }).sort({ createdAt: -1 });
     const pendingBet = await BettingResultModel.find({ user_id: userId, win: { $exists: false } }).select({
         _id: 1,
