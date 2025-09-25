@@ -387,8 +387,6 @@ export const getMemberList = async (req, res) => {
                 sortStage = {};
         }
 
-        console.log(sortStage)
-
         if (Object.keys(sortStage).length) {
             pipeline.push({ $sort: sortStage });
         }

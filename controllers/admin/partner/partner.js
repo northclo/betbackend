@@ -237,7 +237,6 @@ export const deletePartner = async (req, res) => {
 
 export const increaseCash = async (req, res) => {
     const { role, id, amount } = req.body;
-    console.log(req.body)
 
     if (typeof amount !== "number") {
         return responseBadRequest(res, "Invalid amount");

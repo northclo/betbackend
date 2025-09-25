@@ -22,6 +22,6 @@ export const login = async (req, res) => {
     return responseBadRequest(res, "Password isn't correct!");
   }
 
-  let token = jwt.sign({ token: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
-  responseSuccess(res, token);
+  let token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
+  responseSuccess(res, { token });
 };

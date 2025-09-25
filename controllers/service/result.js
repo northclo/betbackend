@@ -1,6 +1,7 @@
 import GameResultModel from "../../models/GameResult.js"
 import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
+import { io } from '../../server.js'
 
 const checkIp = (req) => {
     const allowIp = config.ALLOW_IP;
@@ -62,6 +63,8 @@ export const endGame = async (req, res) => {
         odd: odd,
         under: under
     });
+
+    io.emit('end_game');
 
     return res.status(200).json({ result: 0 });
 }

@@ -14,7 +14,7 @@ export const checkAuth = (req, res, next) => {
         return responseUnAutherized(res);
       }
 
-      req.session = { _id: decoded.id };
+      req.session._id = decoded.id;
       next();
     });
   } catch (error) {
