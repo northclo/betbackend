@@ -28,8 +28,6 @@ export const getGameInitInfo = async (req, res) => {
     const option = gameSetting[0]?.option.filter(item => item.name == partner.bet_rate_type);
 
     const game = await GameResultModel.find({ end_time_stamp: { $exists: false } }).sort({ createdAt: -1 });
-    // const _game = await GameResultModel.findOne({ _id: '68c40bdb87e94d503f8822e3' });
-    // const game = [_game]
     const pendingBet = await BettingResultModel.find({ user_id: userId, win: { $exists: false } }).select({
         _id: 1,
         game_id: 1,
