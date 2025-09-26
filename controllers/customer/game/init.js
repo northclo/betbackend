@@ -1,10 +1,9 @@
-import { responseBadRequest, responseSuccess, responseUnAutherized } from "../../../helper/response.js"
 import BettingResultModel from "../../../models/BettingResult.js";
 import GameResultModel from "../../../models/GameResult.js";
 import GameSettingModel from "../../../models/GameSetting.js";
 import PartnerModel from "../../../models/Partner.js";
 import UserModel from "../../../models/User.js";
-import { io } from '../../../server.js'
+import { responseBadRequest, responseSuccess, responseUnAutherized } from "../../../helper/response.js"
 
 export const getGameInitInfo = async (req, res) => {
     const userId = req.session._id;
@@ -31,8 +30,6 @@ export const getGameInitInfo = async (req, res) => {
         bet_amount: 1,
         number_sort: 1,
     }).sort({ createdAt: -1 });
-
-    io.emit('end_game')
 
     responseSuccess(res, {
         option: {
