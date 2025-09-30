@@ -34,8 +34,8 @@ export const startGame = async (req, res) => {
         await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
-            start_time_stamp: getCurrentTime() + 182000
-            // start_time_stamp: time_stamp
+            // start_time_stamp: getCurrentTime() + 182000
+            start_time_stamp: time_stamp
         })
     }
 
