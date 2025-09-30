@@ -1,9 +1,15 @@
 import BettingResultModel from "../../../models/BettingResult.js";
-import { responseServerError, responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseServerError, responseSuccess } from "../../../helper/response.js";
+import UserModel from "../../../models/User.js";
 
 export const StartGame = async (req, res) => {
     const { game_id, bettingType, bettingAmount, bettingRate, numberSort } = req.body;
     const userId = req.session._id;
+
+    const user = await UserModel.findOne({ _id: userId });
+    if (user.own_money < bettingAmount) {
+        return responseBadRequest(res, 'Not enough balance')
+    }
 
     const result = await BettingResultModel.create({
         user_id: userId,
@@ -12,6 +18,11 @@ export const StartGame = async (req, res) => {
         betting_rate: bettingRate,
         bet_amount: bettingAmount,
         number_sort: numberSort
+    });
+
+
+    await UserModel.updateOne({ _id: userId }, {
+        own_money: user.own_money - bettingAmount
     })
 
     if (result) {
