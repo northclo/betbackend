@@ -3,13 +3,12 @@ import { responseBadRequest, responseSuccess } from "../../../helper/response.js
 
 export const cancelGame = async (req, res) => {
     const { id } = req.body
-    const userId = req.session._id;
 
     const result = await BettingResultModel.deleteOne({ _id: id });
 
     if (result.deletedCount > 0) {
         return responseSuccess(res);
     } else {
-        return responseBadRequest(res); 0
+        return responseBadRequest(res);
     }
 }

@@ -1,59 +1,60 @@
-import BettingResultModel from "../../../models/BettingResult.js";
-import GameResultModel from "../../../models/GameResult.js";
-import GameSettingModel from "../../../models/GameSetting.js";
-import PartnerModel from "../../../models/Partner.js";
 import UserModel from "../../../models/User.js";
-import { responseBadRequest, responseSuccess, responseUnAutherized } from "../../../helper/response.js"
+import { responseSuccess } from "../../../helper/response.js";
+import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
+import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
+import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
+import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
+import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
 
 export const getGameInitInfo = async (req, res) => {
+    console.log(getCurrentTime())
+    const { gameId } = req.query;
     const userId = req.session._id;
 
     const user = await UserModel.findOne({ _id: userId });
-    if (!user) {
-        return responseUnAutherized(res)
-    }
 
-    const partnerId = user.own_partner_id || user.partner_id || ''
-    if (!partnerId) {
-        return responseBadRequest(res);
-    }
-
-    const partner = await PartnerModel.findOne({ _id: partnerId });
-    const gameSetting = await GameSettingModel.find();
-    const option = gameSetting[0]?.option.filter(item => item.name == partner.bet_rate_type);
-    const game = await GameResultModel.find({ end_time_stamp: { $exists: false } }).sort({ createdAt: -1 });
-    const pendingBet = await BettingResultModel.find({ user_id: userId, win: { $exists: false } }).select({
-        _id: 1,
-        game_id: 1,
-        betting_type: 1,
-        betting_rate: 1,
-        bet_amount: 1,
-        number_sort: 1,
-    }).sort({ createdAt: -1 });
-
-    responseSuccess(res, {
-        option: {
-            odd: option[0].odd,
-            even: option[0].even,
-            under: option[0].under,
-            over: option[0].over,
-            odd_under: option[0].odd_under,
-            odd_over: option[0].odd_over,
-            even_under: option[0].even_under,
-            even_over: option[0].even_over,
-            match_number1: option[0].match_number1,
-            match_number2: option[0].match_number2,
-            match_number3: option[0].match_number3,
-        },
-        game: {
-            id: game[0].game_id,
-            today_no: game[0].today_no || 123,
-            total_no: game[0].total_no || 1123,
-            remain_time: Math.floor((game[0].start_time_stamp - Date.now()) / 1000) + 918480,
-        },
-        pendingBet: pendingBet,
-        user: {
-            own_money: user.own_money
+    let game;
+    if (gameId) {
+        const result = await getGameWithBettingHistory(gameId);
+        game = result.game;
+    } else {
+        const availableGame = await getAvailableGame();
+        if (availableGame.length > 0) {
+            game = availableGame[0];
+        } else {
+            game = await getLastGame();
         }
-    })
-}
+    }
+
+    const _gameId = game.game_id;
+
+    const { bettingHistory } = await getGameWithBettingHistory(_gameId, userId);
+    const aroundGameId = await getAroundGameId(_gameId);
+    const lastGame = await getLastGame();
+
+    const todayNo = (game.list?.length === 0) ? lastGame.today_no + 1 : game.today_no;
+    const totalNo = (game.list?.length === 0) ? lastGame.total_no + 1 : game.total_no;
+
+    let remainTime = 0;
+    if (!gameId || (await getAvailableGame()).length > 0) {
+        const pendingGame = await getAvailableGame();
+        remainTime = Math.floor((pendingGame[0]?.start_time_stamp - getCurrentTime()) / 1000) || 0;
+    }
+
+    return responseSuccess(res, {
+        game: {
+            id: _gameId,
+            list: game.list || [],
+            odd: game.odd,
+            under: game.under,
+            today_no: todayNo,
+            total_no: totalNo,
+            remain_time: remainTime,
+        },
+        aroundGameId,
+        pendingBet: bettingHistory,
+        user: {
+            own_money: user.own_money,
+        }
+    });
+};

@@ -2,6 +2,7 @@ import GameResultModel from "../../models/GameResult.js"
 import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
+import { updateBetting } from "../../helper/Betting/Update-Betting.js";
 
 const checkIp = (req) => {
     const allowIp = config.ALLOW_IP;
@@ -36,6 +37,10 @@ export const startGame = async (req, res) => {
         })
     }
 
+    setTimeout(() => {
+        io.emit('start_game', { game_id: game_id })
+    }, time_stamp - Date.now() - 180);
+
     return res.status(200).json({ result: 0 });
 }
 
@@ -52,6 +57,8 @@ export const endGame = async (req, res) => {
     const odd = list[0] % 2 !== 0;
     const under = list[0] + list[1] + list[2] <= 10.5;
 
+    updateBetting(game_id, odd, under, list, today_no, total_no)
+
     await GameResultModel.updateOne({ game_id: game_id }, {
         list: list,
         total_no: total_no,
@@ -64,7 +71,9 @@ export const endGame = async (req, res) => {
         under: under
     });
 
-    io.emit('end_game');
+    setTimeout(() => {
+        io.emit('end_game', { game_id: game_id });
+    }, time_stamp - Date.now());
 
     return res.status(200).json({ result: 0 });
 }

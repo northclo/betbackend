@@ -14,5 +14,6 @@ export const config = {
   HOTMAIL_PASS: process.env.HOTMAIL_PASS,
   AUTH_KEY: process.env.AUTH_KEY,
   ALLOW_IP: process.env.ALLOW_IP,
-  ALLOW_GAME_IP: process.env.ALLOW_GAME_IP
+  ALLOW_GAME_IP: process.env.ALLOW_GAME_IP,
+  TIME_ZONE: process.env.TIME_ZONE
 };
