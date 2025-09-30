@@ -34,13 +34,15 @@ export const startGame = async (req, res) => {
         await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
-            start_time_stamp: getCurrentTime() + 182000
+            // start_time_stamp: getCurrentTime() + 182000
+            start_time_stamp: time_stamp
         })
     }
 
     setTimeout(() => {
         io.emit('start_game', { game_id: game_id })
-    }, 2000);
+        // }, 2000);
+    }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
 }
@@ -64,7 +66,8 @@ export const endGame = async (req, res) => {
         list: list,
         total_no: total_no,
         today_no: today_no,
-        end_time_stamp: gameResult.start_time_stamp + 2000,
+        // end_time_stamp: gameResult.start_time_stamp + 2000,
+        end_time_stamp: time_stamp,
         current_no: current_no,
         device_id: device_id,
         manual_valid: manual_valid,
@@ -74,7 +77,8 @@ export const endGame = async (req, res) => {
 
     setTimeout(() => {
         io.emit('end_game', { game_id: game_id });
-    }, gameResult.start_time_stamp + 2000 - getCurrentTime());
+        // }, gameResult.start_time_stamp + 2000 - getCurrentTime());
+    }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
 }
