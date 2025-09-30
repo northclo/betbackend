@@ -3,6 +3,7 @@ import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
+import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 
 const checkIp = (req) => {
     const allowIp = config.ALLOW_IP;
@@ -33,13 +34,13 @@ export const startGame = async (req, res) => {
         await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
-            start_time_stamp: time_stamp
+            start_time_stamp: getCurrentTime() + 182000
         })
     }
 
     setTimeout(() => {
         io.emit('start_game', { game_id: game_id })
-    }, time_stamp - Date.now() - 180);
+    }, 2000);
 
     return res.status(200).json({ result: 0 });
 }
@@ -63,7 +64,7 @@ export const endGame = async (req, res) => {
         list: list,
         total_no: total_no,
         today_no: today_no,
-        end_time_stamp: time_stamp,
+        end_time_stamp: gameResult.start_time_stamp + 2000,
         current_no: current_no,
         device_id: device_id,
         manual_valid: manual_valid,
@@ -73,7 +74,7 @@ export const endGame = async (req, res) => {
 
     setTimeout(() => {
         io.emit('end_game', { game_id: game_id });
-    }, time_stamp - Date.now());
+    }, gameResult.start_time_stamp + 2000 - getCurrentTime());
 
     return res.status(200).json({ result: 0 });
 }

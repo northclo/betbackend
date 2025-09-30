@@ -7,10 +7,7 @@ export const getAroundGameId = async (gameId) => {
 
     const gameIdLists = await GameResultModel
         .find({
-            $or: [
-                { start_time_stamp: { $lt: getCurrentTime() } },
-                { start_time_stamp: { $gt: getCurrentTime() + 180000 } }
-            ]
+            start_time_stamp: { $lt: getCurrentTime() + 180000 }
         })
         .sort({ start_time_stamp: -1 })
         .select({ _id: 0, game_id: 1 });

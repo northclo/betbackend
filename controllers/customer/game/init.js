@@ -7,7 +7,6 @@ import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
 
 export const getGameInitInfo = async (req, res) => {
-    console.log(getCurrentTime())
     const { gameId } = req.query;
     const userId = req.session._id;
 
