@@ -58,7 +58,7 @@ export const endGame = async (req, res) => {
     if (!gameResult) return responseBadRequest(res);
 
     const odd = list[0] % 2 !== 0;
-    const under = list[0] + list[1] + list[2] <= 10.5;
+    const under = (list[0] + list[1] + list[2]) <= 10.5;
 
     updateBetting(game_id, odd, under, list, today_no, total_no)
 
