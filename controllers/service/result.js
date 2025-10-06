@@ -58,7 +58,7 @@ export const endGame = async (req, res) => {
     if (!gameResult) return responseBadRequest(res);
 
     const odd = list[0] % 2 !== 0;
-    const under = (list[0] + list[1] + list[2]) <= 10.5;
+    const under = (Number(list[0]) + Number(list[1]) + Number(list[2])) <= 10.5;
 
     updateBetting(game_id, odd, under, list, today_no, total_no)
 
@@ -66,7 +66,6 @@ export const endGame = async (req, res) => {
         list: list,
         total_no: total_no,
         today_no: today_no,
-        // end_time_stamp: gameResult.start_time_stamp + 2000,
         end_time_stamp: time_stamp,
         current_no: current_no,
         device_id: device_id,
