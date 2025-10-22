@@ -35,7 +35,6 @@ export const startGame = async (req, res) => {
         await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
-            // start_time_stamp: getCurrentTime() + 182000
             start_time_stamp: time_stamp
         })
     }
@@ -58,8 +57,8 @@ export const endGame = async (req, res) => {
     var new_today_no = today_no;
 
     if (updated_TokyoTime) {
-      const hours = updatedMoment.hours();
-      const minutes = updatedMoment.minutes();
+      const hours = updated_TokyoTime.hours();
+      const minutes = updated_TokyoTime.minutes();
       new_today_no = Math.floor((hours * 60 + minutes) / 3) + 1; // every 3 min = 1 slot
     }
     const gameResult = await GameResultModel.findOne({ game_id: game_id });
