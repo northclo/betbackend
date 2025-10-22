@@ -60,7 +60,7 @@ const getResultsByDate = async (dateStr, mode) => {
       { 
         end_time_stamp: { $gte: startOfDay, $lte: endOfDay },
       },
-      { odd: 1, under: 1, _id: 0 }
+      { odd: 1, under: 1, _id: 0, today_no: 1 }
     ).sort({ end_time_stamp: 1 }); // optional sorting by time
   } else {
     results = await GameResults.find({
