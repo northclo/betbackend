@@ -23,7 +23,7 @@
     "uuid": "^11.1.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "nodemon server.js",
     "dev": "nodemon server.js",
     "seed:testdata": "node test/seed.js",
     "lint": "eslint .",

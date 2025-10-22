@@ -47,29 +47,27 @@ const getResultsByDate = async (dateStr, mode) => {
   // Start of day: 2025-08-15 00:00:00
   const startOfDay = moment.tz(dateStr, 'YYYY-MM-DD', 'Asia/Tokyo')
     .startOf('day')
-    .toDate();  // -> UTC Date covering 00:00 JST
+    .valueOf();  // -> UTC Date covering 00:00 JST
 
   const endOfDay = moment.tz(dateStr, 'YYYY-MM-DD', 'Asia/Tokyo')
     .endOf('day')
-    .toDate();  // -> UTC Date covering 23:59:59.999 JST
+    .valueOf();  // -> UTC Date covering 23:59:59.999 JST\
 
   let results;
 
   if (mode == "analyse") {
     results = await GameResults.find(
       { 
-        createdAt: { $gte: startOfDay, $lte: endOfDay },
-        end_time_stamp: { $exists: true }
+        end_time_stamp: { $gte: startOfDay, $lte: endOfDay },
       },
       { odd: 1, under: 1, _id: 0 }
-    ).sort({ createdAt: 1 }); // optional sorting by time
+    ).sort({ end_time_stamp: 1 }); // optional sorting by time
   } else {
     results = await GameResults.find({
-      createdAt: { $gte: startOfDay, $lte: endOfDay },
-      end_time_stamp: { $exists: true }
-    }).sort({ createdAt: -1 }); // optional sorting by time
+      end_time_stamp: { $gte: startOfDay, $lte: endOfDay },
+    }).sort({ end_time_stamp: -1 }); // optional sorting by time
   }
-
+  
   return results;
 };
 
@@ -82,14 +80,14 @@ const getResultsbyIndex = async (index, days) => {
         today_no: index,
         end_time_stamp: { $exists: true }
       },
-    ).sort({ createdAt: -1 });
+    ).sort({ end_time_stamp: -1 });
   } else {
     results = await GameResults.find(
       { 
         today_no: index,
         end_time_stamp: { $exists: true }
       },
-    ).sort({ createdAt: -1 })
+    ).sort({ end_time_stamp: -1 })
       .limit(days);
   }
 
@@ -100,7 +98,7 @@ const getLatestResults = async () => {
 
   const results = await GameResults.find(
     { end_time_stamp: { $exists: true }}
-  ).sort({ createdAt: -1 })
+  ).sort({ end_time_stamp: -1 })
    .limit(50); // optional sorting by time
 
   return results;

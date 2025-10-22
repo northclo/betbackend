@@ -20,8 +20,6 @@ const GameResultSchema = new Schema({
 
 GameResultSchema.index({ createdAt: -1 }); // Descending index on createdAt
 GameResultSchema.index({ today_no: 1 });        // Ascending index on odd
-// GameResultSchema.index({ under: 1 });      // Ascending index on under
-// GameResultSchema.index({ odd: 1, under: 1 }); // Compound index for queries like { odd: true, under: false }
 
 const GameResultModel = model('game_results', GameResultSchema);
 
