@@ -40,8 +40,14 @@ const corsConfig = {
     // If no origin (e.g. curl or same-origin request)
     if (!origin) return callback(null, true);
 
-    // Allow all HTTPS origins
-    if (origin.startsWith("https://")) {
+    const isDev = process.env.NODE_ENV === "development";
+    // In development → allow HTTP (for localhost)
+    if (isDev && origin.startsWith("http://")) {
+      return callback(null, true);
+    }
+
+    // In production → allow HTTPS only
+    if (!isDev && origin.startsWith("https://")) {
       return callback(null, true);
     }
 
