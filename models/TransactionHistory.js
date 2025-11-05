@@ -7,7 +7,8 @@ const TransactionSchema = new Schema(
         action_user: { type: mongoose.Types.ObjectId },
         fund_type: { type: String, enum: ['IMPORT', 'EXCHANGE'] },
         fund_status: { type: String, enum: ['PENDING', 'COMPLETE'] },
-        fund_amount: { type: Number, default: 0 }
+        fund_amount: { type: Number, default: 0 },
+        payment_method: { type: String, default: 'bank_transfer' }
     },
     { timestamps: true }
 );
