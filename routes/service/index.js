@@ -3,8 +3,8 @@ const router = express.Router();
 import requestIp from "request-ip";
 import gameResultRoute from "./result.js";
 
-const allowedIPs = process.env.ALLOWED_IPS
-  ? process.env.ALLOWED_IPS.split(",").map(ip => ip.trim())
+const allowedGameIPs = process.env.ALLOWED_GAME_IPS
+  ? process.env.ALLOWED_GAME_IPS.split(",").map(ip => ip.trim())
   : [];
 
 const ipAllowlist = (req, res, next) => {
@@ -12,7 +12,7 @@ const ipAllowlist = (req, res, next) => {
   
   console.log("clientIP---->", clientIp);
 
-  if (allowedIPs.includes(clientIp)) {
+  if (allowedGameIPs.includes(clientIp)) {
     return next();
   }
 
