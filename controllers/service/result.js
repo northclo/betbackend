@@ -3,22 +3,10 @@ import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
-import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 import moment from "moment-timezone";
-
-const checkIp = (req) => {
-    const allowIp = config.ALLOW_IP;
-    if (!allowIp) return true;
-
-    const allowIps = allowIp.split(",")
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    return allowIps.includes(ip);
-}
 
 export const startGame = async (req, res) => {
     if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
-    if (!checkIp(req)) return responseBadRequest(res);
 
     const { game_id, device_id, time_stamp } = req.body;
 
@@ -42,14 +30,12 @@ export const startGame = async (req, res) => {
     setTimeout(() => {
         io.emit('start_game', { game_id: game_id })
     }, 2000);
-    // }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
 }
 
 export const endGame = async (req, res) => {
     if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
-    if (!checkIp(req)) return responseBadRequest(res);
 
     const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
 

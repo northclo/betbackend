@@ -18,23 +18,6 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
   : [];
 
-// CORS config (allow cookies from frontend)
-// const corsConfig = {
-//   origin: function (origin, callback) {
-//     if (allowedOrigins.length === 0) {
-//       // allow everything if not set
-//       callback(null, true);
-//       return;
-//     }
-//     if (!origin || allowedOrigins.includes(origin)) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-//   credentials: true, // 🔹 allow cookies
-// };
-
 const corsConfig = {
   origin: function (origin, callback) {
     // If no origin (e.g. curl or same-origin request)
