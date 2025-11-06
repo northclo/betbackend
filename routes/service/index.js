@@ -20,6 +20,6 @@ const ipAllowlist = (req, res, next) => {
   return res.status(403).json({ message: "Access denied: unauthorized IP" });
 };
 
-router.use("/", ipAllowlist, gameResultRoute);
+router.use("/game", ipAllowlist, gameResultRoute);
 
 export default router;

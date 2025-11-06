@@ -4,7 +4,7 @@ import { endGame, startGame } from '../../controllers/service/result.js';
 
 const router = express.Router();
 
-router.post('/start/game', catchError(startGame));
-router.post('/end/game', catchError(endGame));
+router.post('/start', catchError(startGame));
+router.post('/end', catchError(endGame));
 
 export default router;
