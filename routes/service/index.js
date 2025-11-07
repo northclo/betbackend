@@ -10,9 +10,8 @@ const allowedGameIPs = process.env.ALLOWED_GAME_IPS
 const ipAllowlist = (req, res, next) => {
   const clientIp = requestIp.getClientIp(req); // works behind proxies
   
-  console.log("clientIP---->", clientIp);
-
   if (allowedGameIPs.includes(clientIp)) {
+    console.log("Allowed clientIP---->", clientIp);
     return next();
   }
 
