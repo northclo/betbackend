@@ -29,36 +29,39 @@ const cleanData = (node, search) => {
     if (matchesSearch) {
         const owner = node.owner?.[0] || {};
 
+        const ownerBalance = owner.current_balance || 0;
+
         data.push({
             role: node.role,
             nickname: node.nickname,
             id: node.partner_id,
             subs: node.subs.length,
             members: node.members.length,
-            money: owner.own_money || 0,
+            money: ownerBalance,
             point: owner.point || 0,
             simpleBetRate: owner.simple_bet_rate || 0,
             combinedBetRate: owner.combined_bet_rate || 0,
             matchNumberBetRate: owner.match_num_bet_rate || 0,
             betMoneyUnit: node.bet_money_unit,
-            holdingMoney: owner.own_money || 0,
+            holdingMoney: ownerBalance,
             holdingPoint: owner.point || 0,
         });
 
         node.members?.forEach(member => {
+            const memberBalance = member.current_balance || 0;
             data.push({
                 role: "user",
                 nickname: member.user_nickname,
                 id: member.user_nickname,
                 subs: 0,
                 members: 0,
-                money: member.own_money,
+                money: memberBalance,
                 point: member.point,
                 simpleBetRate: member.simple_bet_rate,
                 combinedBetRate: member.combined_bet_rate,
                 matchNumberBetRate: member.match_num_bet_rate,
                 betMoneyUnit: node.bet_money_unit,
-                holdingMoney: member.own_money,
+                holdingMoney: memberBalance,
                 holdingPoint: member.point
             });
         });
@@ -236,9 +239,10 @@ export const deletePartner = async (req, res) => {
 }
 
 export const increaseCash = async (req, res) => {
-    const { role, id, amount } = req.body;
+    const { role, id } = req.body;
+    const amount = Number(req.body.amount);
 
-    if (typeof amount !== "number") {
+    if (!Number.isFinite(amount)) {
         return responseBadRequest(res, "Invalid amount");
     }
 
@@ -256,15 +260,36 @@ export const increaseCash = async (req, res) => {
         if (!user) return responseBadRequest(res, "Linked user not found");
     }
 
-    // Prevent balance from going below zero
-    if (user.own_money + amount < 0) {
+    if (amount < 0 && (user.current_balance || 0) + amount < 0) {
         return responseBadRequest(res, "Insufficient funds");
     }
 
-    await UserModel.updateOne(
-        { _id: user._id },
-        { $inc: { own_money: amount } } // cleaner than Number(user.own_money) + amount
-    );
+    const updateInc = {};
+
+    if (amount > 0) {
+        updateInc.current_balance = amount;
+        const pendingOffset = Math.min(user.pending_addfund_balance || 0, amount);
+        if (pendingOffset > 0) {
+            updateInc.pending_addfund_balance = -pendingOffset;
+        }
+    } else if (amount < 0) {
+        updateInc.current_balance = amount;
+        const refundOffset = Math.min(user.pending_refund_balance || 0, Math.abs(amount));
+        if (refundOffset > 0) {
+            updateInc.pending_refund_balance = -refundOffset;
+        }
+    }
+
+    if (Object.keys(updateInc).length) {
+        await UserModel.updateOne(
+            { _id: user._id },
+            { $inc: updateInc }
+        );
+    }
+
+    if (amount === 0) {
+        return responseSuccess(res);
+    }
 
     return responseSuccess(res);
 };

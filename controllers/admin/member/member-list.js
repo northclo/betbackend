@@ -83,12 +83,9 @@ export const getMemberList = async (req, res) => {
         }
     }
 
-    // flags for duration logic (only when dates present)
     const isCreatedDate = duration === "created_date" && (start || end);
     const isPasswordChangedDate = duration === "password_changed_date" && (start || end);
     const isConnectedDate = duration === "connected_date" && (start || end);
-    const isImportExchangeBetting = duration === "import_exchange_betting" && (start || end);
-    const isLastImportDate = duration === "last_import_date" && (start || end);
 
     // apply user-level date filters
     if (isCreatedDate) {
@@ -104,6 +101,13 @@ export const getMemberList = async (req, res) => {
     // build aggregate pipeline
     const pipeline = [
         { $match: filter },
+        {
+            $addFields: {
+                current_balance: { $ifNull: ["$current_balance", 0] },
+                pending_addfund_balance: { $ifNull: ["$pending_addfund_balance", 0] },
+                pending_refund_balance: { $ifNull: ["$pending_refund_balance", 0] },
+            }
+        },
 
         // join partner references
         {
@@ -153,36 +157,6 @@ export const getMemberList = async (req, res) => {
             }
         },
 
-        // join last import transaction (IMPORT + COMPLETE) — to expose last_import_time
-        {
-            $lookup: {
-                from: "transaction_histories",
-                let: { userId: "$_id" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ["$user_id", "$$userId"] },
-                                    { $eq: ["$fund_type", "IMPORT"] },
-                                    { $eq: ["$fund_status", "COMPLETE"] }
-                                ]
-                            }
-                        }
-                    },
-                    { $sort: { createdAt: -1 } },
-                    { $limit: 1 },
-                    { $project: { createdAt: 1 } }
-                ],
-                as: "last_import"
-            }
-        },
-        {
-            $addFields: {
-                last_import_time: { $ifNull: [{ $arrayElemAt: ["$last_import.createdAt", 0] }, null] }
-            }
-        },
-
         // betting stats (earning, wins, betting amount)
         {
             $lookup: {
@@ -210,78 +184,6 @@ export const getMemberList = async (req, res) => {
             }
         },
 
-        // transaction totals (group by fund_type)
-        {
-            $lookup: {
-                from: "transaction_histories",
-                let: { userId: "$_id" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$user_id", "$$userId"] },
-                            fund_status: "COMPLETE"
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: "$fund_type",
-                            totalAmount: { $sum: "$fund_amount" }
-                        }
-                    }
-                ],
-                as: "transaction_totals"
-            }
-        },
-        {
-            $addFields: {
-                totalImportAmount: {
-                    $ifNull: [
-                        {
-                            $let: {
-                                vars: {
-                                    importTotal: {
-                                        $arrayElemAt: [
-                                            {
-                                                $filter: {
-                                                    input: "$transaction_totals",
-                                                    cond: { $eq: ["$$this._id", "IMPORT"] }
-                                                }
-                                            },
-                                            0
-                                        ]
-                                    }
-                                },
-                                in: "$$importTotal.totalAmount"
-                            }
-                        },
-                        0
-                    ]
-                },
-                totalExchangeAmount: {
-                    $ifNull: [
-                        {
-                            $let: {
-                                vars: {
-                                    exchangeTotal: {
-                                        $arrayElemAt: [
-                                            {
-                                                $filter: {
-                                                    input: "$transaction_totals",
-                                                    cond: { $eq: ["$$this._id", "EXCHANGE"] }
-                                                }
-                                            },
-                                            0
-                                        ]
-                                    }
-                                },
-                                in: "$$exchangeTotal.totalAmount"
-                            }
-                        },
-                        0
-                    ]
-                }
-            }
-        },
 
         // compute total partner earning: sum earnings of members whose partner_id === this user's own_partner_id
         {
@@ -326,40 +228,6 @@ export const getMemberList = async (req, res) => {
         if (Object.keys(loginMatch).length) pipeline.push({ $match: loginMatch });
     }
 
-    // last_import_date filter (date restriction on last_import_time)
-    if (isLastImportDate) {
-        const importMatch = {};
-        if (start) importMatch["last_import_time"] = { ...(importMatch["last_import_time"] || {}), $gte: start };
-        if (end) importMatch["last_import_time"] = { ...(importMatch["last_import_time"] || {}), $lte: end };
-        if (Object.keys(importMatch).length) pipeline.push({ $match: importMatch });
-    }
-
-    // import_exchange_betting filter (only when duration & dates exist)
-    if (isImportExchangeBetting) {
-        pipeline.push({
-            $lookup: {
-                from: "transaction_histories",
-                let: { userId: "$_id" },
-                pipeline: [
-                    {
-                        $match: {
-                            $expr: { $eq: ["$user_id", "$$userId"] },
-                            fund_status: "COMPLETE",
-                            fund_type: { $in: ["IMPORT", "EXCHANGE"] }
-                        }
-                    },
-                    {
-                        $match: {
-                            ...(start ? { createdAt: { $gte: start } } : {}),
-                            ...(end ? { createdAt: { $lte: end } } : {})
-                        }
-                    }
-                ],
-                as: "import_exchange"
-            }
-        });
-        pipeline.push({ $match: { import_exchange: { $ne: [] } } });
-    }
 
     // sorting logic (supports optional direction after colon, e.g. sort=created_date:asc)
     if (sort) {
@@ -369,7 +237,7 @@ export const getMemberList = async (req, res) => {
                 sortStage = { createdAt: -1 };
                 break;
             case "owned_money":
-                sortStage = { own_money: -1 };
+                sortStage = { current_balance: -1 };
                 break;
             case "owned_point":
                 sortStage = { point: -1 };
@@ -378,10 +246,7 @@ export const getMemberList = async (req, res) => {
                 sortStage = { last_login_time: -1 }; // use scalar field
                 break;
             case "import_money":
-                sortStage = { totalImportAmount: -1 };
-                break;
             case "exchange_money":
-                sortStage = { totalExchangeAmount: -1 };
                 break;
             default:
                 sortStage = {};

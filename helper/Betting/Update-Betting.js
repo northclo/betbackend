@@ -4,7 +4,11 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
     const bettingHistory = await BettingResultModel.find({ game_id: gameId });
     const numberSortColumn = new Set(['number_13', 'number_14', 'number_16']);
 
-    const bulkOps = bettingHistory.map(element => {
+    const bulkOps = bettingHistory.reduce((ops, element) => {
+        if (element.betting_status === "cancel") {
+            return ops;
+        }
+
         let win = true;
 
         if (numberSortColumn.has(element.betting_type)) {
@@ -22,7 +26,7 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
 
         const earningAmount = win ? element.bet_amount * element.betting_rate : 0;
 
-        return {
+        ops.push({
             updateOne: {
                 filter: { _id: element._id },
                 update: {
@@ -30,12 +34,15 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
                         today_no: todayNo,
                         total_no: totalNo,
                         win,
-                        earning_amount: earningAmount
+                        earning_amount: earningAmount,
+                        betting_status: "complete"
                     }
                 }
             }
-        };
-    });
+        });
+
+        return ops;
+    }, []);
 
     if (bulkOps.length) {
         await BettingResultModel.bulkWrite(bulkOps);

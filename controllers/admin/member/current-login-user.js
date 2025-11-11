@@ -55,48 +55,16 @@ export const getCurrentLoginUser = async (req, res) => {
         { $sort: { createdAt: 1 } },
     ];
 
-    // Transactions pipelines
-    const totalTransactionsPipeline = [
-        { $match: { $expr: { $eq: ["$user_id", "$$uid"] }, fund_status: "COMPLETE" } },
-        {
-            $group: {
-                _id: "$fund_type",
-                totalAmount: { $sum: "$fund_amount" },
-            },
-        },
-    ];
-
-    const userImportPipeline = [
-        { $match: { $expr: { $eq: ["$action_user", "$$uid"] }, fund_type: "IMPORT", fund_status: "COMPLETE" } },
-        {
-            $group: {
-                _id: null,
-                userImportAmount: { $sum: "$fund_amount" },
-            },
-        },
-    ];
-
-    const lastImportPipeline = [
-        {
-            $match: {
-                $expr: { $eq: ["$user_id", "$$uid"] },
-                fund_type: "IMPORT",
-                fund_status: "COMPLETE",
-            },
-        },
-        { $sort: { createdAt: -1 } },
-        { $limit: 1 },
-        {
-            $project: {
-                _id: 0,
-                lastImportDate: "$createdAt",
-            },
-        },
-    ];
-
     // Aggregation
     const aggregation = [
         { $match: filter },
+        {
+            $addFields: {
+                current_balance: { $ifNull: ["$current_balance", 0] },
+                pending_addfund_balance: { $ifNull: ["$pending_addfund_balance", 0] },
+                pending_refund_balance: { $ifNull: ["$pending_refund_balance", 0] },
+            }
+        },
 
         {
             $lookup: {
@@ -122,36 +90,6 @@ export const getCurrentLoginUser = async (req, res) => {
                 as: "login_history",
             },
         },
-
-        // Lookup transactions for totals
-        {
-            $lookup: {
-                from: "transaction_histories",
-                let: { uid: "$_id" },
-                pipeline: totalTransactionsPipeline,
-                as: "transaction_totals",
-            },
-        },
-
-        // Lookup user’s own import amount
-        {
-            $lookup: {
-                from: "transaction_histories",
-                let: { uid: "$_id" },
-                pipeline: userImportPipeline,
-                as: "user_import",
-            },
-        },
-
-        // Lookup last import date
-        {
-            $lookup: {
-                from: "transaction_histories",
-                let: { uid: "$_id" },
-                pipeline: lastImportPipeline,
-                as: "last_import",
-            },
-        },
     ];
 
     if (search_field === "partner" && search) {
@@ -172,67 +110,13 @@ export const getCurrentLoginUser = async (req, res) => {
         $project: {
             _id: 0,
             user_nickname: 1,
-            own_money: 1,
+            current_balance: 1,
             point: 1,
             ip: 1,
             createdAt: 1,
             own_partner: { $arrayElemAt: ["$own_partners", -1] },
             partner: { $arrayElemAt: ["$partners", -1] },
             last_login_history: { $arrayElemAt: ["$login_history", -1] },
-
-            // Compute totals
-            total_import_amount: {
-                $ifNull: [
-                    {
-                        $let: {
-                            vars: {
-                                import: {
-                                    $arrayElemAt: [
-                                        {
-                                            $filter: {
-                                                input: "$transaction_totals",
-                                                cond: { $eq: ["$$this._id", "IMPORT"] },
-                                            },
-                                        },
-                                        0,
-                                    ],
-                                },
-                            },
-                            in: "$$import.totalAmount",
-                        },
-                    },
-                    0,
-                ],
-            },
-            total_exchange_amount: {
-                $ifNull: [
-                    {
-                        $let: {
-                            vars: {
-                                exchange: {
-                                    $arrayElemAt: [
-                                        {
-                                            $filter: {
-                                                input: "$transaction_totals",
-                                                cond: { $eq: ["$$this._id", "EXCHANGE"] },
-                                            },
-                                        },
-                                        0,
-                                    ],
-                                },
-                            },
-                            in: "$$exchange.totalAmount",
-                        },
-                    },
-                    0,
-                ],
-            },
-            user_import_amount: {
-                $ifNull: [{ $arrayElemAt: ["$user_import.userImportAmount", 0] }, 0],
-            },
-            last_import_date: {
-                $ifNull: [{ $arrayElemAt: ["$last_import.lastImportDate", 0] }, null],
-            },
         },
     });
 

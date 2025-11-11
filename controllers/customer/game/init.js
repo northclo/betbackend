@@ -1,5 +1,5 @@
 import UserModel from "../../../models/User.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
 import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
@@ -11,6 +11,9 @@ export const getGameInitInfo = async (req, res) => {
     const userId = req.session._id;
 
     const user = await UserModel.findOne({ _id: userId });
+    if (!user) {
+        return responseBadRequest(res, "User not found");
+    }
 
     let game;
     if (gameId) {
@@ -25,19 +28,108 @@ export const getGameInitInfo = async (req, res) => {
         }
     }
 
+    // If no game exists in database, try to create a test game
+    if (!game || !game.game_id) {
+        const lastGame = await getLastGame();
+        const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
+        const lastTotalNo = Number.isFinite(lastGame?.total_no) ? lastGame.total_no : 0;
+        const GameResultModel = (await import("../../../models/GameResult.js")).default;
+        const { v4: uuidv4 } = await import("uuid");
+        const currentTime = getCurrentTime();
+        const testGameStartTime = currentTime + 180000; // Start in 3 minutes (180 seconds)
+        
+        // Check if there's already a test game scheduled
+        const existingTestGame = await GameResultModel.findOne({
+            start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
+            end_time_stamp: { $exists: false }
+        });
+        
+        let remainTime = 0;
+        let gameId = '';
+        
+        if (existingTestGame) {
+            gameId = existingTestGame.game_id;
+            remainTime = Math.floor((existingTestGame.start_time_stamp - currentTime) / 1000);
+        } else {
+            // Create a test game
+            const testGame = await GameResultModel.create({
+                game_id: uuidv4(),
+                device_id: "test-device",
+                start_time_stamp: testGameStartTime,
+                total_no: lastTotalNo + 1,
+                today_no: lastTodayNo + 1,
+            });
+            console.log('[getGameInitInfo] Created test game:', testGame.game_id, 'starting in 3 minutes');
+            gameId = testGame.game_id;
+            remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+        }
+        
+        return responseSuccess(res, {
+            game: {
+                id: gameId,
+                list: [],
+                odd: false,
+                under: false,
+                today_no: lastTodayNo,
+                total_no: lastTotalNo,
+                remain_time: remainTime,
+            },
+            aroundGameId: { previousGameId: null, nextGameId: null },
+            pendingBet: [],
+            user: {
+                current_balance: user.current_balance ?? 0,
+                pending_addfund_balance: user.pending_addfund_balance ?? 0,
+                pending_refund_balance: user.pending_refund_balance ?? 0,
+            }
+        });
+    }
+
     const _gameId = game.game_id;
 
     const { bettingHistory } = await getGameWithBettingHistory(_gameId, userId);
     const aroundGameId = await getAroundGameId(_gameId);
     const lastGame = await getLastGame();
+    const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
+    const lastTotalNo = Number.isFinite(lastGame?.total_no) ? lastGame.total_no : 0;
 
-    const todayNo = (game.list?.length === 0) ? lastGame.today_no + 1 : game.today_no;
-    const totalNo = (game.list?.length === 0) ? lastGame.total_no + 1 : game.total_no;
+    const hasResult = Array.isArray(game.list) && game.list.length > 0;
+    const todayNo = hasResult ? (game.today_no ?? lastTodayNo) : lastTodayNo + 1;
+    const totalNo = hasResult ? (game.total_no ?? lastTotalNo) : lastTotalNo + 1;
 
+    const pendingGames = await getAvailableGame();
     let remainTime = 0;
-    if (!gameId || (await getAvailableGame()).length > 0) {
-        const pendingGame = await getAvailableGame();
-        remainTime = Math.floor((pendingGame[0]?.start_time_stamp - getCurrentTime()) / 1000) || 0;
+    if (pendingGames.length > 0) {
+        remainTime = Math.max(
+            0,
+            Math.floor((pendingGames[0].start_time_stamp - getCurrentTime()) / 1000)
+        );
+    }
+
+    // If no available game exists, create a test game for development (starts in 180 seconds = 3 minutes)
+    if (remainTime === 0 && !gameId) {
+        const GameResultModel = (await import("../../../models/GameResult.js")).default;
+        const { v4: uuidv4 } = await import("uuid");
+        const currentTime = getCurrentTime();
+        const testGameStartTime = currentTime + 180000; // Start in 3 minutes (180 seconds)
+
+        // Check if there's already a test game scheduled
+        const existingTestGame = await GameResultModel.findOne({
+            start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
+            end_time_stamp: { $exists: false }
+        });
+
+        if (!existingTestGame) {
+            // Create a test game
+            const testGame = await GameResultModel.create({
+                game_id: uuidv4(),
+                device_id: "test-device",
+                start_time_stamp: testGameStartTime,
+                total_no: lastTotalNo + 1,
+                today_no: lastTodayNo + 1,
+            });
+            console.log('[getGameInitInfo] Created test game:', testGame.game_id, 'starting in 3 minutes');
+            remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+        }
     }
 
     return responseSuccess(res, {
@@ -53,7 +145,9 @@ export const getGameInitInfo = async (req, res) => {
         aroundGameId,
         pendingBet: bettingHistory,
         user: {
-            own_money: user.own_money,
+            current_balance: user.current_balance ?? 0,
+            pending_addfund_balance: user.pending_addfund_balance ?? 0,
+            pending_refund_balance: user.pending_refund_balance ?? 0,
         }
     });
 };

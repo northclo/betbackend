@@ -9,10 +9,15 @@ const BettingResultSchema = new Schema(
         today_no: { type: Number },
         betting_type: { type: String },
         betting_rate: { type: Number },
-        win: { type: Boolean },
+        win: { type: Boolean, default: false },
         number_sort: [{ type: Number }],
         bet_amount: { type: Number },
-        earning_amount: { type: Number },
+        earning_amount: { type: Number, default: 0 },
+        betting_status: {
+            type: String,
+            enum: ["wait", "progress", "complete", "cancel"],
+            default: "wait",
+        },
         history_view: { type: Boolean, default: true }
     },
     { timestamps: true }
