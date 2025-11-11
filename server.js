@@ -18,37 +18,11 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim())
   : [];
 
-<<<<<<< HEAD
-// CORS config (allow cookies from frontend)
-// const corsConfig = {
-//   origin: function (origin, callback) {
-//     if (allowedOrigins.length === 0) {
-//       // allow everything if not set
-//       callback(null, true);
-//       return;
-//     }
-//     if (!origin || allowedOrigins.includes(origin)) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   },
-//   credentials: true, // 🔹 allow cookies
-// };
-
-=======
->>>>>>> bd6a6754bcdb196af34d5e53ac20a2979b65f92b
 const corsConfig = {
   origin: function (origin, callback) {
     // If no origin (e.g. curl or same-origin request)
     if (!origin) return callback(null, true);
 
-<<<<<<< HEAD
-    // Always allow localhost for development (HTTP or HTTPS)
-    if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
-      return callback(null, true);
-    }
-
     const isDev = process.env.NODE_ENV === "development";
     // In development → allow HTTP (for localhost)
     if (isDev && origin.startsWith("http://")) {
@@ -60,19 +34,6 @@ const corsConfig = {
       return callback(null, true);
     }
 
-=======
-    const isDev = process.env.NODE_ENV === "development";
-    // In development → allow HTTP (for localhost)
-    if (isDev && origin.startsWith("http://")) {
-      return callback(null, true);
-    }
-
-    // In production → allow HTTPS only
-    if (!isDev && origin.startsWith("https://")) {
-      return callback(null, true);
-    }
-
->>>>>>> bd6a6754bcdb196af34d5e53ac20a2979b65f92b
     // Otherwise, block
     return callback(new Error("Not allowed by CORS"));
   },
