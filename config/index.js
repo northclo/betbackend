@@ -15,5 +15,8 @@ export const config = {
   AUTH_KEY: process.env.AUTH_KEY,
   ALLOWED_IPS: process.env.ALLOWED_IPS,
   ALLOW_GAME_IP: process.env.ALLOW_GAME_IP,
-  TIME_ZONE: process.env.TIME_ZONE || "Asia/Tokyo"
+  TIME_ZONE: process.env.TIME_ZONE || "Asia/Tokyo",
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
 };

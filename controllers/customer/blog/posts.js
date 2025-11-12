@@ -155,6 +155,12 @@ export const createBlogPost = async (req, res) => {
     return responseBadRequest(res, "Title and description are required.");
   }
 
+  if (req.file) {
+    payload.image = req.file.path;
+  } else if (payload.image === undefined) {
+    payload.image = null;
+  }
+
   payload.userId = userId;
 
   if (!payload.category) {
@@ -196,6 +202,10 @@ export const updateBlogPost = async (req, res) => {
   }
 
   const payload = normalizePayload(req.body || {});
+
+  if (req.file) {
+    payload.image = req.file.path;
+  }
 
   if (payload.title !== undefined && !payload.title) {
     return responseBadRequest(res, "Title cannot be empty.");
