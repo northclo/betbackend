@@ -49,11 +49,11 @@ const corsConfig = {
   exposedHeaders: ["Content-Type"],
 };
 
-// Parse JSON
-app.use(express.json());
-
 // 🔹 Apply CORS globally (before session)
 app.use(cors(corsConfig));
+
+// Parse JSON
+app.use(express.json());
 
 // 🔹 Sessions (must come after CORS, before routes)
 app.use(

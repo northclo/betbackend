@@ -4,20 +4,29 @@ import {
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
+import { getPresignedUrl } from "../../../utils/s3.js";
 
-const toBlogPostDto = (post) => ({
-  _id: post._id,
-  title: post.title,
-  description: post.description,
-  slug: post.slug,
-  image: post.image,
-  userId: post.userId,
-  category: post.category,
-  status: post.status,
-  published_at: post.published_at,
-  createdAt: post.createdAt,
-  updatedAt: post.updatedAt,
-});
+const toBlogPostDto = async (post) => {
+  let imageUrl = post.image;
+  
+  if (imageUrl && !imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
+    imageUrl = await getPresignedUrl(imageUrl);
+  }
+
+  return {
+    _id: post._id,
+    title: post.title,
+    description: post.description,
+    slug: post.slug,
+    image: imageUrl,
+    userId: post.userId,
+    category: post.category,
+    status: post.status,
+    published_at: post.published_at,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+  };
+};
 
 const ensureUserId = (req) => {
   const userId = req?.session?._id;
@@ -134,8 +143,10 @@ export const listBlogPosts = async (req, res) => {
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
+  const items = await Promise.all(posts.map((post) => toBlogPostDto(post)));
+
   return responseSuccess(res, {
-    items: posts.map((post) => toBlogPostDto(post)),
+    items,
     page: pageNumber,
     limit: pageSize,
     total,
@@ -183,9 +194,10 @@ export const createBlogPost = async (req, res) => {
 
   const created = await BlogPostModel.create(payload);
 
+  const dto = await toBlogPostDto(created);
   return responseSuccess(
     res,
-    toBlogPostDto(created),
+    dto,
     "Blog post created successfully."
   );
 };
@@ -237,9 +249,10 @@ export const updateBlogPost = async (req, res) => {
     return responseBadRequest(res, "Blog post not found.");
   }
 
+  const dto = await toBlogPostDto(updated);
   return responseSuccess(
     res,
-    toBlogPostDto(updated),
+    dto,
     "Blog post updated successfully."
   );
 };

@@ -16,7 +16,8 @@ export const config = {
   ALLOWED_IPS: process.env.ALLOWED_IPS,
   ALLOW_GAME_IP: process.env.ALLOW_GAME_IP,
   TIME_ZONE: process.env.TIME_ZONE || "Asia/Tokyo",
-  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "dasnxpgzg",
-  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY || "323919469891744",
-  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || "brnfTbHSC61qK5fLKE7ykB6XeZM",
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || "AKIA3FXPRCROJRWMWM7J",
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || "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",
+  AWS_REGION: process.env.AWS_REGION || "us-east-2",
+  AWS_S3_BUCKET_NAME: process.env.AWS_S3_BUCKET_NAME || "superball-race-storage",
 };
