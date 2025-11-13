@@ -7,7 +7,7 @@ export const onlineUser = async (token, status) => {
     const decoded = jwt.verify(token, config.JWT_SECRET_KEY);
     const userId = decoded.id;
 
-    await UserModel.updateOne({ _id: userId }, { login_status: status })
+    await UserModel.updateOne({ _id: userId }, { login_status: status });
 
     return userId;
 };

@@ -5,6 +5,7 @@ import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { config } from "../../../config/index.js";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
+import { getLoginInfo } from "../../../helper/LoginInfo/get-login-info.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -28,12 +29,15 @@ export const login = async (req, res) => {
     return responseBadRequest(res, "Access denied.");
   }
 
+  const loginInfo = getLoginInfo(req);
+
   await UserLoginHistoryModel.create({
     user_id: user._id,
-    ip_address: '203.3.3.3',
+    ip_address: loginInfo.ip_address,
     login_date: Date.now(),
-    device: 'D2',
-    location: "Japan"
+    device: loginInfo.device,
+    location: loginInfo.location,
+    mobile: loginInfo.mobile
   })
 
   const token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: "1h" });

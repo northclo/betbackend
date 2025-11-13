@@ -5,10 +5,14 @@ import { io, onlineUsers } from "../../../server.js";
 export const logoutUser = async (req, res) => {
     const { user_nickname } = req.body;
 
+    if (!user_nickname) {
+        return responseBadRequest(res, "User nickname is required.");
+    }
+
     const user = await UserModel.findOne({ user_nickname: user_nickname });
 
     if (!user) {
-        return responseBadRequest(res);
+        return responseBadRequest(res, "User not found.");
     }
 
     const userId = String(user._id);
@@ -18,6 +22,7 @@ export const logoutUser = async (req, res) => {
         onlineUsers.delete(userId);
     }
 
-    responseSuccess(res);
+    await UserModel.updateOne({ _id: user._id }, { login_status: false });
 
+    responseSuccess(res, null, "User logged out successfully.");
 }

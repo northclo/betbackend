@@ -30,7 +30,9 @@ export const getChargingList = async (req, res) => {
     const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
     const skip = (pageNumber - 1) * limit;
 
-    let filter = {};
+    let filter = {
+        fund_type: 'IMPORT'
+    };
 
     // Date filter
     if (start || end) {

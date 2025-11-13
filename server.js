@@ -92,31 +92,45 @@ const io = new Server(server, {
 // Attach io to app for access in routes/controllers
 app.set("io", io);
 
-// Track online users: user_nickname -> socket.id
+// Track online users: userId (string) -> socket.id
 const onlineUsers = new Map();
 
 io.on("connection", (socket) => {
   // When a user comes online
   socket.on("user_online", async (userToken) => {
     try {
+      if (!userToken) {
+        console.warn("user_online: No token provided");
+        return;
+      }
       const userId = await onlineUser(userToken, true);
       onlineUsers.set(userId, socket.id);
-    } catch (err) { }
+    } catch (err) {
+      console.error("Error in user_online handler:", err.message);
+    }
   });
 
   // When a user goes offline
   socket.on("user_offline", async (userToken) => {
     try {
+      if (!userToken) {
+        console.warn("user_offline: No token provided");
+        return;
+      }
       const userId = await onlineUser(userToken, false);
       onlineUsers.delete(userId);
-    } catch (err) { }
+      console.log(`User ${userId} went offline`);
+    } catch (err) {
+      console.error("Error in user_offline handler:", err.message);
+    }
   });
 
   // Remove from onlineUsers on disconnect
   socket.on("disconnect", () => {
-    for (const [nickname, id] of onlineUsers.entries()) {
+    for (const [userId, id] of onlineUsers.entries()) {
       if (id === socket.id) {
-        onlineUsers.delete(nickname);
+        onlineUsers.delete(userId);
+        console.log(`User ${userId} disconnected (socket: ${socket.id})`);
       }
     }
   });

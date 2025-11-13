@@ -87,8 +87,8 @@ export const getCurrentLoginUser = async (req, res) => {
     const searchField = searchFieldParam || search_field || "";
     const statusFilter = userStatus || user_status || "";
 
-    const start = normalizeDate(startDate);
-    const end = normalizeDate(endDate, true);
+    const start = startDate ? normalizeDate(startDate) : null;
+    const end = endDate ? normalizeDate(endDate, true) : null;
 
     const onlineUserIds = Array.from(onlineUsers.keys())
         .map((id) => {
@@ -100,17 +100,26 @@ export const getCurrentLoginUser = async (req, res) => {
         })
         .filter(Boolean);
 
+    let userIdsToQuery = onlineUserIds;
     if (!onlineUserIds.length) {
-        return responseSuccess(res, {
-            list: [],
-            total: 0,
-            page: pageNumber,
-            pageSize: limit,
-        });
+        const dbOnlineUsers = await UserModel.find(
+            { login_status: true },
+            { _id: 1 }
+        ).lean();
+        userIdsToQuery = dbOnlineUsers.map((u) => u._id);
+        
+        if (!userIdsToQuery.length) {
+            return responseSuccess(res, {
+                list: [],
+                total: 0,
+                page: pageNumber,
+                pageSize: limit,
+            });
+        }
     }
 
     const matchStage = {
-        _id: { $in: onlineUserIds },
+        _id: { $in: userIdsToQuery },
     };
 
     if (statusFilter) {
@@ -224,21 +233,17 @@ export const getCurrentLoginUser = async (req, res) => {
         },
     ];
 
-    if (start) {
+    if (start || end) {
+        const dateFilter = {};
+        if (start) {
+            dateFilter.$gte = start;
+        }
+        if (end) {
+            dateFilter.$lte = end;
+        }
         basePipeline.push({
             $match: {
-                "last_login_history.createdAt": { $gte: start },
-            },
-        });
-    }
-
-    if (end) {
-        basePipeline.push({
-            $match: {
-                "last_login_history.createdAt": {
-                    ...(start ? { $gte: start } : {}),
-                    $lte: end,
-                },
+                "last_login_history.createdAt": dateFilter,
             },
         });
     }
@@ -330,6 +335,7 @@ export const getCurrentLoginUser = async (req, res) => {
                             key: { $toString: "$_id" },
                             user_id: "$user_id_text",
                             user_nickname: 1,
+                            user_status: 1,
                             own_money: 1,
                             point: 1,
                             own_partner: {

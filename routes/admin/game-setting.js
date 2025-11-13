@@ -5,6 +5,6 @@ import { catchError } from "../../middleware/error.js";
 import { getGameSetting, updateGameSetting } from "../../controllers/admin/partner/setting.js";
 
 router.get("/", catchError(getGameSetting));
-router.post('/', catchError(updateGameSetting))
+router.post('/', catchError(updateGameSetting));
 
 export default router;

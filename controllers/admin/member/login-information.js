@@ -1,5 +1,5 @@
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseServerError } from "../../../helper/response.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -200,6 +200,6 @@ export const getMemberLoginInformation = async (req, res) => {
             pageSize: limit,
         });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        return responseServerError(res);
     }
 };

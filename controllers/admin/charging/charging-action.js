@@ -25,6 +25,10 @@ export const updateChargingStatus = async (req, res) => {
             return responseBadRequest(res, "Transaction is not pending");
         }
 
+        if (transaction.fund_type !== 'IMPORT') {
+            return responseBadRequest(res, "Only deposit (IMPORT) transactions can be processed in Charging Management");
+        }
+
         const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
         const user = await UserModel.findById(transaction.user_id);
 

@@ -22,7 +22,9 @@ export const getChargingSummary = async (req, res) => {
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
 
-    let dateFilter = {};
+    let dateFilter = {
+        fund_type: 'IMPORT'
+    };
     if (start || end) {
         dateFilter.createdAt = {};
         if (start) dateFilter.createdAt.$gte = start;
@@ -79,6 +81,7 @@ export const getChargingSummary = async (req, res) => {
 
     // Calculate average processing time (for approved requests with processed_at)
     const approvedTransactions = await TransactionModel.find({
+        fund_type: 'IMPORT',
         ...dateFilter,
         fund_status: "APPROVED",
         processed_at: { $exists: true, $ne: null }

@@ -208,7 +208,7 @@ export const getSiteSetting = async (req, res) => {
     if (isEmpty(siteSetting)) {
         result = await SettingModel.create({})
     } else {
-        result = siteSetting;
+        result = siteSetting[0];
     }
     responseSuccess(res, result);
 }
@@ -236,18 +236,18 @@ export const updateSiteSetting = async (req, res) => {
     const sanitizedExchange = exchangeValidation.data;
 
     const data = {
-        site_activation: siteActivation.siteActivation,
-        disable_style: siteActivation.disableStyle,
-        deactive_message: siteActivation.deactiveMessage,
-        security: security,
-        site_name: siteText.siteName,
-        title_bar: siteText.titleBar,
-        copywriter: siteText.copywriter,
-        top_notify_message: siteText.topNotifyMessage,
-        deposit_account: siteText.depositAccount,
-        membership_registration: membership.membershipRegistration,
-        membership_approval: membership.membershipApproval,
-        membership_signup_message: membership.membershipSignupMessage,
+        site_activation: siteActivation?.siteActivation ?? true,
+        disable_style: siteActivation?.disableStyle ?? 'simple_text',
+        deactive_message: siteActivation?.deactiveMessage ?? '',
+        security: security ?? true,
+        site_name: siteText?.siteName ?? '',
+        title_bar: siteText?.titleBar ?? '',
+        copywriter: siteText?.copywriter ?? '',
+        top_notify_message: siteText?.topNotifyMessage ?? '',
+        deposit_account: siteText?.depositAccount ?? '',
+        membership_registration: membership?.membershipRegistration ?? 'recommender',
+        membership_approval: membership?.membershipApproval ?? true,
+        membership_signup_message: membership?.membershipSignupMessage ?? '',
         charge_min: sanitizedCharge.charge_min,
         charge_max: sanitizedCharge.charge_max,
         charge_timezone: sanitizedCharge.charge_timezone,
@@ -267,7 +267,7 @@ export const updateSiteSetting = async (req, res) => {
         charge_restriction_use: sanitizedExchange.charge_restriction_use,
         charge_restriction_limit: sanitizedExchange.charge_restriction_limit,
         exchange_complete_message: sanitizedExchange.exchange_complete_message,
-        customer_center: Boolean(customerCenter)
+        customer_center: customerCenter !== undefined ? Boolean(customerCenter) : true
     }
 
     const siteSetting = await SettingModel.find();

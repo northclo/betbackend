@@ -119,13 +119,19 @@ export const getBettingSettlementProfit = async (req, res) => {
         const requestedPartnerId = toObjectId(partner);
 
         if (requestedPartnerId) {
-            const partnerWithDescendants = await PartnerModel.aggregate([
-                {
-                    $match: {
-                        _id: requestedPartnerId,
-                        _id: { $in: accessiblePartnerIds },
+            const isAccessible = accessiblePartnerIds.some(
+                (id) => id.toString() === requestedPartnerId.toString()
+            );
+
+            if (!isAccessible) {
+                filteredPartnerIds = [];
+            } else {
+                const partnerWithDescendants = await PartnerModel.aggregate([
+                    {
+                        $match: {
+                            _id: requestedPartnerId,
+                        },
                     },
-                },
                 {
                     $graphLookup: {
                         from: "partners",
@@ -144,13 +150,14 @@ export const getBettingSettlementProfit = async (req, res) => {
                 {
                     $replaceRoot: { newRoot: "$allPartners" },
                 },
-                {
-                    $project: { _id: 1 },
-                },
-            ]);
+                    {
+                        $project: { _id: 1 },
+                    },
+                ]);
 
-            const descendantIds = partnerWithDescendants.map((doc) => doc._id.toString());
-            filteredPartnerIds = accessiblePartnerIds.filter((id) => descendantIds.includes(id.toString()));
+                const descendantIds = partnerWithDescendants.map((doc) => doc._id.toString());
+                filteredPartnerIds = accessiblePartnerIds.filter((id) => descendantIds.includes(id.toString()));
+            }
         } else {
             filteredPartnerIds = [];
         }
@@ -208,17 +215,28 @@ export const getBettingSettlementProfit = async (req, res) => {
             },
         },
         {
-            $unwind: "$user",
+            $unwind: {
+                path: "$user",
+                preserveNullAndEmptyArrays: true,
+            },
+        },
+        {
+            $addFields: {
+                effectivePartnerId: {
+                    $ifNull: ["$user.own_partner_id", "$user.partner_id"],
+                },
+            },
         },
         {
             $match: {
-                "user.own_partner_id": { $in: filteredPartnerIds },
+                effectivePartnerId: { $in: filteredPartnerIds },
+                user: { $ne: null },
             },
         },
         {
             $lookup: {
                 from: "partners",
-                localField: "user.own_partner_id",
+                localField: "effectivePartnerId",
                 foreignField: "_id",
                 as: "partner",
             },
@@ -245,7 +263,7 @@ export const getBettingSettlementProfit = async (req, res) => {
                             roundHashes: {
                                 $addToSet: {
                                     $concat: [
-                                        { $toString: { $ifNull: ["$user.own_partner_id", ""] } },
+                                        { $toString: { $ifNull: ["$effectivePartnerId", ""] } },
                                         "|",
                                         {
                                             $cond: [
@@ -260,11 +278,47 @@ export const getBettingSettlementProfit = async (req, res) => {
                         },
                     },
                 ],
-                settlements: [
+                totalCount: [
+                    {
+                        $addFields: {
+                            normalizedRoundId: {
+                                $cond: [
+                                    { $ifNull: ["$total_no", false] },
+                                    { $toString: "$total_no" },
+                                    { $ifNull: ["$game_id", ""] },
+                                ],
+                            },
+                        },
+                    },
                     {
                         $group: {
                             _id: {
-                                partnerId: "$user.own_partner_id",
+                                partnerId: "$effectivePartnerId",
+                                normalizedRoundId: "$normalizedRoundId",
+                            },
+                        },
+                    },
+                    {
+                        $count: "total",
+                    },
+                ],
+                settlements: [
+                    {
+                        $addFields: {
+                            normalizedRoundId: {
+                                $cond: [
+                                    { $ifNull: ["$total_no", false] },
+                                    { $toString: "$total_no" },
+                                    { $ifNull: ["$game_id", ""] },
+                                ],
+                            },
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: {
+                                partnerId: "$effectivePartnerId",
+                                normalizedRoundId: "$normalizedRoundId",
                                 totalNo: "$total_no",
                                 todayNo: "$today_no",
                                 gameId: "$game_id",
@@ -283,6 +337,12 @@ export const getBettingSettlementProfit = async (req, res) => {
                     },
                     {
                         $sort: { settledAt: -1 },
+                    },
+                    {
+                        $skip: (numericPage - 1) * numericPageSize,
+                    },
+                    {
+                        $limit: numericPageSize,
                     },
                 ],
             },
@@ -312,43 +372,62 @@ export const getBettingSettlementProfit = async (req, res) => {
         {
             $project: {
                 summary: 1,
+                totalCount: 1,
                 settlements: 1,
             },
         },
     ]);
 
-    const [{ summary, settlements }] = aggregation || [{ summary: {}, settlements: [] }];
+    const [{ summary, totalCount, settlements }] = aggregation || [
+        { summary: {}, totalCount: [{ total: 0 }], settlements: [] },
+    ];
 
-    const totalItems = settlements.length;
-    const startIndex = (numericPage - 1) * numericPageSize;
-    const endIndex = startIndex + numericPageSize;
-    const paginatedItems = settlements.slice(startIndex, endIndex).map((item) => ({
-        partnerId: item._id.partnerId?.toString() || "",
-        totalNo: item._id.totalNo ?? null,
-        todayNo: item._id.todayNo ?? null,
-        gameId: item._id.gameId || "",
-        betAmount: item.betAmount || 0,
-        payout: item.payout || 0,
-        profit: item.profit || 0,
-        settledAt: item.settledAt || null,
-        partnerName: item.partnerName || "",
-        partnerCode: item.partnerCode || "",
-    }));
+    const totalItems = totalCount?.[0]?.total || 0;
+    const paginatedItems = (Array.isArray(settlements) ? settlements : []).map((item) => {
+        if (!item || typeof item !== "object") {
+            return {
+                partnerId: "",
+                totalNo: null,
+                todayNo: null,
+                gameId: "",
+                betAmount: 0,
+                payout: 0,
+                profit: 0,
+                settledAt: null,
+                partnerName: "",
+                partnerCode: "",
+            };
+        }
+
+        const id = item._id || {};
+        return {
+            partnerId: id.partnerId?.toString() || "",
+            totalNo: id.totalNo ?? null,
+            todayNo: id.todayNo ?? null,
+            gameId: id.gameId || "",
+            betAmount: Number.isFinite(item.betAmount) ? Number(item.betAmount) : 0,
+            payout: Number.isFinite(item.payout) ? Number(item.payout) : 0,
+            profit: Number.isFinite(item.profit) ? Number(item.profit) : 0,
+            settledAt: item.settledAt || null,
+            partnerName: item.partnerName || "",
+            partnerCode: item.partnerCode || "",
+        };
+    });
 
     return responseSuccess(res, {
         summary: {
-            totalBetAmount: summary?.totalBetAmount || 0,
-            totalPayout: summary?.totalPayout || 0,
-            totalProfit: summary?.totalProfit || 0,
-            settledRounds: summary?.settledRounds || 0,
+            totalBetAmount: Number.isFinite(summary?.totalBetAmount) ? Number(summary.totalBetAmount) : 0,
+            totalPayout: Number.isFinite(summary?.totalPayout) ? Number(summary.totalPayout) : 0,
+            totalProfit: Number.isFinite(summary?.totalProfit) ? Number(summary.totalProfit) : 0,
+            settledRounds: Number.isFinite(summary?.settledRounds) ? Number(summary.settledRounds) : 0,
         },
         settlements: {
-            total: totalItems,
+            total: Number.isFinite(totalItems) ? Number(totalItems) : 0,
             page: numericPage,
             pageSize: numericPageSize,
-            items: paginatedItems,
+            items: Array.isArray(paginatedItems) ? paginatedItems : [],
         },
-        partners,
+        partners: Array.isArray(partners) ? partners : [],
     });
 };
 

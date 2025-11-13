@@ -20,19 +20,25 @@ const validateAdminPayload = (admin, currentEmail) => {
   const id = normalizeString(admin.id);
   const password = normalizeString(admin.password);
 
-  if (id && !EMAIL_REGEX.test(id)) {
+  if (!id) {
+    return { error: "Administrator ID is required." };
+  }
+
+  if (!EMAIL_REGEX.test(id)) {
     return { error: "Administrator ID must be a valid email." };
   }
 
-  if (
-    id &&
-    currentEmail &&
-    id.toLowerCase() !== currentEmail.toLowerCase()
-  ) {
+  if (currentEmail && id.toLowerCase() !== currentEmail.toLowerCase()) {
     return { error: "Administrator ID cannot be changed." };
   }
 
-  if (password && password.length < 8) {
+  if (!password) {
+    return {
+      error: "Administrator password is required.",
+    };
+  }
+
+  if (password.length < 8) {
     return {
       error: "Administrator password must be at least 8 characters long.",
     };
@@ -66,7 +72,11 @@ const validateViewManagerPayload = (viewManager) => {
     };
   }
 
-  return { id, password };
+  const result = { id };
+  if (password) {
+    result.password = password;
+  }
+  return result;
 };
 
 export const getAdminAccount = async (req, res) => {
@@ -123,13 +133,19 @@ export const updateAdminAccount = async (req, res) => {
       return responseBadRequest(res, viewManagerValidation.error);
     }
 
-    const existingViewManager = await UserModel.findOne({
-      view_manager_id: viewManagerValidation.id,
-      _id: { $ne: adminUser._id },
-    }).lean();
+    const currentViewManagerId = adminUser.view_manager_id || "";
+    const newViewManagerId = viewManagerValidation.id || "";
+    const isIdChanged = currentViewManagerId !== newViewManagerId;
+    
+    if (isIdChanged) {
+      const existingViewManager = await UserModel.findOne({
+        view_manager_id: viewManagerValidation.id,
+        _id: { $ne: adminUser._id },
+      }).lean();
 
-    if (existingViewManager) {
-      return responseBadRequest(res, "View manager ID already in use.");
+      if (existingViewManager) {
+        return responseBadRequest(res, "View manager ID already in use.");
+      }
     }
 
     adminUser.view_manager_id = viewManagerValidation.id;
