@@ -11,7 +11,7 @@ const BlogPostSchema = new Schema(
     category: { type: String, required: true, trim: true },
     status: {
       type: String,
-      enum: ["draft", "published", "archived"],
+      enum: ["draft", "published", "archived", "hidden"],
       default: "draft",
       index: true,
       lowercase: true,

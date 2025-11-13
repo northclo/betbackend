@@ -4,10 +4,10 @@ import SupportMessage from "../../../models/SupportMessage.js";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const submitContactMessage = async (req, res) => {
-  const { name, email, message } = req.body;
+  const { name, email, subject, message, userId } = req.body;
 
-  if (!name || !email || !message) {
-    return responseBadRequest(res, "Please provide your name, email, and message.");
+  if (!name || !email || !subject || !message) {
+    return responseBadRequest(res, "Please provide your name, email, subject, and message.");
   }
 
   if (!emailPattern.test(email)) {
@@ -18,7 +18,11 @@ export const submitContactMessage = async (req, res) => {
     const supportMessage = await SupportMessage.create({
       name,
       email,
+      subject,
       message,
+      userId: userId || null,
+      status: "open",
+      priority: "medium",
     });
 
     return responseSuccess(
