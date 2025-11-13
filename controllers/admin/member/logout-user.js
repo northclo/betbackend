@@ -11,10 +11,11 @@ export const logoutUser = async (req, res) => {
         return responseBadRequest(res);
     }
 
-    const socketId = onlineUsers.get(String(user._id));
+    const userId = String(user._id);
+    const socketId = onlineUsers.get(userId);
     if (socketId) {
         io.to(socketId).emit("user_logout", { message: "You have been logged out" });
-        onlineUsers.delete(user_nickname); // optional cleanup
+        onlineUsers.delete(userId);
     }
 
     responseSuccess(res);

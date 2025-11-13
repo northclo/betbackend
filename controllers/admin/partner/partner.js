@@ -29,7 +29,7 @@ const cleanData = (node, search) => {
     if (matchesSearch) {
         const owner = node.owner?.[0] || {};
 
-        const ownerBalance = owner.current_balance || 0;
+        const ownerBalance = owner.own_money || 0;
 
         data.push({
             role: node.role,
@@ -48,7 +48,7 @@ const cleanData = (node, search) => {
         });
 
         node.members?.forEach(member => {
-            const memberBalance = member.current_balance || 0;
+            const memberBalance = member.own_money || 0;
             data.push({
                 role: "user",
                 nickname: member.user_nickname,
@@ -260,20 +260,20 @@ export const increaseCash = async (req, res) => {
         if (!user) return responseBadRequest(res, "Linked user not found");
     }
 
-    if (amount < 0 && (user.current_balance || 0) + amount < 0) {
+    if (amount < 0 && (user.own_money || 0) + amount < 0) {
         return responseBadRequest(res, "Insufficient funds");
     }
 
     const updateInc = {};
 
     if (amount > 0) {
-        updateInc.current_balance = amount;
+        updateInc.own_money = amount;
         const pendingOffset = Math.min(user.pending_addfund_balance || 0, amount);
         if (pendingOffset > 0) {
             updateInc.pending_addfund_balance = -pendingOffset;
         }
     } else if (amount < 0) {
-        updateInc.current_balance = amount;
+        updateInc.own_money = amount;
         const refundOffset = Math.min(user.pending_refund_balance || 0, Math.abs(amount));
         if (refundOffset > 0) {
             updateInc.pending_refund_balance = -refundOffset;

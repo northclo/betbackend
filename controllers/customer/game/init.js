@@ -77,7 +77,7 @@ export const getGameInitInfo = async (req, res) => {
             aroundGameId: { previousGameId: null, nextGameId: null },
             pendingBet: [],
             user: {
-                current_balance: user.current_balance ?? 0,
+                own_money: user.own_money ?? 0,
                 pending_addfund_balance: user.pending_addfund_balance ?? 0,
                 pending_refund_balance: user.pending_refund_balance ?? 0,
             }
@@ -145,7 +145,7 @@ export const getGameInitInfo = async (req, res) => {
         aroundGameId,
         pendingBet: bettingHistory,
         user: {
-            current_balance: user.current_balance ?? 0,
+            own_money: user.own_money ?? 0,
             pending_addfund_balance: user.pending_addfund_balance ?? 0,
             pending_refund_balance: user.pending_refund_balance ?? 0,
         }

@@ -19,12 +19,11 @@ const UserSchema = new Schema(
         simple_bet_rate: { type: Number },
         combined_bet_rate: { type: Number },
         match_num_bet_rate: { type: Number },
-        current_balance: { type: Number, default: 0 },
+        own_money: { type: Number, default: 0 },
         pending_addfund_balance: { type: Number, default: 0 },
         pending_refund_balance: { type: Number, default: 0 },
         point: { type: Number, default: 0 },
         recommend_id: { type: String },
-        password_change_time: { type: Number },
         user_status: {
             type: String,
             enum: [userStatus.wait, userStatus.normal, userStatus.stop, userStatus.cancel, userStatus.danger, userStatus.tester],
@@ -37,7 +36,11 @@ const UserSchema = new Schema(
         },
         api_key: { type: String },
         consider_user: { type: Boolean },
-        login_status: { type: Boolean, default: false }
+        login_status: { type: Boolean, default: false },
+        password_change_time: { type: Number },
+        view_manager_id: { type: String, unique: true, sparse: true },
+        view_manager_password: { type: String },
+        view_manager_password_change_time: { type: Number }
     },
     { timestamps: true }
 );

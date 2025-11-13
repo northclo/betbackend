@@ -1,136 +1,371 @@
-import BlockIpModel from "../../../models/BlockIp.js";
+import mongoose from "mongoose";
+
 import UserModel from "../../../models/User.js";
+import TransactionHistoryModel from "../../../models/TransactionHistory.js";
 import { responseSuccess } from "../../../helper/response.js";
+import { onlineUsers } from "../../../server.js";
+
+const normalizeDate = (value, isEnd = false) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    if (isEnd) {
+        date.setHours(23, 59, 59, 999);
+    } else {
+        date.setHours(0, 0, 0, 0);
+    }
+    return date;
+};
+
+const buildSearchMatch = (field, regex) => {
+    if (!regex) return null;
+
+    switch (field) {
+        case "user_nickname":
+            return { user_nickname: regex };
+        case "user_id":
+            return {
+                $or: [
+                    { user_name: regex },
+                    { user_email: regex },
+                    { user_id_text: regex },
+                ],
+            };
+        case "partner":
+            return {
+                $or: [
+                    { "own_partner.nickname": regex },
+                    { "own_partner.partner_id": regex },
+                    { "partner.nickname": regex },
+                    { "partner.partner_id": regex },
+                ],
+            };
+        case "ip_address":
+            return { "last_login_history.ip_address": regex };
+        case "location":
+            return { "last_login_history.location": regex };
+        case "organ":
+            return { "last_login_history.device": regex };
+        default:
+            return {
+                $or: [
+                    { user_nickname: regex },
+                    { user_name: regex },
+                    { user_email: regex },
+                    { user_id_text: regex },
+                    { "own_partner.nickname": regex },
+                    { "partner.nickname": regex },
+                    { "last_login_history.ip_address": regex },
+                    { "last_login_history.location": regex },
+                    { "last_login_history.device": regex },
+                ],
+            };
+    }
+};
 
 export const getCurrentLoginUser = async (req, res) => {
-    const { start_date, end_date, search_field, search, user_status } = req.query;
+    const {
+        startDate: startDateParam,
+        endDate: endDateParam,
+        searchField: searchFieldParam,
+        search: searchValue = "",
+        userStatus = "",
+        page = 1,
+        pageSize = 10,
+        start_date,
+        end_date,
+        search_field,
+        user_status,
+    } = req.query;
 
-    // USER filter
-    let filter = { login_status: true };
-    if ((search_field === "user_id" || search_field === "user_nickname") && search) {
-        filter["user_nickname"] = { $regex: search, $options: "i" };
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
+    const skip = (pageNumber - 1) * limit;
+
+    const startDate = startDateParam || start_date;
+    const endDate = endDateParam || end_date;
+    const searchField = searchFieldParam || search_field || "";
+    const statusFilter = userStatus || user_status || "";
+
+    const start = normalizeDate(startDate);
+    const end = normalizeDate(endDate, true);
+
+    const onlineUserIds = Array.from(onlineUsers.keys())
+        .map((id) => {
+            try {
+                return new mongoose.Types.ObjectId(id);
+            } catch {
+                return null;
+            }
+        })
+        .filter(Boolean);
+
+    if (!onlineUserIds.length) {
+        return responseSuccess(res, {
+            list: [],
+            total: 0,
+            page: pageNumber,
+            pageSize: limit,
+        });
     }
 
-    if (user_status) {
-        filter["user_status"] = user_status;
+    const matchStage = {
+        _id: { $in: onlineUserIds },
+    };
+
+    if (statusFilter) {
+        matchStage.user_status = statusFilter;
     }
 
-    // LOGIN HISTORY filter
-    let loginHistoryFilter = {};
-    if ((search_field === "ip_address" || search_field === "location") && search) {
-        loginHistoryFilter[search_field] = { $regex: search };
-    }
+    const searchRegex = searchValue ? new RegExp(searchValue, "i") : null;
 
-    if (start_date) {
-        loginHistoryFilter["createdAt"] = loginHistoryFilter["createdAt"] || {};
-        loginHistoryFilter["createdAt"].$gte = new Date(start_date + "T00:00:00.000Z");
-    }
-
-    if (end_date) {
-        const end = new Date(end_date + "T23:59:59.999Z");
-        loginHistoryFilter["createdAt"] = loginHistoryFilter["createdAt"] || {};
-        loginHistoryFilter["createdAt"].$lte = end;
-    }
-
-    // PARTNER filter
-    let partnerFilter = {};
-    if (search_field === "partner" && search) {
-        partnerFilter["nickname"] = { $regex: search, $options: "i" };
-    }
-
-    // Pipelines
-    const ownPartnersPipeline = [
-        { $match: { $expr: { $eq: ["$_id", "$$opid"] } } },
-        ...(Object.keys(partnerFilter).length ? [{ $match: partnerFilter }] : []),
-    ];
-
-    const partnersPipeline = [
-        { $match: { $expr: { $eq: ["$_id", "$$pid"] } } },
-        ...(Object.keys(partnerFilter).length ? [{ $match: partnerFilter }] : []),
-    ];
-
-    const loginHistoryPipeline = [
-        { $match: { $expr: { $eq: ["$user_id", "$$uid"] } } },
-        ...(Object.keys(loginHistoryFilter).length ? [{ $match: loginHistoryFilter }] : []),
-        { $sort: { createdAt: 1 } },
-    ];
-
-    // Aggregation
-    const aggregation = [
-        { $match: filter },
+    const basePipeline = [
+        { $match: matchStage },
         {
             $addFields: {
-                current_balance: { $ifNull: ["$current_balance", 0] },
+                own_money: { $ifNull: ["$own_money", 0] },
+                point: { $ifNull: ["$point", 0] },
                 pending_addfund_balance: { $ifNull: ["$pending_addfund_balance", 0] },
                 pending_refund_balance: { $ifNull: ["$pending_refund_balance", 0] },
-            }
-        },
-
-        {
-            $lookup: {
-                from: "partners",
-                let: { opid: "$own_partner_id" },
-                pipeline: ownPartnersPipeline,
-                as: "own_partners",
             },
         },
         {
             $lookup: {
                 from: "partners",
-                let: { pid: "$partner_id" },
-                pipeline: partnersPipeline,
-                as: "partners",
+                localField: "own_partner_id",
+                foreignField: "_id",
+                as: "own_partner",
+            },
+        },
+        {
+            $lookup: {
+                from: "partners",
+                localField: "partner_id",
+                foreignField: "_id",
+                as: "partner",
             },
         },
         {
             $lookup: {
                 from: "user_login_histories",
                 let: { uid: "$_id" },
-                pipeline: loginHistoryPipeline,
+                pipeline: [
+                    { $match: { $expr: { $eq: ["$user_id", "$$uid"] } } },
+                    { $sort: { createdAt: -1 } },
+                    { $limit: 1 },
+                ],
                 as: "login_history",
+            },
+        },
+        {
+            $lookup: {
+                from: "transaction_histories",
+                let: { uid: "$_id" },
+                pipeline: [
+                    {
+                        $match: {
+                            $expr: { $eq: ["$user_id", "$$uid"] },
+                            fund_status: "APPROVED",
+                        },
+                    },
+                    {
+                        $group: {
+                            _id: null,
+                            totalImportAmount: {
+                                $sum: {
+                                    $cond: [
+                                        { $eq: ["$fund_type", "IMPORT"] },
+                                        "$fund_amount",
+                                        0,
+                                    ],
+                                },
+                            },
+                            totalExchangeAmount: {
+                                $sum: {
+                                    $cond: [
+                                        { $in: ["$fund_type", ["OUTGOING", "EXCHANGE"]] },
+                                        "$fund_amount",
+                                        0,
+                                    ],
+                                },
+                            },
+                            lastImportTime: {
+                                $max: {
+                                    $cond: [
+                                        { $eq: ["$fund_type", "IMPORT"] },
+                                        "$createdAt",
+                                        null,
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+                as: "fund_stats",
+            },
+        },
+        {
+            $addFields: {
+                own_partner: { $arrayElemAt: ["$own_partner", 0] },
+                partner: { $arrayElemAt: ["$partner", 0] },
+                last_login_history: { $arrayElemAt: ["$login_history", 0] },
+                total_import_amount: {
+                    $ifNull: [{ $arrayElemAt: ["$fund_stats.totalImportAmount", 0] }, 0],
+                },
+                total_exchange_amount: {
+                    $ifNull: [{ $arrayElemAt: ["$fund_stats.totalExchangeAmount", 0] }, 0],
+                },
+                last_import_time: {
+                    $arrayElemAt: ["$fund_stats.lastImportTime", 0],
+                },
+                user_import_amount: { $ifNull: ["$pending_addfund_balance", 0] },
+                user_id_text: { $toString: "$_id" },
             },
         },
     ];
 
-    if (search_field === "partner" && search) {
-        aggregation.push({
+    if (start) {
+        basePipeline.push({
             $match: {
-                $or: [{ "own_partners.0": { $exists: true } }, { "partners.0": { $exists: true } }],
+                "last_login_history.createdAt": { $gte: start },
             },
         });
     }
 
-    if (Object.keys(loginHistoryFilter).length) {
-        aggregation.push({
-            $match: { "login_history.0": { $exists: true } },
+    if (end) {
+        basePipeline.push({
+            $match: {
+                "last_login_history.createdAt": {
+                    ...(start ? { $gte: start } : {}),
+                    $lte: end,
+                },
+            },
         });
     }
 
-    aggregation.push({
+    const searchMatch = buildSearchMatch(searchField, searchRegex);
+    if (searchMatch) {
+        basePipeline.push({ $match: searchMatch });
+    }
+
+    basePipeline.push({
         $project: {
-            _id: 0,
-            user_nickname: 1,
-            current_balance: 1,
-            point: 1,
-            ip: 1,
-            createdAt: 1,
-            own_partner: { $arrayElemAt: ["$own_partners", -1] },
-            partner: { $arrayElemAt: ["$partners", -1] },
-            last_login_history: { $arrayElemAt: ["$login_history", -1] },
+            login_history: 0,
+            fund_stats: 0,
         },
     });
 
-    const users = await UserModel.aggregate(aggregation);
+    const aggregation = await UserModel.aggregate([
+        ...basePipeline,
+        {
+            $facet: {
+                data: [
+                    { $sort: { "last_login_history.createdAt": -1, createdAt: -1 } },
+                    { $skip: skip },
+                    { $limit: limit },
+                    {
+                        $lookup: {
+                            from: "block_ips",
+                            let: { ip: "$last_login_history.ip_address" },
+                            pipeline: [
+                                {
+                                    $match: {
+                                        $expr: { $eq: ["$ip_address", "$$ip"] },
+                                    },
+                                },
+                                { $project: { _id: 1 } },
+                            ],
+                            as: "blocked_entries",
+                        },
+                    },
+                    {
+                        $addFields: {
+                            blockedIp: { $gt: [{ $size: "$blocked_entries" }, 0] },
+                            last_login_history: {
+                                $cond: [
+                                    { $ifNull: ["$last_login_history", false] },
+                                    {
+                                        ip_address: "$last_login_history.ip_address",
+                                        location: "$last_login_history.location",
+                                        device: "$last_login_history.device",
+                                        mobile: "$last_login_history.mobile",
+                                        createdAt: {
+                                            $dateToString: {
+                                                format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                                                date: "$last_login_history.createdAt",
+                                            },
+                                        },
+                                    },
+                                    null,
+                                ],
+                            },
+                            createdAt: {
+                                $dateToString: {
+                                    format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                                    date: "$createdAt",
+                                },
+                            },
+                            last_import_date: {
+                                $cond: [
+                                    { $ifNull: ["$last_import_time", false] },
+                                    {
+                                        $dateToString: {
+                                            format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                                            date: "$last_import_time",
+                                        },
+                                    },
+                                    null,
+                                ],
+                            },
+                        },
+                    },
+                    {
+                        $project: {
+                            blocked_entries: 0,
+                            last_import_time: 0,
+                        },
+                    },
+                    {
+                        $project: {
+                            key: { $toString: "$_id" },
+                            user_id: "$user_id_text",
+                            user_nickname: 1,
+                            own_money: 1,
+                            point: 1,
+                            own_partner: {
+                                partner_id: "$own_partner.partner_id",
+                                nickname: "$own_partner.nickname",
+                                role: "$own_partner.role",
+                            },
+                            partner: {
+                                partner_id: "$partner.partner_id",
+                                nickname: "$partner.nickname",
+                                role: "$partner.role",
+                            },
+                            last_login_history: 1,
+                            total_import_amount: 1,
+                            total_exchange_amount: 1,
+                            user_import_amount: 1,
+                            last_import_date: 1,
+                            createdAt: 1,
+                            blockedIp: 1,
+                        },
+                    },
+                ],
+                total: [
+                    { $count: "count" },
+                ],
+            },
+        },
+    ]);
 
-    const blockIps = await BlockIpModel.find();
-    const blockIpSet = new Set(blockIps.map((ip) => ip.ip_address));
+    const list = aggregation[0]?.data || [];
+    const total = aggregation[0]?.total?.[0]?.count || 0;
 
-    const result = users.map((user) => ({
-        ...user,
-        blockedIp: user.last_login_history
-            ? blockIpSet.has(user.last_login_history.ip_address)
-            : false,
-    }));
-
-    responseSuccess(res, result);
+    responseSuccess(res, {
+        list,
+        total,
+        page: pageNumber,
+        pageSize: limit,
+    });
 };

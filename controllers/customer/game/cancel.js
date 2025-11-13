@@ -54,7 +54,7 @@ export const cancelGame = async (req, res) => {
 
         await UserModel.updateOne(
             { _id: userId },
-            { $inc: { current_balance: bettingHistory.bet_amount } },
+            { $inc: { own_money: bettingHistory.bet_amount } },
             { session }
         );
 

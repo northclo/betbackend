@@ -70,7 +70,7 @@ export const StartGame = async (req, res) => {
         return responseBadRequest(res, "User not found");
     }
 
-    const availableBalance = user.current_balance ?? 0;
+    const availableBalance = user.own_money ?? 0;
 
     const game = await GameResultModel.findOne({ game_id });
     if (!game || !game.start_time_stamp) {
@@ -105,7 +105,7 @@ export const StartGame = async (req, res) => {
 
         const updateBalance = await UserModel.updateOne(
             { _id: userId },
-            { $inc: { current_balance: -amount } },
+            { $inc: { own_money: -amount } },
             { session }
         );
 

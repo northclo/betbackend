@@ -23,7 +23,7 @@ const createTestUsers = async () => {
       user_email: 'customer@test.com',
       password: hashedPassword,
       user_name: 'Test Customer',
-      current_balance: 10000,
+      own_money: 10000,
       user_status: userStatus.normal,
       user_level: 1
     });

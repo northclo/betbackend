@@ -1,33 +1,104 @@
-import moment from "moment";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 import { responseSuccess } from "../../../helper/response.js";
 
+const normalizeDate = (value, isEnd = false) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    if (isEnd) {
+        date.setHours(23, 59, 59, 999);
+    } else {
+        date.setHours(0, 0, 0, 0);
+    }
+    return date.getTime();
+};
+
+const buildSearchStage = (searchField, searchRegex) => {
+    if (!searchRegex) return [];
+
+    switch (searchField) {
+        case "user_nickname":
+            return [{ $match: { "user.user_nickname": searchRegex } }];
+        case "user_id":
+            return [
+                {
+                    $match: {
+                        $or: [
+                            { "user.user_name": searchRegex },
+                            { "user.user_email": searchRegex },
+                            { user_id_text: searchRegex },
+                        ],
+                    },
+                },
+            ];
+        case "distributor":
+            return [
+                {
+                    $match: {
+                        $or: [
+                            { "own_partner.nickname": searchRegex },
+                            { "own_partner.partner_id": searchRegex },
+                            { "partner.nickname": searchRegex },
+                            { "partner.partner_id": searchRegex },
+                        ],
+                    },
+                },
+            ];
+        case "ip_address":
+            return [{ $match: { ip_address: searchRegex } }];
+        case "location":
+            return [{ $match: { location: searchRegex } }];
+        case "organ":
+            return [{ $match: { device: searchRegex } }];
+        default:
+            return [
+                {
+                    $match: {
+                        $or: [
+                            { "user.user_nickname": searchRegex },
+                            { "user.user_name": searchRegex },
+                            { "user.user_email": searchRegex },
+                            { user_id_text: searchRegex },
+                            { ip_address: searchRegex },
+                            { location: searchRegex },
+                            { device: searchRegex },
+                            { "own_partner.nickname": searchRegex },
+                            { "partner.nickname": searchRegex },
+                        ],
+                    },
+                },
+            ];
+    }
+};
+
 export const getMemberLoginInformation = async (req, res) => {
     try {
-        const { startDate, endDate, searchField, search } = req.query;
+        const {
+            startDate,
+            endDate,
+            searchField = "",
+            search = "",
+            page = 1,
+            pageSize = 10,
+        } = req.query;
 
-        // Base login_date filter
+        const start = normalizeDate(startDate);
+        const end = normalizeDate(endDate, true);
+
         const filter = {};
-        if (startDate || endDate) {
+        if (start || end) {
             filter.login_date = {};
-            if (startDate) filter.login_date.$gt = new Date(startDate).getTime();
-            if (endDate) filter.login_date.$lt = new Date(endDate).getTime();
+            if (start) filter.login_date.$gte = start;
+            if (end) filter.login_date.$lte = end;
         }
 
-        // Dynamic filters
-        let userFilter = {};
-        let partnerFilter = {};
-        if (searchField && search) {
-            if (["user_nickname", "user_id"].includes(searchField)) {
-                userFilter = { [`user.${searchField}`]: { $regex: search, $options: "i" } };
-            } else if (searchField === "distributor") {
-                partnerFilter = { "partner.role": { $regex: search, $options: "i" } };
-            } else {
-                filter[searchField] = { $regex: search };
-            }
-        }
+        const searchRegex = search ? new RegExp(search, "i") : null;
 
-        const pipeline = [
+        const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+        const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
+        const skip = (pageNumber - 1) * limit;
+
+        const basePipeline = [
             { $match: filter },
             {
                 $lookup: {
@@ -38,7 +109,6 @@ export const getMemberLoginInformation = async (req, res) => {
                 },
             },
             { $unwind: "$user" },
-            ...(Object.keys(userFilter).length ? [{ $match: userFilter }] : []),
             {
                 $lookup: {
                     from: "block_ips",
@@ -63,39 +133,72 @@ export const getMemberLoginInformation = async (req, res) => {
                     as: "partner",
                 },
             },
-            ...(Object.keys(partnerFilter).length
-                ? [
-                    {
-                        $match: {
-                            $or: [
-                                { "own_partner.role": partnerFilter["partner.role"] },
-                                { "partner.role": partnerFilter["partner.role"] },
-                            ],
-                        },
-                    },
-                ]
-                : []),
+            {
+                $addFields: {
+                    own_partner: { $arrayElemAt: ["$own_partner", 0] },
+                    partner: { $arrayElemAt: ["$partner", 0] },
+                    block_ip: { $gt: [{ $size: "$block_ip" }, 0] },
+                    user_id_text: { $toString: "$user._id" },
+                },
+            },
         ];
 
-        const result = await UserLoginHistoryModel.aggregate(pipeline);
+        const searchStages = buildSearchStage(searchField, searchRegex);
 
-        const data = result.map((element) => ({
-            user_id: element.user.user_nickname || "",
-            user_nickname: element.user.user_nickname || "",
-            own_partner_id: element.own_partner[0]?.partner_id || "",
-            own_partner_nickname: element.own_partner[0]?.nickname || "",
-            own_partner_role: element.own_partner[0]?.role || "",
-            partner_id: element.partner[0]?.partner_id || "",
-            partner_nickname: element.partner[0]?.nickname || "",
-            partner_role: element.partner[0]?.role || "",
-            ip_address: element.ip_address,
-            block_ip: element.block_ip.length > 0,
-            location: element.location,
-            login_time: moment(element.login_date).format("YYYY-MM-DD HH:mm:ss"),
-            mobile: element.mobile || "",
-        }));
+        const pipeline = [
+            ...basePipeline,
+            ...searchStages,
+            {
+                $facet: {
+                    data: [
+                        { $sort: { login_date: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        {
+                            $project: {
+                                _id: 0,
+                                key: { $toString: "$_id" },
+                                history_id: { $toString: "$_id" },
+                                user_id: "$user_id_text",
+                                user_nickname: "$user.user_nickname",
+                                own_partner_id: "$own_partner.partner_id",
+                                own_partner_nickname: "$own_partner.nickname",
+                                own_partner_role: "$own_partner.role",
+                                partner_id: "$partner.partner_id",
+                                partner_nickname: "$partner.nickname",
+                                partner_role: "$partner.role",
+                                ip_address: 1,
+                                block_ip: 1,
+                                location: 1,
+                                organ: "$device",
+                                mobile: "$mobile",
+                                login_time: {
+                                    $dateToString: {
+                                        format: "%Y-%m-%d %H:%M:%S",
+                                        date: { $toDate: "$login_date" },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                    total: [
+                        { $count: "count" },
+                    ],
+                },
+            },
+        ];
 
-        responseSuccess(res, data);
+        const aggregation = await UserLoginHistoryModel.aggregate(pipeline);
+
+        const list = aggregation[0]?.data || [];
+        const total = aggregation[0]?.total?.[0]?.count || 0;
+
+        responseSuccess(res, {
+            list,
+            total,
+            page: pageNumber,
+            pageSize: limit,
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

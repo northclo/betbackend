@@ -29,13 +29,13 @@ export const withdrawFund = async (req, res) => {
   }
 
   try {
-    const user = await UserModel.findById(userId).select("current_balance pending_refund_balance");
+    const user = await UserModel.findById(userId).select("own_money pending_refund_balance");
 
     if (!user) {
       return responseBadRequest(res, "User not found");
     }
 
-    if (normalizedAmount > (user.current_balance || 0)) {
+    if (normalizedAmount > (user.own_money || 0)) {
       return responseBadRequest(res, "Insufficient balance");
     }
 
@@ -43,11 +43,11 @@ export const withdrawFund = async (req, res) => {
       userId,
       {
         $inc: {
-          current_balance: -normalizedAmount,
+          own_money: -normalizedAmount,
           pending_refund_balance: normalizedAmount,
         },
       },
-      { new: true, select: "current_balance pending_refund_balance" }
+      { new: true, select: "own_money pending_refund_balance" }
     );
 
     await TransactionModel.create({
@@ -61,7 +61,7 @@ export const withdrawFund = async (req, res) => {
       res,
       {
         amount: normalizedAmount,
-        balance: updatedUser.current_balance,
+        balance: updatedUser.own_money,
         pending_refund_balance: updatedUser.pending_refund_balance,
         status: "PENDING",
       },

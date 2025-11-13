@@ -27,7 +27,7 @@ export const addFund = async (req, res) => {
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       { $inc: { pending_addfund_balance: normalizedAmount } },
-      { new: true, select: "current_balance pending_addfund_balance" }
+      { new: true, select: "own_money pending_addfund_balance" }
     );
 
     if (!updatedUser) {
@@ -45,7 +45,7 @@ export const addFund = async (req, res) => {
       res,
       {
         amount: normalizedAmount,
-        balance: updatedUser.current_balance,
+        balance: updatedUser.own_money,
         pending_addfund_balance: updatedUser.pending_addfund_balance || 0,
         status: "PENDING",
       },
