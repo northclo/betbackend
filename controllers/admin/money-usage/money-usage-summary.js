@@ -26,7 +26,6 @@ export const getMoneyUsageSummary = async (req, res) => {
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
 
-    // Build date filter
     let dateFilter = {};
     if (start || end) {
         dateFilter.createdAt = {};
@@ -34,24 +33,21 @@ export const getMoneyUsageSummary = async (req, res) => {
         if (end) dateFilter.createdAt.$lte = end;
     }
 
-    // Build type filter
     let transactionTypeFilter = {};
     let bettingTypeFilter = {};
     
     if (type && type !== 'all') {
         if (type === 'charge') {
             transactionTypeFilter.fund_type = 'IMPORT';
-            bettingTypeFilter = { _id: { $exists: false } }; // Exclude betting
+            bettingTypeFilter = { _id: { $exists: false } }; 
         } else if (type === 'exchange') {
             transactionTypeFilter.fund_type = 'EXCHANGE';
-            bettingTypeFilter = { _id: { $exists: false } }; // Exclude betting
+            bettingTypeFilter = { _id: { $exists: false } }; 
         } else if (type === 'bet') {
-            transactionTypeFilter = { _id: { $exists: false } }; // Exclude transactions
-            // Include all betting records
+            transactionTypeFilter = { _id: { $exists: false } }; 
         }
     }
 
-    // Build member filter
     let memberFilter = {};
     let bettingMemberFilter = {};
     
@@ -70,7 +66,6 @@ export const getMoneyUsageSummary = async (req, res) => {
             memberFilter.user_id = { $in: userIds };
             bettingMemberFilter.user_id = { $in: userIds };
         } else {
-            // No users found, return empty summary
             return responseSuccess(res, {
                 total_transactions: 0,
                 total_inflow: 0,
@@ -80,7 +75,6 @@ export const getMoneyUsageSummary = async (req, res) => {
         }
     }
 
-    // Combine filters for transactions
     const transactionFilter = {
         ...dateFilter,
         ...transactionTypeFilter,
@@ -88,14 +82,12 @@ export const getMoneyUsageSummary = async (req, res) => {
         fund_type: { $in: ['IMPORT', 'EXCHANGE', 'OUTGOING'] }
     };
 
-    // Combine filters for betting
     const bettingFilter = {
         ...dateFilter,
         ...bettingMemberFilter,
         ...bettingTypeFilter
     };
 
-    // Get transaction statistics
     const transactionStats = await TransactionModel.aggregate([
         {
             $match: transactionFilter
@@ -154,7 +146,6 @@ export const getMoneyUsageSummary = async (req, res) => {
         }
     ]);
 
-    // Get betting statistics
     const bettingStats = await BettingResultModel.aggregate([
         {
             $match: bettingFilter
@@ -204,7 +195,6 @@ export const getMoneyUsageSummary = async (req, res) => {
         bet_inflow: 0
     };
 
-    // Calculate totals
     const total_transactions = txStats.count + betStats.count;
     const total_inflow = txStats.inflow + txStats.exchange_inflow + betStats.bet_inflow;
     const total_outflow = txStats.outflow + txStats.exchange_outflow + betStats.bet_outflow;

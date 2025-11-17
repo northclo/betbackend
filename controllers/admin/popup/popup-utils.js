@@ -1,4 +1,5 @@
 import UserModel from "../../../models/User.js";
+import { t } from "../../../helper/translation.js";
 
 export const ensureAdminId = (req) => {
   const adminId = req?.session?._id;
@@ -10,12 +11,12 @@ export const toPopupDto = async (popup) => {
     return null;
   }
 
-  let author = "Unknown";
+  let author = t("unknown");
   if (popup.userId) {
     try {
       const user = await UserModel.findById(popup.userId).lean();
       if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || "Unknown";
+        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
       }
     } catch (error) {
       console.error("Error fetching author:", error);

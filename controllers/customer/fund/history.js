@@ -1,31 +1,65 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import { responseSuccess } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 export const getFundHistory = async (req, res) => {
   const userId = req.session._id;
-  const { limit = 10, skip = 0 } = req.query;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = parseInt(req.query.limit, 10) || parseInt(req.query.pageSize, 10) || 10;
+  const skip = parseInt(req.query.skip, 10);
+  
+  const calculatedSkip = skip !== undefined && !isNaN(skip) ? skip : (page - 1) * limit;
+  const pageSize = Math.max(1, Math.min(limit, 100));
 
   try {
-    const transactions = await TransactionModel.find({
+    const filter = {
       user_id: userId,
       fund_type: "IMPORT",
-    })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(skip));
+    };
+
+    const [total, transactions] = await Promise.all([
+      TransactionModel.countDocuments(filter),
+      TransactionModel.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(pageSize)
+        .skip(calculatedSkip)
+    ]);
 
     const formattedTransactions = transactions.map((transaction) => ({
       _id: transaction._id,
       amount: transaction.fund_amount,
-      payment_method: transaction.payment_method || "bank_transfer",
+      payment_method: transaction.payment_method || t("default_payment_method_bank_transfer"),
       status: transaction.fund_status,
       createdAt: transaction.createdAt,
     }));
 
-    return responseSuccess(res, formattedTransactions, "Fund history retrieved successfully");
+    if (req.query.page || req.query.pageSize) {
+      return responseSuccess(res, {
+        data: formattedTransactions,
+        pagination: {
+          total,
+          page,
+          pageSize,
+          totalPages: Math.ceil(total / pageSize) || 1,
+        },
+      }, t("fund_history_retrieved_successfully"));
+    }
+
+    return responseSuccess(res, formattedTransactions, t("fund_history_retrieved_successfully"));
   } catch (error) {
     console.error("Error fetching fund history:", error);
-    return responseSuccess(res, [], "Fund history retrieved successfully");
+    if (req.query.page || req.query.pageSize) {
+      return responseSuccess(res, {
+        data: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          pageSize,
+          totalPages: 1,
+        },
+      }, t("fund_history_retrieved_successfully"));
+    }
+    return responseSuccess(res, [], t("fund_history_retrieved_successfully"));
   }
 };
 

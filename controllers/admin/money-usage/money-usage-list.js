@@ -33,7 +33,6 @@ export const getMoneyUsageList = async (req, res) => {
     const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
     const skip = (pageNumber - 1) * limit;
 
-    // Build date filter
     let dateFilter = {};
     if (start || end) {
         dateFilter.createdAt = {};
@@ -41,29 +40,25 @@ export const getMoneyUsageList = async (req, res) => {
         if (end) dateFilter.createdAt.$lte = end;
     }
 
-    // Build type filter
     let transactionTypeFilter = {};
     let bettingTypeFilter = {};
     
     if (type && type !== 'all') {
         if (type === 'charge') {
             transactionTypeFilter.fund_type = 'IMPORT';
-            bettingTypeFilter = { _id: { $exists: false } }; // Exclude betting
+            bettingTypeFilter = { _id: { $exists: false } }; 
         } else if (type === 'exchange') {
             transactionTypeFilter.fund_type = 'EXCHANGE';
-            bettingTypeFilter = { _id: { $exists: false } }; // Exclude betting
+            bettingTypeFilter = { _id: { $exists: false } }; 
         } else if (type === 'bet') {
-            transactionTypeFilter = { _id: { $exists: false } }; // Exclude transactions
-            // Include all betting records
+            transactionTypeFilter = { _id: { $exists: false } };
         }
     }
 
-    // Build member filter
     let memberFilter = {};
     let bettingMemberFilter = {};
     
     if (member) {
-        // Try to find user by nickname or ID
         const memberRegex = new RegExp(member, 'i');
         const users = await UserModel.find({
             $or: [
@@ -78,13 +73,11 @@ export const getMoneyUsageList = async (req, res) => {
             memberFilter.user_id = { $in: userIds };
             bettingMemberFilter.user_id = { $in: userIds };
         } else {
-            // No users found, return empty result
             memberFilter.user_id = { $exists: false };
             bettingMemberFilter.user_id = { $exists: false };
         }
     }
 
-    // Combine filters for transactions
     const transactionFilter = {
         ...dateFilter,
         ...transactionTypeFilter,
@@ -92,14 +85,12 @@ export const getMoneyUsageList = async (req, res) => {
         fund_type: { $in: ['IMPORT', 'EXCHANGE', 'OUTGOING'] }
     };
 
-    // Combine filters for betting
     const bettingFilter = {
         ...dateFilter,
         ...bettingMemberFilter,
         ...bettingTypeFilter
     };
 
-    // Get transactions from TransactionHistory
     const transactions = await TransactionModel.aggregate([
         {
             $match: transactionFilter
@@ -205,7 +196,6 @@ export const getMoneyUsageList = async (req, res) => {
         }
     ]);
 
-    // Get betting transactions
     const bettingTransactions = await BettingResultModel.aggregate([
         {
             $match: bettingFilter
@@ -290,21 +280,16 @@ export const getMoneyUsageList = async (req, res) => {
         }
     ]);
 
-    // Combine all transactions
     let allTransactions = [...transactions, ...bettingTransactions];
     
-    // Sort by date (newest first) for pagination
     allTransactions.sort((a, b) => {
         const dateA = new Date(a.sortDate);
         const dateB = new Date(b.sortDate);
         return dateB - dateA;
     });
 
-    // Calculate balance_after for filtered transactions
-    // Get unique user IDs from transactions (convert MongoDB ObjectId strings to ObjectIds)
     const userIds = [...new Set(allTransactions.map(tx => tx.member.replace('user_', '')))].filter(id => id !== '-');
     
-    // Get current balances and transactions after end date for these users
     const userBalances = {};
     const transactionsAfterEnd = {};
     
@@ -313,7 +298,6 @@ export const getMoneyUsageList = async (req, res) => {
             .map(id => new mongoose.Types.ObjectId(id));
         
         if (userObjectIds.length > 0) {
-            // Get current balances
             const users = await UserModel.find({
                 _id: { $in: userObjectIds }
             }).select('_id own_money').lean();
@@ -323,9 +307,7 @@ export const getMoneyUsageList = async (req, res) => {
                 transactionsAfterEnd[user._id.toString()] = 0;
             });
             
-            // If we have an end date, get transactions after the end date to adjust balance
             if (end) {
-                // Get transaction amounts after end date
                 const transactionsAfter = await TransactionModel.aggregate([
                     {
                         $match: {
@@ -360,7 +342,6 @@ export const getMoneyUsageList = async (req, res) => {
                     }
                 });
                 
-                // Get betting transactions after end date
                 const bettingAfter = await BettingResultModel.aggregate([
                     {
                         $match: {
@@ -402,11 +383,8 @@ export const getMoneyUsageList = async (req, res) => {
         }
     }
 
-    // Calculate balance_after by working backwards from adjusted current balance
-    // First, reverse to get chronological order (oldest first)
     const chronological = [...allTransactions].reverse();
     
-    // Group by user and calculate balance
     const userTransactions = {};
     chronological.forEach(tx => {
         const userId = tx.member.replace('user_', '');
@@ -418,32 +396,25 @@ export const getMoneyUsageList = async (req, res) => {
         userTransactions[userId].push(tx);
     });
 
-    // Calculate balance_after for each user's transactions
     Object.keys(userTransactions).forEach(userId => {
         const userTxs = userTransactions[userId];
         const currentBalance = userBalances[userId] || 0;
         const afterEndAmount = transactionsAfterEnd[userId] || 0;
         
-        // Start from current balance, subtract transactions after end date
-        // to get balance at end of filter range
         let runningBalance = currentBalance - afterEndAmount;
         
-        // Work backwards: subtract all transactions in filtered set
         userTxs.forEach(tx => {
             runningBalance -= tx.amount;
         });
         
-        // Now work forward to calculate balance_after for each transaction
         userTxs.forEach(tx => {
             runningBalance += tx.amount;
             tx.balance_after = Math.round(runningBalance * 100) / 100; // Round to 2 decimal places
         });
     });
 
-    // Reverse back to newest first
     chronological.reverse();
 
-    // Apply pagination
     const total = chronological.length;
     const paginatedData = chronological.slice(skip, skip + limit);
 

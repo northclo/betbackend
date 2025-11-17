@@ -43,56 +43,25 @@ export const updateChargingStatus = async (req, res) => {
         transaction.processed_at = new Date();
         await transaction.save();
 
-        // Update user balance based on action and fund type
         if (action === 'approve') {
-            if (transaction.fund_type === 'IMPORT') {
-                // Deposit approval: Add to own_money, subtract from pending_addfund_balance
-                await UserModel.findByIdAndUpdate(
-                    transaction.user_id,
-                    {
-                        $inc: {
-                            own_money: transaction.fund_amount,
-                            pending_addfund_balance: -transaction.fund_amount
-                        }
+            await UserModel.findByIdAndUpdate(
+                transaction.user_id,
+                {
+                    $inc: {
+                        own_money: transaction.fund_amount,
+                        pending_addfund_balance: -transaction.fund_amount
                     }
-                );
-            } else if (transaction.fund_type === 'OUTGOING') {
-                // Withdrawal approval: Money was already deducted when request was made
-                // Just subtract from pending_refund_balance (don't add back to own_money)
-                await UserModel.findByIdAndUpdate(
-                    transaction.user_id,
-                    {
-                        $inc: {
-                            pending_refund_balance: -transaction.fund_amount
-                        }
-                    }
-                );
-            }
+                }
+            );
         } else {
-            // Reject action
-            if (transaction.fund_type === 'IMPORT') {
-                // Deposit rejection: Just subtract from pending_addfund_balance (no money was added yet)
-                await UserModel.findByIdAndUpdate(
-                    transaction.user_id,
-                    {
-                        $inc: {
-                            pending_addfund_balance: -transaction.fund_amount
-                        }
+            await UserModel.findByIdAndUpdate(
+                transaction.user_id,
+                {
+                    $inc: {
+                        pending_addfund_balance: -transaction.fund_amount
                     }
-                );
-            } else if (transaction.fund_type === 'OUTGOING') {
-                // Withdrawal rejection: Refund to own_money, subtract from pending_refund_balance
-                // (Money was deducted when request was made, so we need to refund it)
-                await UserModel.findByIdAndUpdate(
-                    transaction.user_id,
-                    {
-                        $inc: {
-                            own_money: transaction.fund_amount,
-                            pending_refund_balance: -transaction.fund_amount
-                        }
-                    }
-                );
-            }
+                }
+            );
         }
 
         return responseSuccess(

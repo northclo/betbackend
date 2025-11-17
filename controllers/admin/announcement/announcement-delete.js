@@ -1,4 +1,4 @@
-import BlogPostModel from "../../../models/BlogPost.js";
+import AnnouncementModel from "../../../models/Announcement.js";
 import {
   responseBadRequest,
   responseSuccess,
@@ -22,7 +22,7 @@ export const deleteAnnouncement = async (req, res) => {
   }
 
   // Admin can delete any announcement (not restricted to their own)
-  const deleted = await BlogPostModel.findOneAndDelete({ _id: announcementId });
+  const deleted = await AnnouncementModel.findOneAndDelete({ _id: announcementId });
 
   if (!deleted) {
     return responseBadRequest(res, "Announcement not found.");

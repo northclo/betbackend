@@ -3,6 +3,7 @@ import PartnerModel from "../../../models/Partner.js";
 import UserModel from "../../../models/User.js";
 import { responseBadRequest, responseSuccess, responseUnAutherized } from "../../../helper/response.js";
 import { partnerType } from "../../../const/type.js";
+import { t } from "../../../helper/translation.js";
 
 export const getGameOption = async (req, res) => {
     try {
@@ -31,7 +32,7 @@ export const getGameOption = async (req, res) => {
             // Create a default partner for the user
             const defaultPartner = await PartnerModel.create({
                 role: partnerType.store,
-                nickname: `${user.user_nickname || 'User'}_Partner`,
+                nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
                 partner_id: `PARTNER_${user._id}`,
                 user_id: user._id,
                 bet_rate_type: 'A',
@@ -55,7 +56,7 @@ export const getGameOption = async (req, res) => {
                 // Partner was deleted or doesn't exist, create a new one
                 const defaultPartner = await PartnerModel.create({
                     role: partnerType.store,
-                    nickname: `${user.user_nickname || 'User'}_Partner`,
+                    nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
                     partner_id: `PARTNER_${user._id}`,
                     user_id: user._id,
                     bet_rate_type: 'A',
@@ -174,6 +175,6 @@ export const getGameOption = async (req, res) => {
     } catch (error) {
         console.error('[getGameOption] Error:', error);
         console.error('[getGameOption] Error stack:', error.stack);
-        return responseBadRequest(res, `Error fetching game options: ${error.message}`);
+        return responseBadRequest(res, t("error_fetching_game_options", error.message));
     }
 }

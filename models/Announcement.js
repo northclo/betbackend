@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 
-const BlogPostSchema = new Schema(
+const AnnouncementSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
@@ -22,12 +22,11 @@ const BlogPostSchema = new Schema(
   { timestamps: true }
 );
 
-BlogPostSchema.index({ userId: 1, createdAt: -1 });
-BlogPostSchema.index({ status: 1, published_at: -1 });
-BlogPostSchema.index({ slug: 1 });
+AnnouncementSchema.index({ userId: 1, createdAt: -1 });
+AnnouncementSchema.index({ status: 1, published_at: -1 });
+AnnouncementSchema.index({ slug: 1 });
 
-const BlogPostModel = mongoose.model("blog_posts", BlogPostSchema);
+const AnnouncementModel = mongoose.model("announcements", AnnouncementSchema);
 
-export default BlogPostModel;
-
+export default AnnouncementModel;
 

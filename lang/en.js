@@ -63,6 +63,8 @@ export default {
   failed_update_user_balance: "Failed to update user balance",
   exchange_request_submitted: "Exchange request submitted and awaiting approval",
   failed_process_exchange: "Failed to process exchange request. Please try again.",
+  exchange_request_cancelled: "Exchange request cancelled successfully",
+  failed_to_cancel_exchange_request: "Failed to cancel exchange request",
   
   // Charging
   transaction_not_found: "Transaction not found",
@@ -101,11 +103,10 @@ export default {
   maximum_amount: "Maximum amount is",
   fund_request_submitted: "Fund request submitted and awaiting approval",
   failed_add_fund: "Failed to add fund. Please try again.",
-  withdrawal_amount_required: "Withdrawal amount is required",
-  minimum_withdrawal_amount: "Minimum withdrawal amount is",
-  maximum_withdrawal_amount: "Maximum withdrawal amount is",
-  withdrawal_request_submitted: "Withdrawal request submitted and awaiting approval.",
-  failed_submit_withdrawal: "Failed to submit withdrawal request",
+  transaction_not_found_or_cannot_cancelled: "Transaction not found or cannot be cancelled",
+  failed_to_cancel_transaction: "Failed to cancel transaction",
+  fund_request_cancelled: "Fund request cancelled successfully",
+  failed_to_cancel_fund_request: "Failed to cancel fund request",
   
   // Support
   provide_name_email_subject_message: "Please provide your name, email, subject, and message.",
@@ -121,6 +122,16 @@ export default {
   no_valid_ticket_ids: "No valid ticket IDs provided.",
   successfully_deleted_tickets: "Successfully deleted {0} ticket(s).",
   admin: "Admin",
+  question_required: "Question is required.",
+  question_submitted_successfully: "Question submitted successfully.",
+  question_id_required: "Question ID is required.",
+  invalid_question_id_format: "Invalid question ID format.",
+  cannot_edit_resolved_question: "Cannot edit questions that have been resolved or rejected.",
+  question_updated_successfully: "Question updated successfully.",
+  question_deleted_successfully: "Question deleted successfully.",
+  question_ids_required: "Question IDs are required.",
+  no_valid_question_ids: "No valid question IDs provided.",
+  successfully_deleted_questions: "Successfully deleted {0} question(s).",
   
   // Partner
   nickname_exists: "Nickname is exist",
@@ -186,4 +197,17 @@ export default {
   both_start_and_end_date_required: "Both start date and end date are required.",
   invalid_date_range: "Invalid date range.",
   start_date_must_be_before_end_date: "Start date must be before end date.",
+  
+  // Game Options
+  default_user_name: "User",
+  default_partner_suffix: "_Partner",
+  error_fetching_game_options: "Error fetching game options: {0}",
+  
+  // Fund History
+  default_payment_method_bank_transfer: "bank_transfer",
+  fund_history_retrieved_successfully: "Fund history retrieved successfully",
+  exchange_history_retrieved_successfully: "Exchange history retrieved successfully",
+
+  // Announcement
+  default_category_system_notice: "system_notice",
 };

@@ -1,4 +1,4 @@
-import BlogPostModel from "../../../models/BlogPost.js";
+import AnnouncementModel from "../../../models/Announcement.js";
 import UserModel from "../../../models/User.js";
 import {
   responseBadRequest,
@@ -6,6 +6,7 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { getPresignedUrl } from "../../../utils/s3.js";
+import { t } from "../../../helper/translation.js";
 
 const ensureAdminId = (req) => {
   const adminId = req?.session?._id;
@@ -20,12 +21,12 @@ const toAnnouncementDto = async (post) => {
   }
 
   // Get author info
-  let author = "Unknown";
+  let author = t("unknown");
   if (post.userId) {
     try {
       const user = await UserModel.findById(post.userId).lean();
       if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || "Unknown";
+        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -117,12 +118,12 @@ export const listAnnouncements = async (req, res) => {
   const skip = (pageNumber - 1) * pageSize;
 
   const [posts, total] = await Promise.all([
-    BlogPostModel.find(filter)
+    AnnouncementModel.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(pageSize)
       .lean(),
-    BlogPostModel.countDocuments(filter),
+    AnnouncementModel.countDocuments(filter),
   ]);
 
   const totalPages = Math.ceil(total / pageSize) || 1;

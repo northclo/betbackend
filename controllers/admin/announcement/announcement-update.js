@@ -1,4 +1,4 @@
-import BlogPostModel from "../../../models/BlogPost.js";
+import AnnouncementModel from "../../../models/Announcement.js";
 import {
   responseBadRequest,
   responseSuccess,
@@ -118,7 +118,7 @@ const generateUniqueSlug = async (title, excludeId = null) => {
     return filter;
   };
 
-  while (await BlogPostModel.exists(query(slug))) {
+  while (await AnnouncementModel.exists(query(slug))) {
     slug = `${baseSlug}-${counter++}`;
   }
 
@@ -163,7 +163,7 @@ export const updateAnnouncement = async (req, res) => {
   }
 
   // Admin can update any announcement (not restricted to their own)
-  const updated = await BlogPostModel.findOneAndUpdate(
+  const updated = await AnnouncementModel.findOneAndUpdate(
     { _id: announcementId },
     payload,
     { new: true, runValidators: true }

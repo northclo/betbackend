@@ -7,6 +7,7 @@ const TransactionSchema = new Schema(
         fund_type: { type: String, enum: ['IMPORT', 'OUTGOING', 'EXCHANGE'] },
         fund_status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'] },
         fund_amount: { type: Number, default: 0 },
+        payment_method: { type: String, default: 'bank_transfer' },
         currency: { type: String, default: null },
         from_currency: { type: String, default: null },
         to_currency: { type: String, default: null },

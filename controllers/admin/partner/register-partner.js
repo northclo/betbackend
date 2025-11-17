@@ -102,7 +102,6 @@ export const registerPartner = async (req, res) => {
             all_rounds_bet_max: payload.gameSetting?.allRoundsBetMax ? Number(payload.gameSetting.allRoundsBetMax) : null,
         });
 
-        // Update user with own_partner_id
         await UserModel.findByIdAndUpdate(newUser._id, {
             own_partner_id: newPartner._id
         });
@@ -113,7 +112,7 @@ export const registerPartner = async (req, res) => {
         });
     } catch (error) {
         console.error('Error registering partner:', error);
-        return responseBadRequest(res, error.message || t("failed_register_partner"));
+        return responseBadRequest(res, t("failed_register_partner"));
     }
 };
 

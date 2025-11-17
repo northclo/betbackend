@@ -26,8 +26,8 @@ import {
 
 router.get("/list", catchError(listSupportTickets));
 router.get("/summary", catchError(getSupportSummary));
-router.post("/:ticketId/reply", catchError(replyToSupportTicket));
 router.post("/bulk-delete", catchError(bulkDeleteSupportTickets));
+router.post("/:ticketId/reply", catchError(replyToSupportTicket));
 router.get("/:ticketId", catchError(viewSupportTicket));
 router.put("/:ticketId", catchError(updateSupportTicket));
 router.delete("/:ticketId", catchError(deleteSupportTicket));

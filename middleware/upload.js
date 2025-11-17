@@ -13,7 +13,7 @@ const s3Client = new S3Client({
 const s3Storage = {
   _handleFile: async (req, file, cb) => {
     try {
-      const fileName = `blog-images/blog-${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.originalname.split('.').pop()}`;
+      const fileName = `uploads/images-${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.originalname.split('.').pop()}`;
       
       const chunks = [];
       file.stream.on('data', (chunk) => chunks.push(chunk));

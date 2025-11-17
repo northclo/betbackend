@@ -1,4 +1,4 @@
-import BlogPostModel from "../../../models/BlogPost.js";
+import AnnouncementModel from "../../../models/Announcement.js";
 import {
   responseBadRequest,
   responseSuccess,
@@ -118,7 +118,7 @@ const generateUniqueSlug = async (title, excludeId = null) => {
     return filter;
   };
 
-  while (await BlogPostModel.exists(query(slug))) {
+  while (await AnnouncementModel.exists(query(slug))) {
     slug = `${baseSlug}-${counter++}`;
   }
 
@@ -146,7 +146,7 @@ export const createAnnouncement = async (req, res) => {
   payload.userId = adminId; // Store which admin created it
 
   if (!payload.category) {
-    payload.category = "system_notice"; // Default category
+    payload.category = t("default_category_system_notice");
   }
 
   if (!payload.status) {
@@ -163,7 +163,7 @@ export const createAnnouncement = async (req, res) => {
 
   payload.slug = await generateUniqueSlug(payload.title);
 
-  const created = await BlogPostModel.create(payload);
+  const created = await AnnouncementModel.create(payload);
 
   const dto = await toAnnouncementDto(created);
   return responseSuccess(

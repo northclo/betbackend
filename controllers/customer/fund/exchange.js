@@ -20,8 +20,119 @@ const getExchangeRate = (fromCurrency, toCurrency) => {
 };
 
 export const exchangeFund = async (req, res) => {
-    const { from_currency, to_currency, original_amount } = req.body;
+    const { from_currency, to_currency, original_amount, secure_code, amount } = req.body;
     const userId = req.session._id;
+
+    const isSimpleExchange = secure_code !== undefined && secure_code !== null && secure_code !== '';
+    const exchangeAmount = isSimpleExchange ? amount : original_amount;
+
+    if (isSimpleExchange) {
+        if (exchangeAmount === undefined || exchangeAmount === null || exchangeAmount === '') {
+            return responseBadRequest(res, t("original_amount_required"));
+        }
+
+        const normalizedAmount = Number(exchangeAmount);
+        if (isNaN(normalizedAmount) || !isFinite(normalizedAmount) || normalizedAmount <= 0) {
+            return responseBadRequest(res, t("invalid_amount_positive"));
+        }
+
+        const fromCurrency = 'USD';
+        const toCurrency = 'USD';
+        const exchangeRate = 1;
+        const convertedAmount = normalizedAmount;
+
+        try {
+            const settings = await SettingModel.findOne();
+            if (!settings) {
+                return responseBadRequest(res, t("system_settings_not_found"));
+            }
+
+            if (settings.exchange_min && normalizedAmount < settings.exchange_min) {
+                return responseBadRequest(res, `${t("minimum_exchange_amount")} ${settings.exchange_min}`);
+            }
+            if (settings.exchange_max && normalizedAmount > settings.exchange_max) {
+                return responseBadRequest(res, `${t("maximum_exchange_amount")} ${settings.exchange_max}`);
+            }
+
+            if (settings.exchange_timezone) {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMinute = now.getMinutes();
+                const currentTime = currentHour * 60 + currentMinute;
+
+                if (settings.exchange_start_time !== null && settings.exchange_end_time !== null) {
+                    if (currentTime < settings.exchange_start_time || currentTime > settings.exchange_end_time) {
+                        return responseBadRequest(
+                            res,
+                            settings.exchange_impossible_timezone_message || t("exchange_not_available")
+                        );
+                    }
+                }
+            }
+
+            const user = await UserModel.findById(userId).select("own_money");
+            if (!user) {
+                return responseBadRequest(res, t("user_not_found"));
+            }
+
+            if (normalizedAmount > (user.own_money || 0)) {
+                return responseBadRequest(res, t("insufficient_balance"));
+            }
+
+            const session = await mongoose.startSession();
+            session.startTransaction();
+
+            try {
+                const updatedUser = await UserModel.findByIdAndUpdate(
+                    userId,
+                    { $inc: { own_money: -normalizedAmount } },
+                    { new: true, session, select: "own_money" }
+                );
+
+                if (!updatedUser) {
+                    await session.abortTransaction();
+                    return responseBadRequest(res, t("failed_update_user_balance"));
+                }
+
+                const transaction = await TransactionModel.create([{
+                    user_id: userId,
+                    fund_type: "EXCHANGE",
+                    fund_status: "PENDING",
+                    fund_amount: convertedAmount,
+                    currency: toCurrency,
+                    from_currency: fromCurrency,
+                    to_currency: toCurrency,
+                    exchange_rate: exchangeRate,
+                    original_amount: normalizedAmount
+                }], { session });
+
+                await session.commitTransaction();
+
+                return responseSuccess(
+                    res,
+                    {
+                        transaction_id: transaction[0]._id,
+                        from_currency: fromCurrency,
+                        to_currency: toCurrency,
+                        original_amount: normalizedAmount,
+                        converted_amount: convertedAmount,
+                        exchange_rate: exchangeRate,
+                        balance: updatedUser.own_money,
+                        status: "PENDING"
+                    },
+                    t("exchange_request_submitted")
+                );
+            } catch (error) {
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                session.endSession();
+            }
+        } catch (error) {
+            console.error("Error processing exchange:", error);
+            return responseBadRequest(res, t("failed_process_exchange"));
+        }
+    }
 
     if (!from_currency || !to_currency) {
         return responseBadRequest(res, t("from_to_currency_required"));
