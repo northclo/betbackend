@@ -12,8 +12,8 @@ const PartnerMessageSchema = new Schema(
         expire_at: { type: Number },
         type: {
             type: String,
-            enum: [messageType.groupMessasge, messageType.note],
-            default: messageType.note
+            enum: [messageType.groupMessasge, messageType.notice],
+            default: messageType.notice
         }
     },
     { timestamps: true }

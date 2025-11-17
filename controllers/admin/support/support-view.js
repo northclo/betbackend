@@ -1,28 +1,24 @@
+import mongoose from "mongoose";
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
-  responseUnAutherized,
   responseNotFound,
   responseBadRequest,
   responseServerError,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
+import { t } from "../../../helper/translation.js";
 
 export const viewSupportTicket = async (req, res) => {
-  const adminId = ensureAdminId(req);
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
   const { ticketId } = req.params;
 
   if (!ticketId) {
-    return responseBadRequest(res, "Ticket ID is required.");
+    return responseBadRequest(res, t("ticket_id_required"));
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+    return responseBadRequest(res, t("invalid_ticket_id_format"));
   }
 
   try {
@@ -32,42 +28,55 @@ export const viewSupportTicket = async (req, res) => {
       return responseNotFound(res);
     }
 
-    // Get member info
-    let member = ticket.name || "Unknown";
+    let userId = null;
+    let userNickname = ticket.user_nickname || t("unknown");
+    let userRole = "user";
+    let parentPartnerName = null;
+
     if (ticket.userId) {
       try {
+        userId = ticket.userId.toString();
         const user = await UserModel.findById(ticket.userId).lean();
         if (user) {
-          member = user.user_nickname || user.user_name || user.user_email || ticket.name || "Unknown";
+          userNickname = ticket.user_nickname || user.user_nickname || user.user_name || user.user_email || t("unknown");
+
+          const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
+          if (partner) {
+            userRole = "partner";
+          }
+
+          const userPartnerId = user.own_partner_id || user.partner_id;
+          if (userPartnerId) {
+            const userPartner = await PartnerModel.findById(userPartnerId).lean();
+            if (userPartner && userPartner.parent_partner_id) {
+              const parentPartner = await PartnerModel.findById(userPartner.parent_partner_id).lean();
+              if (parentPartner) {
+                parentPartnerName = parentPartner.nickname || parentPartner.partner_id || null;
+              }
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching user:", error);
       }
     }
 
-    // Generate ticket ID
-    const ticketIdFormatted = `TICKET-${ticket._id.toString().slice(-4).toUpperCase()}`;
-
     const ticketData = {
       id: ticket._id.toString(),
-      ticket_id: ticketIdFormatted,
-      member: member,
-      priority: ticket.priority || "medium",
-      status: ticket.status || "open",
-      subject: ticket.subject || "",
-      updated_at: ticket.updatedAt ? new Date(ticket.updatedAt).toISOString() : null,
-      assigned_to: ticket.assigned_to || null,
-      name: ticket.name,
-      email: ticket.email,
-      message: ticket.message,
+      title: ticket.title || "",
+      userId: userId,
+      userNickname: userNickname,
+      userRole: userRole,
+      parentPartnerName: parentPartnerName,
+      firstMessageDate: ticket.firstMessageDate ? new Date(ticket.firstMessageDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+      messageSendDate: ticket.sendDate ? new Date(ticket.sendDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+      ipAddress: ticket.ipAddress || "-",
+      answerDate: ticket.answerDate ? new Date(ticket.answerDate).toISOString() : null,
+      status: ticket.status || "pending",
+      question: ticket.question || "",
+      answer: ticket.answer || "",
       createdAt: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null,
-      replies: ticket.replies ? ticket.replies.map(reply => ({
-        message: reply.message,
-        replied_by: reply.replied_by,
-        replied_by_name: reply.replied_by_name,
-        is_admin: reply.is_admin,
-        createdAt: reply.createdAt ? new Date(reply.createdAt).toISOString() : null,
-      })) : [],
+      updated_at: ticket.updatedAt ? new Date(ticket.updatedAt).toISOString() : null,
     };
 
     return responseSuccess(res, ticketData);

@@ -1,16 +1,12 @@
+import mongoose from "mongoose";
 import SupportMessage from "../../../models/SupportMessage.js";
 import {
   responseBadRequest,
   responseSuccess,
-  responseUnAutherized,
   responseNotFound,
   responseServerError,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
+import { t } from "../../../helper/translation.js";
 
 const normalizeStatus = (value) => {
   if (!value) {
@@ -18,20 +14,7 @@ const normalizeStatus = (value) => {
   }
 
   const normalized = String(value).trim().toLowerCase();
-  if (!["open", "in_progress", "resolved"].includes(normalized)) {
-    return undefined;
-  }
-
-  return normalized;
-};
-
-const normalizePriority = (value) => {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = String(value).trim().toLowerCase();
-  if (!["low", "medium", "high"].includes(normalized)) {
+  if (!["pending", "resolved", "rejected"].includes(normalized)) {
     return undefined;
   }
 
@@ -39,16 +22,15 @@ const normalizePriority = (value) => {
 };
 
 export const updateSupportTicket = async (req, res) => {
-  const adminId = ensureAdminId(req);
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
   const { ticketId } = req.params;
-  const { status, priority, assigned_to } = req.body;
+  const { status, answer } = req.body;
 
   if (!ticketId) {
-    return responseBadRequest(res, "Ticket ID is required.");
+    return responseBadRequest(res, t("ticket_id_required"));
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+    return responseBadRequest(res, t("invalid_ticket_id_format"));
   }
 
   try {
@@ -63,15 +45,13 @@ export const updateSupportTicket = async (req, res) => {
     const normalizedStatus = normalizeStatus(status);
     if (normalizedStatus !== undefined) {
       updateData.status = normalizedStatus;
+      if (normalizedStatus === "resolved" && !ticket.answerDate) {
+        updateData.answerDate = new Date();
+      }
     }
 
-    const normalizedPriority = normalizePriority(priority);
-    if (normalizedPriority !== undefined) {
-      updateData.priority = normalizedPriority;
-    }
-
-    if (assigned_to !== undefined) {
-      updateData.assigned_to = assigned_to ? String(assigned_to).trim() : null;
+    if (answer !== undefined) {
+      updateData.answer = String(answer).trim();
     }
 
     Object.assign(ticket, updateData);
@@ -80,7 +60,7 @@ export const updateSupportTicket = async (req, res) => {
     return responseSuccess(
       res,
       { id: ticket._id.toString() },
-      "Ticket updated successfully."
+      t("ticket_updated_successfully")
     );
   } catch (error) {
     console.error("Error updating support ticket:", error);

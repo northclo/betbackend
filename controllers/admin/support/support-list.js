@@ -1,48 +1,10 @@
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
-  responseUnAutherized,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
-const toSupportTicketDto = async (ticket) => {
-  // Get member info
-  let member = ticket.name || "Unknown";
-  if (ticket.userId) {
-    try {
-      const user = await UserModel.findById(ticket.userId).lean();
-      if (user) {
-        member = user.user_nickname || user.user_name || user.user_email || ticket.name || "Unknown";
-      }
-    } catch (error) {
-      console.error("Error fetching user:", error);
-    }
-  }
-
-  // Generate ticket ID
-  const ticketId = `TICKET-${ticket._id.toString().slice(-4).toUpperCase()}`;
-
-  return {
-    id: ticket._id.toString(),
-    ticket_id: ticketId,
-    member: member,
-    priority: ticket.priority || "medium",
-    status: ticket.status || "open",
-    subject: ticket.subject || "",
-    updated_at: ticket.updatedAt ? new Date(ticket.updatedAt).toISOString() : null,
-    assigned_to: ticket.assigned_to || null,
-    name: ticket.name,
-    email: ticket.email,
-    message: ticket.message,
-    createdAt: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null,
-    replies_count: ticket.replies ? ticket.replies.length : 0,
-  };
-};
+import { t } from "../../../helper/translation.js";
 
 const normalizeStatus = (value) => {
   if (!value) {
@@ -50,35 +12,71 @@ const normalizeStatus = (value) => {
   }
 
   const normalized = String(value).trim().toLowerCase();
-  if (!["open", "in_progress", "resolved"].includes(normalized)) {
+  if (!["pending", "resolved", "rejected"].includes(normalized)) {
     return undefined;
   }
 
   return normalized;
 };
 
-const normalizePriority = (value) => {
-  if (!value) {
-    return undefined;
+const toSupportTicketDto = async (ticket) => {
+  let userId = null;
+  let userNickname = ticket.user_nickname || t("unknown");
+  let userRole = "user";
+  let parentPartnerName = null;
+
+  if (ticket.userId) {
+    try {
+      userId = ticket.userId.toString();
+      const user = await UserModel.findById(ticket.userId).lean();
+      if (user) {
+        userNickname = ticket.user_nickname || user.user_nickname || user.user_name || user.user_email || t("unknown");
+        const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
+        if (partner) {
+          userRole = "partner";
+        }
+
+        const userPartnerId = user.own_partner_id || user.partner_id;
+        if (userPartnerId) {
+          const userPartner = await PartnerModel.findById(userPartnerId).lean();
+          if (userPartner && userPartner.parent_partner_id) {
+            const parentPartner = await PartnerModel.findById(userPartner.parent_partner_id).lean();
+            if (parentPartner) {
+              parentPartnerName = parentPartner.nickname || parentPartner.partner_id || null;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user:", error);
+    }
   }
 
-  const normalized = String(value).trim().toLowerCase();
-  if (!["low", "medium", "high"].includes(normalized)) {
-    return undefined;
-  }
-
-  return normalized;
+  return {
+    id: ticket._id.toString(),
+    no: null,
+    title: ticket.title || "",
+    userId: userId,
+    userNickname: userNickname,
+    userRole: userRole,
+    userDisplay: `${userNickname}${userId ? `(${userId.slice(-8)})` : ""}${userRole === "partner" ? "(partner)" : "(user)"}`,
+    parentPartnerName: parentPartnerName,
+    firstMessageDate: ticket.firstMessageDate ? new Date(ticket.firstMessageDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+    messageSendDate: ticket.sendDate ? new Date(ticket.sendDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+    ipAddress: ticket.ipAddress || "-",
+    answerDate: ticket.answerDate ? new Date(ticket.answerDate).toISOString() : null,
+    status: ticket.status || "pending",
+    question: ticket.question || "",
+    answer: ticket.answer || "",
+    createdAt: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null,
+    updated_at: ticket.updatedAt ? new Date(ticket.updatedAt).toISOString() : null,
+  };
 };
 
 export const listSupportTickets = async (req, res) => {
-  const adminId = ensureAdminId(req);
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
   const { 
     status, 
-    priority, 
+    searchType,
     keyword,
     startDate,
     endDate,
@@ -93,35 +91,74 @@ export const listSupportTickets = async (req, res) => {
     filter.status = normalizedStatus;
   }
 
-  const normalizedPriority = normalizePriority(priority);
-  if (normalizedPriority) {
-    filter.priority = normalizedPriority;
-  }
-
-  // Date range filter
   if (startDate || endDate) {
-    filter.createdAt = {};
+    filter.firstMessageDate = filter.firstMessageDate || {};
     if (startDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-      filter.createdAt.$gte = start;
+      filter.firstMessageDate.$gte = start;
     }
     if (endDate) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      filter.createdAt.$lte = end;
+      filter.firstMessageDate.$lte = end;
     }
   }
 
-  // Keyword search (subject, message, name, email)
   if (keyword && String(keyword).trim().length > 0) {
-    const keywordRegex = new RegExp(String(keyword).trim(), "i");
-    filter.$or = [
-      { subject: keywordRegex },
-      { message: keywordRegex },
-      { name: keywordRegex },
-      { email: keywordRegex },
-    ];
+    const keywordTrimmed = String(keyword).trim();
+    const keywordRegex = new RegExp(keywordTrimmed, "i");
+
+    if (searchType) {
+      const searchTypeLower = String(searchType).toLowerCase().trim();
+      
+      if (searchTypeLower === "user_nickname") {
+        const users = await UserModel.find({
+          user_nickname: keywordRegex
+        }).select("_id").lean();
+        const userIds = users.map(u => u._id);
+        if (userIds.length > 0) {
+          filter.userId = { $in: userIds };
+        } else {
+          filter._id = { $in: [] };
+        }
+      } else if (searchTypeLower === "user_id") {
+        const userConditions = [
+          { user_email: keywordRegex },
+          { user_name: keywordRegex }
+        ];
+        
+        if (keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
+          userConditions.push({ _id: keywordTrimmed });
+        }
+        
+        const users = await UserModel.find({
+          $or: userConditions
+        }).select("_id").lean();
+        const userIds = users.map(u => u._id);
+        if (userIds.length > 0) {
+          filter.userId = { $in: userIds };
+        } else {
+          filter._id = { $in: [] };
+        }
+      } else if (searchTypeLower === "title") {
+        filter.title = keywordRegex;
+      } else if (searchTypeLower === "content") {
+        filter.question = keywordRegex;
+      } else {
+        filter.$or = [
+          { title: keywordRegex },
+          { question: keywordRegex },
+          { user_nickname: keywordRegex },
+        ];
+      }
+    } else {
+      filter.$or = [
+        { title: keywordRegex },
+        { question: keywordRegex },
+        { user_nickname: keywordRegex },
+      ];
+    }
   }
 
   const pageNumber = Math.max(Number(page) || 1, 1);
@@ -130,7 +167,7 @@ export const listSupportTickets = async (req, res) => {
 
   const [tickets, total] = await Promise.all([
     SupportMessage.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ firstMessageDate: -1, createdAt: -1 })
       .skip(skip)
       .limit(pageSize)
       .lean(),
@@ -140,6 +177,10 @@ export const listSupportTickets = async (req, res) => {
   const totalPages = Math.ceil(total / pageSize) || 1;
 
   const items = await Promise.all(tickets.map((ticket) => toSupportTicketDto(ticket)));
+  
+  items.forEach((item, index) => {
+    item.no = (pageNumber - 1) * pageSize + index + 1;
+  });
 
   return responseSuccess(res, {
     list: items,

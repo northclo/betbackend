@@ -111,6 +111,16 @@ export default {
   provide_name_email_subject_message: "Please provide your name, email, subject, and message.",
   provide_valid_email: "Please provide a valid email address.",
   message_received: "Your message has been received. Our support team will reach out soon.",
+  ticket_id_required: "Ticket ID is required.",
+  invalid_ticket_id_format: "Invalid ticket ID format.",
+  reply_message_required: "Reply message is required.",
+  reply_added_successfully: "Reply added successfully.",
+  ticket_updated_successfully: "Ticket updated successfully.",
+  ticket_deleted_successfully: "Ticket deleted successfully.",
+  ticket_ids_required: "Ticket IDs are required.",
+  no_valid_ticket_ids: "No valid ticket IDs provided.",
+  successfully_deleted_tickets: "Successfully deleted {0} ticket(s).",
+  admin: "Admin",
   
   // Partner
   nickname_exists: "Nickname is exist",
@@ -162,4 +172,18 @@ export default {
   failed_get_results: "Failed to get results",
   index_parameter_required: "index query parameter is required",
   days_parameter_required: "days query parameter is required",
+  
+  // Notice
+  notice_id_required: "Notice id is required.",
+  invalid_partner_id: "Invalid partner ID. Partner must be a sub partner of current logged in partner.",
+  invalid_start_date: "Invalid start date format.",
+  invalid_end_date: "Invalid end date format.",
+  notice_not_found: "Notice not found.",
+  notice_created_successfully: "Notice created successfully.",
+  notice_updated_successfully: "Notice updated successfully.",
+  notice_deleted_successfully: "Notice deleted successfully.",
+  all_partners: "All partners",
+  both_start_and_end_date_required: "Both start date and end date are required.",
+  invalid_date_range: "Invalid date range.",
+  start_date_must_be_before_end_date: "Start date must be before end date.",
 };

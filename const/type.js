@@ -9,7 +9,7 @@ export const partnerType = {
 
 export const messageType = {
     groupMessasge: 'groupMessage',
-    note: 'note'
+    notice: 'notice'
 }
 
 export const siteDisableType = {

@@ -1,60 +1,47 @@
 import SupportMessage from "../../../models/SupportMessage.js";
 import {
   responseSuccess,
-  responseUnAutherized,
   responseServerError,
 } from "../../../helper/response.js";
 
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
 export const getSupportSummary = async (req, res) => {
-  const adminId = ensureAdminId(req);
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
   try {
     const [
-      openTickets,
-      inProgressTickets,
+      pendingTickets,
       resolvedTickets,
+      rejectedTickets,
       allTickets,
     ] = await Promise.all([
-      SupportMessage.countDocuments({ status: "open" }),
-      SupportMessage.countDocuments({ status: "in_progress" }),
+      SupportMessage.countDocuments({ status: "pending" }),
       SupportMessage.countDocuments({ status: "resolved" }),
+      SupportMessage.countDocuments({ status: "rejected" }),
       SupportMessage.find({}).lean(),
     ]);
 
-    // Calculate average response time (in minutes)
-    // This is a simplified calculation - you might want to improve this
     let totalResponseTime = 0;
-    let ticketsWithReplies = 0;
+    let ticketsWithAnswers = 0;
 
     allTickets.forEach((ticket) => {
-      if (ticket.replies && ticket.replies.length > 0) {
-        const firstReply = ticket.replies[0];
-        const createdAt = new Date(ticket.createdAt);
-        const repliedAt = new Date(firstReply.createdAt);
-        const diffMinutes = (repliedAt - createdAt) / (1000 * 60);
+      if (ticket.answerDate && ticket.firstMessageDate) {
+        const firstMessageDate = new Date(ticket.firstMessageDate);
+        const answerDate = new Date(ticket.answerDate);
+        const diffMinutes = (answerDate - firstMessageDate) / (1000 * 60);
         if (diffMinutes > 0) {
           totalResponseTime += diffMinutes;
-          ticketsWithReplies++;
+          ticketsWithAnswers++;
         }
       }
     });
 
-    const avgResponseTime = ticketsWithReplies > 0 
-      ? Math.round(totalResponseTime / ticketsWithReplies) 
+    const avgResponseTime = ticketsWithAnswers > 0 
+      ? Math.round(totalResponseTime / ticketsWithAnswers) 
       : 0;
 
     const summary = {
-      open_tickets: openTickets,
-      in_progress: inProgressTickets,
+      pending: pendingTickets,
       resolved: resolvedTickets,
+      rejected: rejectedTickets,
+      total: allTickets.length,
       average_response_time: avgResponseTime,
       average_response_time_formatted: avgResponseTime > 0 
         ? `${avgResponseTime}m` 

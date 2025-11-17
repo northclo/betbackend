@@ -18,12 +18,16 @@ import {
   deleteSupportTicket,
 } from "../../controllers/admin/support/support-delete.js";
 import {
+  bulkDeleteSupportTickets,
+} from "../../controllers/admin/support/support-bulk-delete.js";
+import {
   getSupportSummary,
 } from "../../controllers/admin/support/support-summary.js";
 
 router.get("/list", catchError(listSupportTickets));
 router.get("/summary", catchError(getSupportSummary));
 router.post("/:ticketId/reply", catchError(replyToSupportTicket));
+router.post("/bulk-delete", catchError(bulkDeleteSupportTickets));
 router.get("/:ticketId", catchError(viewSupportTicket));
 router.put("/:ticketId", catchError(updateSupportTicket));
 router.delete("/:ticketId", catchError(deleteSupportTicket));

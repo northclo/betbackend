@@ -1,0 +1,250 @@
+import NoticeModel from "../../../models/Notice.js";
+import PartnerModel from "../../../models/Partner.js";
+import UserModel from "../../../models/User.js";
+import {
+  responseSuccess,
+  responseUnAutherized,
+} from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
+import mongoose from "mongoose";
+
+const ensureAdminId = (req) => {
+  const adminId = req?.session?._id;
+  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
+};
+
+// Get all sub partner IDs for the current logged in partner
+const getSubPartnerIds = async (userId) => {
+  const results = await PartnerModel.aggregate([
+    {
+      $match: {
+        user_id: new mongoose.Types.ObjectId(userId),
+      }
+    },
+    {
+      $graphLookup: {
+        from: 'partners',
+        startWith: '$_id',
+        connectFromField: '_id',
+        connectToField: 'parent_partner_id',
+        as: 'subs'
+      }
+    },
+  ]);
+
+  if (!results.length) return [];
+
+  const root = results[0];
+  const allPartnerIds = [
+    root._id.toString(),
+    ...(root.subs || []).map(sub => sub._id.toString())
+  ];
+
+  return allPartnerIds;
+};
+
+const toNoticeDto = async (notice) => {
+  let partnerDisplay = t("all_partners");
+  
+  if (notice.partner_ids && Array.isArray(notice.partner_ids) && notice.partner_ids.length > 0) {
+    try {
+      const partnerNames = [];
+      for (const partnerId of notice.partner_ids) {
+        if (!partnerId) continue;
+        
+        try {
+          let partner = null;
+          const idString = String(partnerId).trim();
+          
+          if (mongoose.Types.ObjectId.isValid(idString)) {
+            partner = await PartnerModel.findById(idString).lean();
+          }
+          
+          if (!partner) {
+            partner = await PartnerModel.findOne({ partner_id: idString }).lean();
+          }
+          
+          if (partner) {
+            partnerNames.push(partner.nickname || partner.partner_id || partner._id?.toString() || t("unknown"));
+          }
+        } catch (partnerError) {
+          console.error(`Error fetching partner ${partnerId}:`, partnerError);
+        }
+      }
+      partnerDisplay = partnerNames.length > 0 ? partnerNames.join(", ") : t("all_partners");
+    } catch (error) {
+      console.error("Error processing partner IDs:", error);
+    }
+  }
+
+  let senderName = t("unknown");
+  if (notice.sender) {
+    try {
+      const user = await UserModel.findById(notice.sender).lean();
+      if (user) {
+        senderName = user.user_nickname || user.user_name || user.user_email || t("unknown");
+      }
+    } catch (error) {
+      console.error(`Error fetching sender ${notice.sender}:`, error);
+    }
+  }
+
+  return {
+    id: notice._id.toString(),
+    _id: notice._id.toString(),
+    title: notice.title,
+    content: notice.content,
+    partner_ids: notice.partner_ids || [],
+    partner: partnerDisplay,
+    sender: senderName,
+    start_date: notice.start_date ? new Date(notice.start_date).toISOString() : null,
+    end_date: notice.end_date ? new Date(notice.end_date).toISOString() : null,
+    createdAt: notice.createdAt ? new Date(notice.createdAt).toISOString() : null,
+    updatedAt: notice.updatedAt ? new Date(notice.updatedAt).toISOString() : null,
+    date: notice.createdAt ? new Date(notice.createdAt).toISOString() : null,
+  };
+};
+
+export const listNotices = async (req, res) => {
+  const adminId = ensureAdminId(req);
+  if (!adminId) {
+    return responseUnAutherized(res);
+  }
+
+  const {
+    searchType = "title",
+    keyword = "",
+    partnerId = "",
+    startDate,
+    endDate,
+    page = 1,
+    limit = 10
+  } = req.query;
+
+  const allowedPartnerIds = await getSubPartnerIds(adminId);
+  
+  const filter = {
+    $or: [
+      { partner_ids: { $exists: false } },
+      { partner_ids: { $size: 0 } },
+      { partner_ids: null },
+      { partner_ids: { $in: allowedPartnerIds } }
+    ]
+  };
+
+  if (partnerId && partnerId.trim() !== "" && partnerId !== "all") {
+    let normalizedPartnerId = partnerId.trim();
+    if (!mongoose.Types.ObjectId.isValid(normalizedPartnerId)) {
+      try {
+        const partner = await PartnerModel.findOne({ partner_id: normalizedPartnerId }).lean();
+        if (partner && partner._id) {
+          normalizedPartnerId = partner._id.toString();
+        } else {
+          return responseSuccess(res, {
+            list: [],
+            items: [],
+            page: 1,
+            pageSize: limit,
+            limit: limit,
+            total: 0,
+            totalPages: 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error normalizing partner filter:", error);
+        return responseSuccess(res, {
+          list: [],
+          items: [],
+          page: 1,
+          pageSize: limit,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+        });
+      }
+    }
+    
+    if (allowedPartnerIds.includes(normalizedPartnerId)) {
+      filter.$or = [
+        { partner_ids: { $exists: false } },
+        { partner_ids: { $size: 0 } },
+        { partner_ids: null },
+        { partner_ids: normalizedPartnerId }
+      ];
+    } else {
+      return responseSuccess(res, {
+        list: [],
+        items: [],
+        page: 1,
+        pageSize: limit,
+        limit: limit,
+        total: 0,
+        totalPages: 0,
+      });
+    }
+  }
+
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filter.createdAt.$gte = start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = end;
+    }
+  }
+
+  if (keyword && String(keyword).trim().length > 0) {
+    const keywordRegex = new RegExp(String(keyword).trim(), "i");
+    if (searchType === "title") {
+      filter.title = keywordRegex;
+    } else if (searchType === "content") {
+      filter.content = keywordRegex;
+    } else {
+      const searchOr = [
+        { title: keywordRegex },
+        { content: keywordRegex }
+      ];
+      
+      if (filter.$or) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: filter.$or });
+        filter.$and.push({ $or: searchOr });
+        delete filter.$or;
+      } else {
+        filter.$or = searchOr;
+      }
+    }
+  }
+
+  const pageNumber = Math.max(Number(page) || 1, 1);
+  const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
+  const skip = (pageNumber - 1) * pageSize;
+
+  const [notices, total] = await Promise.all([
+    NoticeModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean(),
+    NoticeModel.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(total / pageSize) || 1;
+
+  const items = await Promise.all(notices.map((notice) => toNoticeDto(notice)));
+
+  return responseSuccess(res, {
+    list: items,
+    items: items,
+    page: pageNumber,
+    pageSize: pageSize,
+    limit: pageSize,
+    total,
+    totalPages,
+  });
+};

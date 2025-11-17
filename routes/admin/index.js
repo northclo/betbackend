@@ -18,7 +18,7 @@ import pointUsageRoute from "./point-usage.js";
 import announcementRoute from "./announcement.js";
 import supportRoute from "./support.js";
 import popupRoute from "./popup.js";
-import noteRoute from "./note.js";
+import noticeRoute from "./notice.js";
 
 router.use("/auth", authRoute);
 router.use("/member", checkAuth, memberRoute);
@@ -36,6 +36,6 @@ router.use("/point-usage", checkAuth, pointUsageRoute);
 router.use("/announcement", checkAuth, announcementRoute);
 router.use("/support", checkAuth, supportRoute);
 router.use("/popup", checkAuth, popupRoute);
-router.use("/note", checkAuth, noteRoute);
+router.use("/notice", checkAuth, noticeRoute);
 
 export default router;

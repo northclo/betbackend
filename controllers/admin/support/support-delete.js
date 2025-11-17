@@ -1,27 +1,22 @@
+import mongoose from "mongoose";
 import SupportMessage from "../../../models/SupportMessage.js";
 import {
   responseBadRequest,
   responseSuccess,
-  responseUnAutherized,
   responseNotFound,
   responseServerError,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
+import { t } from "../../../helper/translation.js";
 
 export const deleteSupportTicket = async (req, res) => {
-  const adminId = ensureAdminId(req);
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
   const { ticketId } = req.params;
 
   if (!ticketId) {
-    return responseBadRequest(res, "Ticket ID is required.");
+    return responseBadRequest(res, t("ticket_id_required"));
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+    return responseBadRequest(res, t("invalid_ticket_id_format"));
   }
 
   try {
@@ -36,7 +31,7 @@ export const deleteSupportTicket = async (req, res) => {
     return responseSuccess(
       res,
       { id: ticketId },
-      "Ticket deleted successfully."
+      t("ticket_deleted_successfully")
     );
   } catch (error) {
     console.error("Error deleting support ticket:", error);

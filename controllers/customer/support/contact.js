@@ -1,35 +1,44 @@
 import { responseBadRequest, responseServerError, responseSuccess } from "../../../helper/response.js";
 import SupportMessage from "../../../models/SupportMessage.js";
+import UserModel from "../../../models/User.js";
 import { t } from "../../../helper/translation.js";
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export const submitContactMessage = async (req, res) => {
-  const { name, email, subject, message, userId } = req.body;
+  const { title, question, userId } = req.body;
 
-  if (!name || !email || !subject || !message) {
-    return responseBadRequest(res, t("provide_name_email_subject_message"));
+  if (!title || !question) {
+    return responseBadRequest(res, t("provide_title_and_question") || "Title and question are required");
   }
 
-  if (!emailPattern.test(email)) {
-    return responseBadRequest(res, t("provide_valid_email"));
+  if (!userId) {
+    return responseBadRequest(res, t("user_id_required") || "User ID is required");
   }
 
   try {
+    const user = await UserModel.findById(userId).lean();
+    if (!user) {
+      return responseBadRequest(res, t("user_not_found") || "User not found");
+    }
+
+    const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'] || 'Unknown';
+    const now = new Date();
+    
     const supportMessage = await SupportMessage.create({
-      name,
-      email,
-      subject,
-      message,
-      userId: userId || null,
-      status: "open",
-      priority: "medium",
+      userId,
+      user_nickname: user.user_nickname || user.user_name || user.user_email || "Unknown",
+      title,
+      question,
+      answer: "",
+      firstMessageDate: now,
+      sendDate: now,
+      ipAddress: Array.isArray(ipAddress) ? ipAddress[0] : ipAddress,
+      status: "pending",
     });
 
     return responseSuccess(
       res,
       { id: supportMessage._id },
-      t("message_received")
+      t("message_received") || "Message received successfully"
     );
   } catch (error) {
     console.error("Error submitting support message:", error);
