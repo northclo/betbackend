@@ -4,6 +4,7 @@ import { responseBadRequest, responseServerError, responseSuccess } from "../../
 import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import mongoose from "mongoose";
+import { t } from "../../../helper/translation.js";
 
 const VALID_BET_TYPES = new Set([
     "odd",
@@ -30,23 +31,23 @@ export const StartGame = async (req, res) => {
     const userId = req.session._id;
 
     if (!game_id || !VALID_BET_TYPES.has(bettingType)) {
-        return responseBadRequest(res, "Invalid betting request");
+        return responseBadRequest(res, t("invalid_betting_request"));
     }
 
     const amount = Number(bettingAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-        return responseBadRequest(res, "Betting amount must be a positive number");
+        return responseBadRequest(res, t("betting_amount_positive"));
     }
 
     const rate = Number(bettingRate);
     if (!Number.isFinite(rate) || rate <= 0) {
-        return responseBadRequest(res, "Betting rate must be a positive number");
+        return responseBadRequest(res, t("betting_rate_positive"));
     }
 
     let sanitizedNumberSort = [];
     if (NUMBER_SORT_LENGTH[bettingType]) {
         if (!Array.isArray(numberSort) || numberSort.length !== NUMBER_SORT_LENGTH[bettingType]) {
-            return responseBadRequest(res, "Number sort is invalid");
+            return responseBadRequest(res, t("number_sort_invalid"));
         }
 
         sanitizedNumberSort = numberSort.map((val) => Number(val));
@@ -54,12 +55,12 @@ export const StartGame = async (req, res) => {
             (val) => Number.isInteger(val) && val >= 1 && val <= 6
         );
         if (!allNumbers) {
-            return responseBadRequest(res, "Number sort values must be integers from 1 to 6");
+            return responseBadRequest(res, t("number_sort_values_range"));
         }
 
         const uniqueCount = new Set(sanitizedNumberSort).size;
         if (uniqueCount !== sanitizedNumberSort.length) {
-            return responseBadRequest(res, "Number sort values must be unique");
+            return responseBadRequest(res, t("number_sort_values_unique"));
         }
 
         sanitizedNumberSort.sort((a, b) => a - b);
@@ -67,23 +68,23 @@ export const StartGame = async (req, res) => {
 
     const user = await UserModel.findOne({ _id: userId });
     if (!user) {
-        return responseBadRequest(res, "User not found");
+        return responseBadRequest(res, t("user_not_found"));
     }
 
     const availableBalance = user.own_money ?? 0;
 
     const game = await GameResultModel.findOne({ game_id });
     if (!game || !game.start_time_stamp) {
-        return responseBadRequest(res, "Game not available for betting");
+        return responseBadRequest(res, t("game_not_available_betting"));
     }
 
     const secondsUntilStart = Math.floor((game.start_time_stamp - getCurrentTime()) / 1000);
     if (secondsUntilStart < 90 || secondsUntilStart > 180) {
-        return responseBadRequest(res, "Betting window is closed");
+        return responseBadRequest(res, t("betting_window_closed"));
     }
 
     if (availableBalance < amount) {
-        return responseBadRequest(res, "Not enough balance");
+        return responseBadRequest(res, t("not_enough_balance"));
     }
 
     const session = await mongoose.startSession();
@@ -111,7 +112,7 @@ export const StartGame = async (req, res) => {
 
         if (!updateBalance.modifiedCount) {
             await session.abortTransaction();
-            return responseBadRequest(res, "Failed to update balance");
+            return responseBadRequest(res, t("failed_update_balance"));
         }
 
         await session.commitTransaction();

@@ -1,3 +1,5 @@
+import { t } from "../helper/translation.js";
+
 export const catchError = (callback) => {
   return async (req, res, next) => {
     try {
@@ -7,7 +9,7 @@ export const catchError = (callback) => {
 
       return res.status(500).send({
         status: false,
-        message: 'internal_server_error',
+        message: t("internal_server_error"),
       });
     }
   };

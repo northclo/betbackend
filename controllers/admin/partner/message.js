@@ -1,21 +1,22 @@
 import moment from "moment";
 import PartnerMessageModal from "../../../models/PartnerMessage.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 export const sendMessage = async (req, res) => {
     const { title, content, expire, type, partnerId } = req.body;
     const userId = req.session._id;
 
     if (!title || !title.trim()) {
-        return responseBadRequest(res, "Title is required.");
+        return responseBadRequest(res, t("title_required"));
     }
 
     if (!content || !content.trim()) {
-        return responseBadRequest(res, "Content is required.");
+        return responseBadRequest(res, t("content_required"));
     }
 
     if (!type) {
-        return responseBadRequest(res, "Type is required.");
+        return responseBadRequest(res, t("type_required"));
     }
 
     let expireAt = null;
@@ -36,19 +37,19 @@ export const sendMessage = async (req, res) => {
                 const unit = parts[1].toLowerCase();
                 
                 if (isNaN(amount) || amount <= 0) {
-                    return responseBadRequest(res, "Invalid expire format.");
+                    return responseBadRequest(res, t("invalid_expire_format"));
                 }
 
                 const validUnits = ['minute', 'minutes', 'hour', 'hours', 'day', 'days', 'week', 'weeks', 'month', 'months'];
                 const normalizedUnit = unit.endsWith('s') ? unit : unit + 's';
                 
                 if (!validUnits.includes(normalizedUnit)) {
-                    return responseBadRequest(res, "Invalid expire unit.");
+                    return responseBadRequest(res, t("invalid_expire_unit"));
                 }
 
                 expireAt = moment().add(amount, normalizedUnit).valueOf();
             } else {
-                return responseBadRequest(res, "Invalid expire format.");
+                return responseBadRequest(res, t("invalid_expire_format"));
             }
         }
     }

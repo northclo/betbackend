@@ -54,9 +54,21 @@ export const getExchangeList = async (req, res) => {
         }
     }
 
-    // Currency filter - if currency field exists in transaction
-    // Note: This assumes currency information might be stored in a related field
-    // For now, we'll skip currency filtering if the field doesn't exist in the model
+    if (currency && currency !== 'all') {
+        const currencyMap = {
+            'krw': 'KRW',
+            'usd': 'USD',
+            'jp': 'JPY',
+            'jpy': 'JPY'
+        };
+        const mappedCurrency = currencyMap[currency.toLowerCase()] || currency.toUpperCase();
+
+        filter.$or = [
+            { currency: mappedCurrency },
+            { from_currency: mappedCurrency },
+            { to_currency: mappedCurrency }
+        ];
+    }
 
     const aggregation = await TransactionModel.aggregate([
         {
@@ -96,17 +108,22 @@ export const getExchangeList = async (req, res) => {
                             id: { $concat: ["EX-", { $toString: "$_id" }] },
                             member: { 
                                 $ifNull: [
-                                    { $concat: ["user_", { $toString: "$user._id" }] },
-                                    "-"
+                                    "$user.user_nickname",
+                                    { $concat: ["user_", { $toString: "$user._id" }] }
                                 ]
                             },
                             member_nickname: { $ifNull: ["$user.user_nickname", "-"] },
                             currency: { 
                                 $ifNull: [
+                                    "$to_currency",
                                     "$currency",
                                     "USD"
                                 ]
                             },
+                            from_currency: { $ifNull: ["$from_currency", null] },
+                            to_currency: { $ifNull: ["$to_currency", null] },
+                            exchange_rate: { $ifNull: ["$exchange_rate", null] },
+                            original_amount: { $ifNull: ["$original_amount", null] },
                             amount: "$fund_amount",
                             status: {
                                 $switch: {

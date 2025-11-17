@@ -14,11 +14,10 @@ import {
 import {
   deleteAnnouncement,
 } from "../../controllers/admin/announcement/announcement-delete.js";
-import upload from "../../middleware/upload.js";
 
 router.get("/list", catchError(listAnnouncements));
-router.post("/", upload.single("image"), catchError(createAnnouncement));
-router.put("/:announcementId", upload.single("image"), catchError(updateAnnouncement));
+router.post("/", catchError(createAnnouncement));
+router.put("/:announcementId", catchError(updateAnnouncement));
 router.delete("/:announcementId", catchError(deleteAnnouncement));
 
 export default router;

@@ -2,6 +2,7 @@ import moment from "moment";
 import GameResultModel from "../../../models/GameResult.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 const ALLOWED_STATUS = ["", "register", "under", "end", "finish", "cancel"];
 const ALLOWED_SEARCH_FIELDS = ["total_no", "today_no"];
@@ -44,22 +45,22 @@ export const getGameManagement = async (req, res) => {
     const now = Date.now();
 
     if (!ALLOWED_STATUS.includes(normalizedStatus)) {
-        return responseBadRequest(res, "Invalid status filter.");
+        return responseBadRequest(res, t("invalid_status_filter"));
     }
 
     const filter = buildStatusFilter(normalizedStatus, now);
 
     if (searchField || search) {
         if (!searchField || !search) {
-            return responseBadRequest(res, "Both searchField and search must be provided.");
+            return responseBadRequest(res, t("both_searchfield_search_required"));
         }
         if (!ALLOWED_SEARCH_FIELDS.includes(searchField)) {
-            return responseBadRequest(res, "Invalid search field.");
+            return responseBadRequest(res, t("invalid_search_field"));
         }
 
         const numericSearch = Number(search);
         if (!Number.isFinite(numericSearch)) {
-            return responseBadRequest(res, "Search value must be a valid number.");
+            return responseBadRequest(res, t("search_value_must_number"));
         }
         filter[searchField] = numericSearch;
     }

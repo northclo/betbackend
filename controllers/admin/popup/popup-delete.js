@@ -4,11 +4,9 @@ import {
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
+import {
+  ensureAdminId,
+} from "./popup-utils.js";
 
 export const deletePopup = async (req, res) => {
   const adminId = ensureAdminId(req);

@@ -6,6 +6,7 @@ import {
 } from "../../../helper/response.js";
 import { getPresignedUrl } from "../../../utils/s3.js";
 import UserModel from "../../../models/User.js";
+import { t } from "../../../helper/translation.js";
 
 const ensureAdminId = (req) => {
   const adminId = req?.session?._id;
@@ -20,12 +21,12 @@ const toAnnouncementDto = async (post) => {
   }
 
   // Get author info
-  let author = "Unknown";
+  let author = t("unknown");
   if (post.userId) {
     try {
       const user = await UserModel.findById(post.userId).lean();
       if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || "Unknown";
+        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -133,7 +134,7 @@ export const createAnnouncement = async (req, res) => {
   const payload = normalizePayload(req.body || {});
 
   if (!payload.title || !payload.description) {
-    return responseBadRequest(res, "Title and description are required.");
+    return responseBadRequest(res, t("title_description_required"));
   }
 
   if (req.file) {
@@ -168,7 +169,7 @@ export const createAnnouncement = async (req, res) => {
   return responseSuccess(
     res,
     dto,
-    "Announcement created successfully."
+    t("announcement_created_successfully")
   );
 };
 

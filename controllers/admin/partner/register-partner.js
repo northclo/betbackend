@@ -4,6 +4,7 @@ import { responseBadRequest, responseSuccess } from '../../../helper/response.js
 import PartnerModel from '../../../models/Partner.js';
 import UserModel from '../../../models/User.js';
 import { partnerType } from '../../../const/type.js';
+import { t } from '../../../helper/translation.js';
 
 export const registerPartner = async (req, res) => {
     try {
@@ -12,38 +13,38 @@ export const registerPartner = async (req, res) => {
 
         // Validate required fields
         if (!payload.partnerId || !payload.partnerId.trim()) {
-            return responseBadRequest(res, "Partner ID is required");
+            return responseBadRequest(res, t("partner_id_required"));
         }
 
         if (!payload.nickname || !payload.nickname.trim()) {
-            return responseBadRequest(res, "Nickname is required");
+            return responseBadRequest(res, t("nickname_required"));
         }
 
         if (!payload.password || !payload.password.trim()) {
-            return responseBadRequest(res, "Password is required");
+            return responseBadRequest(res, t("password_required"));
         }
 
         // Check if partner_id already exists
         const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
         if (existingPartner) {
-            return responseBadRequest(res, "Partner ID already exists");
+            return responseBadRequest(res, t("partner_id_exists"));
         }
 
         // Check if user nickname already exists
         const existingUser = await UserModel.findOne({ user_nickname: payload.nickname.trim() });
         if (existingUser) {
-            return responseBadRequest(res, "User nickname already exists");
+            return responseBadRequest(res, t("user_nickname_exists"));
         }
 
         // Get parent partner from current user
         const currentUser = await UserModel.findById(userId);
         if (!currentUser) {
-            return responseBadRequest(res, "Current user not found");
+            return responseBadRequest(res, t("current_user_not_found"));
         }
 
         const parentPartnerId = currentUser.own_partner_id || payload.parentPartnerId;
         if (!parentPartnerId) {
-            return responseBadRequest(res, "Parent partner not found");
+            return responseBadRequest(res, t("parent_partner_not_found"));
         }
 
         // Hash password
@@ -112,7 +113,7 @@ export const registerPartner = async (req, res) => {
         });
     } catch (error) {
         console.error('Error registering partner:', error);
-        return responseBadRequest(res, error.message || "Failed to register partner");
+        return responseBadRequest(res, error.message || t("failed_register_partner"));
     }
 };
 

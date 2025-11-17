@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import PartnerModel from '../../../models/Partner.js';
 import UserModel from '../../../models/User.js';
 import { responseBadRequest, responseSuccess } from '../../../helper/response.js';
+import { t } from '../../../helper/translation.js';
 
 // Build hierarchical tree from flat partner list
 const buildTree = (root) => {
@@ -243,25 +244,25 @@ export const increaseCash = async (req, res) => {
     const amount = Number(req.body.amount);
 
     if (!Number.isFinite(amount)) {
-        return responseBadRequest(res, "Invalid amount");
+        return responseBadRequest(res, t("invalid_amount"));
     }
 
     let user;
 
     if (role === "user") {
         user = await UserModel.findOne({ user_nickname: id });
-        if (!user) return responseBadRequest(res, "User not found");
+        if (!user) return responseBadRequest(res, t("user_not_found"));
 
     } else {
         const partner = await PartnerModel.findOne({ partner_id: id });
-        if (!partner) return responseBadRequest(res, "Partner not found");
+        if (!partner) return responseBadRequest(res, t("partner_not_found"));
 
         user = await UserModel.findOne({ own_partner_id: partner._id });
-        if (!user) return responseBadRequest(res, "Linked user not found");
+        if (!user) return responseBadRequest(res, t("linked_user_not_found"));
     }
 
     if (amount < 0 && (user.own_money || 0) + amount < 0) {
-        return responseBadRequest(res, "Insufficient funds");
+        return responseBadRequest(res, t("insufficient_funds"));
     }
 
     const updateInc = {};

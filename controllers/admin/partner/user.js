@@ -1,5 +1,6 @@
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
+import { t } from "../../../helper/translation.js";
 
 export const registerUser = async (req, res) => {
     const payload = req.body;
@@ -7,7 +8,7 @@ export const registerUser = async (req, res) => {
     const user = await UserModel.findOne({ user_nickname: payload.nickname })
 
     if (user) {
-        return responseBadRequest(res, "Nickname is exist")
+        return responseBadRequest(res, t("nickname_exists"))
     }
 
     await UserModel.create({

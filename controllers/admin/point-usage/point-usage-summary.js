@@ -25,7 +25,6 @@ export const getPointUsageSummary = async (req, res) => {
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
 
-    // Build date filter
     let dateFilter = {};
     if (start || end) {
         dateFilter.createdAt = {};
@@ -33,7 +32,6 @@ export const getPointUsageSummary = async (req, res) => {
         if (end) dateFilter.createdAt.$lte = end;
     }
 
-    // Build type filter
     let typeFilter = {};
     if (type && type !== 'all') {
         if (type === 'earn') {
@@ -43,7 +41,6 @@ export const getPointUsageSummary = async (req, res) => {
         }
     }
 
-    // Build member filter
     let memberFilter = {};
     if (member) {
         const memberRegex = new RegExp(member, 'i');
@@ -59,7 +56,6 @@ export const getPointUsageSummary = async (req, res) => {
         if (userIds.length > 0) {
             memberFilter.user_id = { $in: userIds };
         } else {
-            // No users found, return empty summary
             return responseSuccess(res, {
                 total_transactions: 0,
                 total_points_earned: 0,
@@ -69,14 +65,12 @@ export const getPointUsageSummary = async (req, res) => {
         }
     }
 
-    // Combine filters
     const filter = {
         ...dateFilter,
         ...typeFilter,
         ...memberFilter
     };
 
-    // Get point transaction statistics
     const stats = await PointTransactionModel.aggregate([
         {
             $match: filter

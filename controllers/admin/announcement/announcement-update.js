@@ -6,6 +6,7 @@ import {
 } from "../../../helper/response.js";
 import { getPresignedUrl } from "../../../utils/s3.js";
 import UserModel from "../../../models/User.js";
+import { t } from "../../../helper/translation.js";
 
 const ensureAdminId = (req) => {
   const adminId = req?.session?._id;
@@ -20,12 +21,12 @@ const toAnnouncementDto = async (post) => {
   }
 
   // Get author info
-  let author = "Unknown";
+  let author = t("unknown");
   if (post.userId) {
     try {
       const user = await UserModel.findById(post.userId).lean();
       if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || "Unknown";
+        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -132,7 +133,7 @@ export const updateAnnouncement = async (req, res) => {
 
   const { announcementId } = req.params;
   if (!announcementId) {
-    return responseBadRequest(res, "Announcement id is required.");
+    return responseBadRequest(res, t("announcement_id_required"));
   }
 
   const payload = normalizePayload(req.body || {});
@@ -142,11 +143,11 @@ export const updateAnnouncement = async (req, res) => {
   }
 
   if (payload.title !== undefined && !payload.title) {
-    return responseBadRequest(res, "Title cannot be empty.");
+    return responseBadRequest(res, t("title_cannot_empty"));
   }
 
   if (payload.description !== undefined && !payload.description) {
-    return responseBadRequest(res, "Description cannot be empty.");
+    return responseBadRequest(res, t("description_cannot_empty"));
   }
 
   if (payload.status && payload.status === "published" && !payload.published_at) {
@@ -169,14 +170,14 @@ export const updateAnnouncement = async (req, res) => {
   );
 
   if (!updated) {
-    return responseBadRequest(res, "Announcement not found.");
+    return responseBadRequest(res, t("announcement_not_found"));
   }
 
   const dto = await toAnnouncementDto(updated);
   return responseSuccess(
     res,
     dto,
-    "Announcement updated successfully."
+    t("announcement_updated_successfully")
   );
 };
 

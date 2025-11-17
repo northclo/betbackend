@@ -17,12 +17,11 @@ import {
 import {
   viewPopup,
 } from "../../controllers/admin/popup/popup-view.js";
-import upload from "../../middleware/upload.js";
 
 router.get("/list", catchError(listPopups));
 router.get("/:popupId", catchError(viewPopup));
-router.post("/", upload.single("image"), catchError(createPopup));
-router.put("/:popupId", upload.single("image"), catchError(updatePopup));
+router.post("/", catchError(createPopup));
+router.put("/:popupId", catchError(updatePopup));
 router.delete("/:popupId", catchError(deletePopup));
 
 export default router;

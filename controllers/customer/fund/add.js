@@ -1,26 +1,27 @@
 import UserModel from "../../../models/User.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 export const addFund = async (req, res) => {
   const { amount } = req.body;
   const userId = req.session._id;
 
   if (amount === undefined || amount === null || amount === '') {
-    return responseBadRequest(res, "Amount is required");
+    return responseBadRequest(res, t("amount_required"));
   }
 
   const normalizedAmount = Number(amount);
   if (isNaN(normalizedAmount) || !isFinite(normalizedAmount)) {
-    return responseBadRequest(res, "Invalid amount. Please enter a valid number");
+    return responseBadRequest(res, t("invalid_amount_number"));
   }
 
   if (normalizedAmount < 1) {
-    return responseBadRequest(res, "Minimum amount is 1");
+    return responseBadRequest(res, `${t("minimum_amount")} 1`);
   }
 
   if (normalizedAmount > 10000000) {
-    return responseBadRequest(res, "Maximum amount is 10,000,000");
+    return responseBadRequest(res, `${t("maximum_amount")} 10,000,000`);
   }
 
   try {
@@ -31,7 +32,7 @@ export const addFund = async (req, res) => {
     );
 
     if (!updatedUser) {
-      return responseBadRequest(res, "User not found");
+      return responseBadRequest(res, t("user_not_found"));
     }
 
     await TransactionModel.create({
@@ -49,11 +50,11 @@ export const addFund = async (req, res) => {
         pending_addfund_balance: updatedUser.pending_addfund_balance || 0,
         status: "PENDING",
       },
-      "Fund request submitted and awaiting approval"
+      t("fund_request_submitted")
     );
   } catch (error) {
     console.error("Error adding fund:", error);
-    return responseBadRequest(res, "Failed to add fund. Please try again.");
+    return responseBadRequest(res, t("failed_add_fund"));
   }
 };
 

@@ -4,32 +4,33 @@ import { responseBadRequest, responseSuccess } from "../../../helper/response.js
 import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import mongoose from "mongoose";
+import { t } from "../../../helper/translation.js";
 
 export const cancelGame = async (req, res) => {
     const { id } = req.body;
     const userId = req.session._id;
 
     if (!id) {
-        return responseBadRequest(res, "Invalid bet id");
+        return responseBadRequest(res, t("invalid_bet_id"));
     }
 
     const bettingHistory = await BettingResultModel.findOne({ _id: id, user_id: userId });
     if (!bettingHistory) {
-        return responseBadRequest(res, "Bet not found");
+        return responseBadRequest(res, t("bet_not_found"));
     }
 
     if (bettingHistory.betting_status !== "wait") {
-        return responseBadRequest(res, "Bet cannot be cancelled");
+        return responseBadRequest(res, t("bet_cannot_cancelled"));
     }
 
     const game = await GameResultModel.findOne({ game_id: bettingHistory.game_id });
     if (!game || !game.start_time_stamp) {
-        return responseBadRequest(res, "Game not available for cancellation");
+        return responseBadRequest(res, t("game_not_available_cancellation"));
     }
 
     const secondsUntilStart = Math.floor((game.start_time_stamp - getCurrentTime()) / 1000);
     if (secondsUntilStart < 90 || secondsUntilStart > 180) {
-        return responseBadRequest(res, "Cancellation window is closed");
+        return responseBadRequest(res, t("cancellation_window_closed"));
     }
 
     const session = await mongoose.startSession();
@@ -49,7 +50,7 @@ export const cancelGame = async (req, res) => {
 
         if (!result.modifiedCount) {
             await session.abortTransaction();
-            return responseBadRequest(res, "Bet cancellation failed");
+            return responseBadRequest(res, t("bet_cancellation_failed"));
         }
 
         await UserModel.updateOne(
@@ -63,7 +64,7 @@ export const cancelGame = async (req, res) => {
         return responseSuccess(res, { bettingAmount: bettingHistory.bet_amount });
     } catch (error) {
         await session.abortTransaction();
-        return responseBadRequest(res, "Bet cancellation failed");
+        return responseBadRequest(res, t("bet_cancellation_failed"));
     } finally {
         session.endSession();
     }

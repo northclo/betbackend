@@ -5,6 +5,7 @@ import {
   responseSuccess,
 } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
+import { t } from "../../../helper/translation.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const VIEW_MANAGER_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{3,31}$/;
@@ -14,33 +15,33 @@ const normalizeString = (value) =>
 
 const validateAdminPayload = (admin, currentEmail) => {
   if (!admin || typeof admin !== "object") {
-    return { error: "Invalid administrator payload." };
+    return { error: t("invalid_administrator_payload") };
   }
 
   const id = normalizeString(admin.id);
   const password = normalizeString(admin.password);
 
   if (!id) {
-    return { error: "Administrator ID is required." };
+    return { error: t("administrator_id_required") };
   }
 
   if (!EMAIL_REGEX.test(id)) {
-    return { error: "Administrator ID must be a valid email." };
+    return { error: t("administrator_id_valid_email") };
   }
 
   if (currentEmail && id.toLowerCase() !== currentEmail.toLowerCase()) {
-    return { error: "Administrator ID cannot be changed." };
+    return { error: t("administrator_id_cannot_changed") };
   }
 
   if (!password) {
     return {
-      error: "Administrator password is required.",
+      error: t("administrator_password_required"),
     };
   }
 
   if (password.length < 8) {
     return {
-      error: "Administrator password must be at least 8 characters long.",
+      error: t("administrator_password_min_length"),
     };
   }
 
@@ -49,26 +50,25 @@ const validateAdminPayload = (admin, currentEmail) => {
 
 const validateViewManagerPayload = (viewManager) => {
   if (!viewManager || typeof viewManager !== "object") {
-    return { error: "Invalid view manager payload." };
+    return { error: t("invalid_view_manager_payload") };
   }
 
   const id = normalizeString(viewManager.id);
   const password = normalizeString(viewManager.password);
 
   if (!id) {
-    return { error: "View manager ID is required." };
+    return { error: t("view_manager_id_required") };
   }
 
   if (!VIEW_MANAGER_ID_REGEX.test(id)) {
     return {
-      error:
-        "View manager ID must start with a letter and can include letters, numbers, hyphen, or underscore (4-32 characters).",
+      error: t("view_manager_id_format"),
     };
   }
 
   if (password && password.length < 8) {
     return {
-      error: "View manager password must be at least 8 characters long.",
+      error: t("view_manager_password_min_length"),
     };
   }
 
@@ -83,7 +83,7 @@ export const getAdminAccount = async (req, res) => {
   const adminUser = await UserModel.findById(req.session?._id).lean();
 
   if (!adminUser) {
-    return responseBadRequest(res, "Administrator not found.");
+    return responseBadRequest(res, t("administrator_not_found"));
   }
 
   return responseSuccess(res, {
@@ -104,14 +104,14 @@ export const updateAdminAccount = async (req, res) => {
   if (!admin && !viewManager) {
     return responseBadRequest(
       res,
-      "Administrator or view manager information is required."
+      t("administrator_or_view_manager_required")
     );
   }
 
   const adminUser = await UserModel.findById(req.session?._id);
 
   if (!adminUser) {
-    return responseBadRequest(res, "Administrator not found.");
+    return responseBadRequest(res, t("administrator_not_found"));
   }
 
   if (admin) {
@@ -144,7 +144,7 @@ export const updateAdminAccount = async (req, res) => {
       }).lean();
 
       if (existingViewManager) {
-        return responseBadRequest(res, "View manager ID already in use.");
+        return responseBadRequest(res, t("view_manager_id_in_use"));
       }
     }
 

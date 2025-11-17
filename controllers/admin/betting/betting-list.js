@@ -4,6 +4,7 @@ import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
+import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -19,9 +20,9 @@ const normalizeDate = (value, isEnd = false) => {
     }
     
     if (isEnd) {
-        dateMoment.endOf('day');
+        dateMoment = dateMoment.endOf('day');
     } else {
-        dateMoment.startOf('day');
+        dateMoment = dateMoment.startOf('day');
     }
     
     return dateMoment.toDate();
@@ -47,12 +48,12 @@ export const getBettingList = async (req, res) => {
 
         const start = normalizeDate(startDate);
         if (startDate && start === null) {
-            return responseBadRequest(res, "Invalid start date format. Please use YYYY-MM-DD format.");
+            return responseBadRequest(res, t("invalid_start_date_format"));
         }
         
         const end = normalizeDate(endDate, true);
         if (endDate && end === null) {
-            return responseBadRequest(res, "Invalid end date format. Please use YYYY-MM-DD format.");
+            return responseBadRequest(res, t("invalid_end_date_format"));
         }
 
         const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
@@ -118,7 +119,7 @@ export const getBettingList = async (req, res) => {
                 const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 searchRegex = new RegExp(escapedSearch, "i");
             } catch (error) {
-                return responseBadRequest(res, "Invalid search pattern. Please check your search input.");
+                return responseBadRequest(res, t("invalid_search_pattern"));
             }
         }
 
@@ -339,7 +340,7 @@ export const getBettingList = async (req, res) => {
         });
     } catch (error) {
         console.error("Error in getBettingList:", error);
-        return responseBadRequest(res, "An error occurred while fetching betting list. Please try again.");
+        return responseBadRequest(res, t("error_fetching_betting_list"));
     }
 };
 

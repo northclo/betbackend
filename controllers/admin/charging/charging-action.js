@@ -1,39 +1,40 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 export const updateChargingStatus = async (req, res) => {
     const { transactionId, action } = req.body;
     const adminId = req.session._id;
 
     if (!transactionId) {
-        return responseBadRequest(res, "Transaction ID is required");
+        return responseBadRequest(res, t("transaction_id_required"));
     }
 
     if (!action || !['approve', 'reject'].includes(action)) {
-        return responseBadRequest(res, "Invalid action. Must be 'approve' or 'reject'");
+        return responseBadRequest(res, t("invalid_action"));
     }
 
     try {
         const transaction = await TransactionModel.findById(transactionId);
 
         if (!transaction) {
-            return responseBadRequest(res, "Transaction not found");
+            return responseBadRequest(res, t("transaction_not_found"));
         }
 
         if (transaction.fund_status !== 'PENDING') {
-            return responseBadRequest(res, "Transaction is not pending");
+            return responseBadRequest(res, t("transaction_not_pending"));
         }
 
         if (transaction.fund_type !== 'IMPORT') {
-            return responseBadRequest(res, "Only deposit (IMPORT) transactions can be processed in Charging Management");
+            return responseBadRequest(res, t("only_import_transactions"));
         }
 
         const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
         const user = await UserModel.findById(transaction.user_id);
 
         if (!user) {
-            return responseBadRequest(res, "User not found");
+            return responseBadRequest(res, t("user_not_found"));
         }
 
         // Update transaction status
@@ -101,11 +102,11 @@ export const updateChargingStatus = async (req, res) => {
                 status: newStatus,
                 action: action
             },
-            `Transaction ${action === 'approve' ? 'approved' : 'rejected'} successfully`
+            action === 'approve' ? t("transaction_approved_successfully") : t("transaction_rejected_successfully")
         );
     } catch (error) {
         console.error("Error updating charging status:", error);
-        return responseBadRequest(res, "Failed to update transaction status");
+        return responseBadRequest(res, t("failed_update_transaction_status"));
     }
 };
 

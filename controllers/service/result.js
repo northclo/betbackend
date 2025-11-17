@@ -1,4 +1,5 @@
 import GameResultModel from "../../models/GameResult.js"
+import BettingResultModel from "../../models/BettingResult.js"
 import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
@@ -27,6 +28,11 @@ export const startGame = async (req, res) => {
         })
     }
 
+    await BettingResultModel.updateMany(
+        { game_id: game_id, betting_status: "wait" },
+        { $set: { betting_status: "progress" } }
+    );
+
     setTimeout(() => {
         io.emit('start_game', { game_id: game_id })
     }, 2000);
@@ -54,7 +60,7 @@ export const endGame = async (req, res) => {
     const odd = list[0] % 2 !== 0;
     const under = (Number(list[0]) + Number(list[1]) + Number(list[2])) <= 10.5;
 
-    updateBetting(game_id, odd, under, list, today_no, total_no)
+    await updateBetting(game_id, odd, under, list, new_today_no, total_no);
 
     await GameResultModel.updateOne({ game_id: game_id }, {
         list: list,

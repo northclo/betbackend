@@ -5,7 +5,6 @@ const PopupSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
     content: { type: String, required: true },
-    image: { type: String, trim: true },
     userId: { type: String, required: true, index: true, trim: true },
     status: {
       type: String,
@@ -30,7 +29,6 @@ const PopupSchema = new Schema(
       default: "medium",
       trim: true,
     },
-    link_url: { type: String, trim: true },
     is_closable: { type: Boolean, default: true },
     click_count: { type: Number, default: 0 },
     view_count: { type: Number, default: 0 },
