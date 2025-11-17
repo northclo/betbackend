@@ -19,6 +19,24 @@ const getExchangeRate = (fromCurrency, toCurrency) => {
     return DEFAULT_EXCHANGE_RATES[key] || 1;
 };
 
+const isWithinTimeRange = (startTime, endTime) => {
+    if (!startTime || !endTime) return true;
+    
+    const now = new Date();
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTime = currentHours * 100 + currentMinutes;
+    
+    const start = Number(startTime);
+    const end = Number(endTime);
+    
+    if (start > end) {
+        return currentTime >= start || currentTime <= end;
+    }
+    
+    return currentTime >= start && currentTime <= end;
+};
+
 export const exchangeFund = async (req, res) => {
     const { from_currency, to_currency, original_amount, secure_code, amount } = req.body;
     const userId = req.session._id;
@@ -55,18 +73,43 @@ export const exchangeFund = async (req, res) => {
             }
 
             if (settings.exchange_timezone) {
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = now.getMinutes();
-                const currentTime = currentHour * 60 + currentMinute;
+                if (!isWithinTimeRange(settings.exchange_start_time, settings.exchange_end_time)) {
+                    const message = settings.exchange_impossible_timezone_message || t("exchange_not_available");
+                    return responseBadRequest(res, message);
+                }
+            }
 
-                if (settings.exchange_start_time !== null && settings.exchange_end_time !== null) {
-                    if (currentTime < settings.exchange_start_time || currentTime > settings.exchange_end_time) {
-                        return responseBadRequest(
-                            res,
-                            settings.exchange_impossible_timezone_message || t("exchange_not_available")
-                        );
+            if (settings.exchange_restriction_use && settings.exchange_restriction_limit) {
+                const limitMinutes = settings.exchange_restriction_limit;
+                const limitTime = new Date(Date.now() - limitMinutes * 60 * 1000);
+                
+                const lastExchange = await TransactionModel.findOne({
+                    user_id: userId,
+                    fund_type: "EXCHANGE",
+                    createdAt: { $gte: limitTime }
+                }).sort({ createdAt: -1 });
+
+                if (lastExchange) {
+                    if (settings.exchange_restriction === 'impossible') {
+                        return responseBadRequest(res, t("exchange_not_available_within_restriction_period"));
+                    } else if (settings.exchange_restriction === 'request' && lastExchange.original_amount === normalizedAmount) {
+                        return responseBadRequest(res, t("same_exchange_amount_not_allowed_within_restriction_period"));
                     }
+                }
+            }
+
+            if (settings.charge_restriction_use && settings.charge_restriction_limit) {
+                const limitMinutes = settings.charge_restriction_limit;
+                const limitTime = new Date(Date.now() - limitMinutes * 60 * 1000);
+                
+                const lastCharge = await TransactionModel.findOne({
+                    user_id: userId,
+                    fund_type: "IMPORT",
+                    createdAt: { $gte: limitTime }
+                }).sort({ createdAt: -1 });
+
+                if (lastCharge) {
+                    return responseBadRequest(res, t("exchange_not_available_after_recent_charge"));
                 }
             }
 
@@ -108,6 +151,8 @@ export const exchangeFund = async (req, res) => {
 
                 await session.commitTransaction();
 
+                const exchangeCompleteMessage = settings?.exchange_complete_message || t("exchange_request_submitted");
+                
                 return responseSuccess(
                     res,
                     {
@@ -118,9 +163,10 @@ export const exchangeFund = async (req, res) => {
                         converted_amount: convertedAmount,
                         exchange_rate: exchangeRate,
                         balance: updatedUser.own_money,
-                        status: "PENDING"
+                        status: "PENDING",
+                        message: exchangeCompleteMessage
                     },
-                    t("exchange_request_submitted")
+                    exchangeCompleteMessage
                 );
             } catch (error) {
                 await session.abortTransaction();
@@ -173,18 +219,45 @@ export const exchangeFund = async (req, res) => {
         }
 
         if (settings.exchange_timezone) {
-            const now = new Date();
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
-            const currentTime = currentHour * 60 + currentMinute;
+            if (!isWithinTimeRange(settings.exchange_start_time, settings.exchange_end_time)) {
+                const message = settings.exchange_impossible_timezone_message || t("exchange_not_available");
+                return responseBadRequest(res, message);
+            }
+        }
 
-            if (settings.exchange_start_time !== null && settings.exchange_end_time !== null) {
-                if (currentTime < settings.exchange_start_time || currentTime > settings.exchange_end_time) {
-                    return responseBadRequest(
-                        res,
-                        settings.exchange_impossible_timezone_message || t("exchange_not_available")
-                    );
+        // Check exchange restriction
+        if (settings.exchange_restriction_use && settings.exchange_restriction_limit) {
+            const limitMinutes = settings.exchange_restriction_limit;
+            const limitTime = new Date(Date.now() - limitMinutes * 60 * 1000);
+            
+            const lastExchange = await TransactionModel.findOne({
+                user_id: userId,
+                fund_type: "EXCHANGE",
+                createdAt: { $gte: limitTime }
+            }).sort({ createdAt: -1 });
+
+            if (lastExchange) {
+                if (settings.exchange_restriction === 'impossible') {
+                    return responseBadRequest(res, t("exchange_not_available_within_restriction_period"));
+                } else if (settings.exchange_restriction === 'request' && lastExchange.original_amount === normalizedAmount) {
+                    return responseBadRequest(res, t("same_exchange_amount_not_allowed_within_restriction_period"));
                 }
+            }
+        }
+
+        // Check charge restriction
+        if (settings.charge_restriction_use && settings.charge_restriction_limit) {
+            const limitMinutes = settings.charge_restriction_limit;
+            const limitTime = new Date(Date.now() - limitMinutes * 60 * 1000);
+            
+            const lastCharge = await TransactionModel.findOne({
+                user_id: userId,
+                fund_type: "IMPORT",
+                createdAt: { $gte: limitTime }
+            }).sort({ createdAt: -1 });
+
+            if (lastCharge) {
+                return responseBadRequest(res, t("exchange_not_available_after_recent_charge"));
             }
         }
 

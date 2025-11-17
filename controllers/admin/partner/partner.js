@@ -78,12 +78,15 @@ const cleanData = (node, search) => {
 
 export const getPartner = async (req, res) => {
     const { search = '' } = req.query;
-    const userId = req.session._id;
+    const adminId = req.session._id;
 
     const results = await PartnerModel.aggregate([
         {
             $match: {
-                user_id: new mongoose.Types.ObjectId(userId),
+                $or: [
+                    { admin_id: new mongoose.Types.ObjectId(adminId) },
+                    { user_id: new mongoose.Types.ObjectId(adminId) }
+                ],
             }
         },
         {
@@ -200,12 +203,15 @@ const cleanPartnerList = (node) => {
 };
 
 export const getPartnerList = async (req, res) => {
-    const userId = req.session._id;
+    const adminId = req.session._id;
 
     const results = await PartnerModel.aggregate([
         {
             $match: {
-                user_id: new mongoose.Types.ObjectId(userId),
+                $or: [
+                    { admin_id: new mongoose.Types.ObjectId(adminId) },
+                    { user_id: new mongoose.Types.ObjectId(adminId) }
+                ],
             }
         },
         {

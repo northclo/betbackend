@@ -30,13 +30,16 @@ const buildDateFilter = (startDate, endDate) => {
     return dateFilter;
 };
 
-const fetchAccessiblePartners = async (userId) => {
-    if (!userId) return { partnerIds: [], partners: [] };
+const fetchAccessiblePartners = async (adminId) => {
+    if (!adminId) return { partnerIds: [], partners: [] };
 
     const roots = await PartnerModel.aggregate([
         {
             $match: {
-                user_id: new mongoose.Types.ObjectId(userId),
+                $or: [
+                    { admin_id: new mongoose.Types.ObjectId(adminId) },
+                    { user_id: new mongoose.Types.ObjectId(adminId) }
+                ],
             },
         },
         {

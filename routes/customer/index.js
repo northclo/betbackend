@@ -6,6 +6,7 @@ import gameRoute from './game.js';
 import fundRoute from './fund.js';
 import supportRoute from './support.js';
 import noticeRoute from './notice.js';
+import basicRoute from './basic.js';
 import { checkAuth } from '../../middleware/auth.js'
 
 router.use("/auth", authRoute);
@@ -13,5 +14,6 @@ router.use('/support', supportRoute);
 router.use('/game', checkAuth, gameRoute);
 router.use('/fund', checkAuth, fundRoute);
 router.use('/notice', noticeRoute);
+router.use('/', basicRoute);
 
 export default router;

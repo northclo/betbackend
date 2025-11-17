@@ -12,6 +12,7 @@ const PartnerSchema = new Schema(
         nickname: { type: String },
         partner_id: { type: String },
         user_id: { type: mongoose.Types.ObjectId },
+        admin_id: { type: mongoose.Types.ObjectId, ref: "admin" },
         parent_partner_id: { type: mongoose.Types.ObjectId },
         currency_rolling: { type: Boolean, default: true },
         deposit_approved_amount: { type: Number, default: 0 },

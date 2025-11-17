@@ -4,6 +4,7 @@ import gameResultService from '../services/gameResultService.js';
 import connectDB from "../config/db.js"; // your existing db.js
 import UserModel from "../models/User.js";
 import PartnerModel from "../models/Partner.js";
+import AdminModel from "../models/Admin.js";
 import { userStatus } from "../const/status.js";
 import { partnerType } from "../const/type.js";
 import dotenv from 'dotenv';
@@ -73,6 +74,27 @@ const createTestUsers = async () => {
   }
 };
 
+const createTestAdmin = async () => {
+  const existingAdmin = await AdminModel.findOne({ admin_id: 'testadmin' });
+  if (!existingAdmin) {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('admin123', salt);
+    
+    const admin = await AdminModel.create({
+      admin_id: 'testadmin',
+      admin_nickname: 'Test_Admin',
+      password: hashedPassword,
+      is_active: true,
+      password_change_time: new Date()
+    });
+    
+    console.log('✅ Created test admin: testadmin / admin123');
+    console.log('   Admin ID:', admin._id);
+  } else {
+    console.log('ℹ️  Test admin already exists');
+  }
+};
+
 (async () => {
   try {
     // Ensure DB connection is ready
@@ -81,6 +103,9 @@ const createTestUsers = async () => {
 
     // Create test users first
     await createTestUsers();
+
+    // Create test admin
+    await createTestAdmin();
 
     // Run the test data creation
     if (createTestData) {

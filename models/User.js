@@ -37,10 +37,7 @@ const UserSchema = new Schema(
         api_key: { type: String },
         consider_user: { type: Boolean },
         login_status: { type: Boolean, default: false },
-        password_change_time: { type: Number },
-        view_manager_id: { type: String, unique: true, sparse: true },
-        view_manager_password: { type: String },
-        view_manager_password_change_time: { type: Number }
+        password_change_time: { type: Number }
     },
     { timestamps: true }
 );

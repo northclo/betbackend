@@ -4,16 +4,16 @@ import {
   responseBadRequest,
   responseSuccess,
 } from "../../../helper/response.js";
-import UserModel from "../../../models/User.js";
+import AdminModel from "../../../models/Admin.js";
 import { t } from "../../../helper/translation.js";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ADMIN_ID_REGEX = /^[A-Za-z0-9_-]{3,50}$/;
 const VIEW_MANAGER_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{3,31}$/;
 
 const normalizeString = (value) =>
   typeof value === "string" ? value.trim() : "";
 
-const validateAdminPayload = (admin, currentEmail) => {
+const validateAdminPayload = (admin, currentAdminId) => {
   if (!admin || typeof admin !== "object") {
     return { error: t("invalid_administrator_payload") };
   }
@@ -25,11 +25,11 @@ const validateAdminPayload = (admin, currentEmail) => {
     return { error: t("administrator_id_required") };
   }
 
-  if (!EMAIL_REGEX.test(id)) {
-    return { error: t("administrator_id_valid_email") };
+  if (!ADMIN_ID_REGEX.test(id)) {
+    return { error: t("administrator_id_format_invalid") };
   }
 
-  if (currentEmail && id.toLowerCase() !== currentEmail.toLowerCase()) {
+  if (currentAdminId && id !== currentAdminId) {
     return { error: t("administrator_id_cannot_changed") };
   }
 
@@ -80,20 +80,20 @@ const validateViewManagerPayload = (viewManager) => {
 };
 
 export const getAdminAccount = async (req, res) => {
-  const adminUser = await UserModel.findById(req.session?._id).lean();
+  const admin = await AdminModel.findById(req.session?._id).lean();
 
-  if (!adminUser) {
+  if (!admin) {
     return responseBadRequest(res, t("administrator_not_found"));
   }
 
   return responseSuccess(res, {
     admin: {
-      id: adminUser.user_email ?? "",
-      passwordChangedAt: adminUser.password_change_time ?? null,
+      id: admin.admin_id ?? "",
+      passwordChangedAt: admin.password_change_time ?? null,
     },
     viewManager: {
-      id: adminUser.view_manager_id ?? "",
-      passwordChangedAt: adminUser.view_manager_password_change_time ?? null,
+      id: admin.view_manager_id ?? "",
+      passwordChangedAt: admin.view_manager_password_change_time ?? null,
     },
   });
 };
@@ -108,22 +108,22 @@ export const updateAdminAccount = async (req, res) => {
     );
   }
 
-  const adminUser = await UserModel.findById(req.session?._id);
+  const adminDoc = await AdminModel.findById(req.session?._id);
 
-  if (!adminUser) {
+  if (!adminDoc) {
     return responseBadRequest(res, t("administrator_not_found"));
   }
 
   if (admin) {
-    const adminValidation = validateAdminPayload(admin, adminUser.user_email);
+    const adminValidation = validateAdminPayload(admin, adminDoc.admin_id);
     if (adminValidation.error) {
       return responseBadRequest(res, adminValidation.error);
     }
 
     if (adminValidation.password) {
       const hashedPassword = await bcrypt.hash(adminValidation.password, 10);
-      adminUser.password = hashedPassword;
-      adminUser.password_change_time = Date.now();
+      adminDoc.password = hashedPassword;
+      adminDoc.password_change_time = new Date();
     }
   }
 
@@ -133,14 +133,14 @@ export const updateAdminAccount = async (req, res) => {
       return responseBadRequest(res, viewManagerValidation.error);
     }
 
-    const currentViewManagerId = adminUser.view_manager_id || "";
+    const currentViewManagerId = adminDoc.view_manager_id || "";
     const newViewManagerId = viewManagerValidation.id || "";
     const isIdChanged = currentViewManagerId !== newViewManagerId;
     
     if (isIdChanged) {
-      const existingViewManager = await UserModel.findOne({
+      const existingViewManager = await AdminModel.findOne({
         view_manager_id: viewManagerValidation.id,
-        _id: { $ne: adminUser._id },
+        _id: { $ne: adminDoc._id },
       }).lean();
 
       if (existingViewManager) {
@@ -148,19 +148,19 @@ export const updateAdminAccount = async (req, res) => {
       }
     }
 
-    adminUser.view_manager_id = viewManagerValidation.id;
+    adminDoc.view_manager_id = viewManagerValidation.id;
 
     if (viewManagerValidation.password) {
       const hashedPassword = await bcrypt.hash(
         viewManagerValidation.password,
         10
       );
-      adminUser.view_manager_password = hashedPassword;
-      adminUser.view_manager_password_change_time = Date.now();
+      adminDoc.view_manager_password = hashedPassword;
+      adminDoc.view_manager_password_change_time = new Date();
     }
   }
 
-  await adminUser.save();
+  await adminDoc.save();
 
   return responseSuccess(res);
 };

@@ -16,6 +16,17 @@ export default {
   invalid_credentials: "Invalid credentials.",
   access_denied: "Access denied.",
   login_successful: "Login successful.",
+  email_password_nickname_required: "Email, password, and nickname are required.",
+  invalid_email_format: "Invalid email format.",
+  password_min_length_6: "Password must be at least 6 characters long.",
+  email_already_exists: "Email already exists.",
+  nickname_already_exists: "Nickname already exists.",
+  registration_disabled: "Registration is currently disabled.",
+  recommender_code_required: "Recommender code is required.",
+  recommender_not_found: "Recommender not found.",
+  registration_success: "Registration successful! You can now login.",
+  registration_success_pending_approval: "Registration submitted! Your account is pending approval. You will be notified once approved.",
+  registration_failed: "Registration failed. Please try again.",
   
   // Betting
   invalid_start_date_format: "Invalid start date format. Please use YYYY-MM-DD format.",
@@ -65,6 +76,9 @@ export default {
   failed_process_exchange: "Failed to process exchange request. Please try again.",
   exchange_request_cancelled: "Exchange request cancelled successfully",
   failed_to_cancel_exchange_request: "Failed to cancel exchange request",
+  exchange_not_available_within_restriction_period: "Exchange is not available within the restriction period after the last exchange",
+  same_exchange_amount_not_allowed_within_restriction_period: "Same exchange amount is not allowed within the restriction period",
+  exchange_not_available_after_recent_charge: "Exchange is not available after a recent charge",
   
   // Charging
   transaction_not_found: "Transaction not found",
@@ -107,6 +121,7 @@ export default {
   failed_to_cancel_transaction: "Failed to cancel transaction",
   fund_request_cancelled: "Fund request cancelled successfully",
   failed_to_cancel_fund_request: "Failed to cancel fund request",
+  charging_not_available_at_this_time: "Charging is not available at this time",
   
   // Support
   provide_name_email_subject_message: "Please provide your name, email, subject, and message.",
@@ -132,6 +147,7 @@ export default {
   question_ids_required: "Question IDs are required.",
   no_valid_question_ids: "No valid question IDs provided.",
   successfully_deleted_questions: "Successfully deleted {0} question(s).",
+  cannot_submit_new_inquiry_with_pending: "You cannot submit a new inquiry while you have a pending inquiry. Please wait for a response to your existing inquiry before submitting a new one.",
   
   // Partner
   nickname_exists: "Nickname is exist",

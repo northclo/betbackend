@@ -1,6 +1,7 @@
 import requestIp from "request-ip";
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
+import SettingModel from "../../../models/Setting.js";
 import {
   responseBadRequest,
   responseSuccess,
@@ -30,6 +31,19 @@ export const submitContact = async (req, res) => {
     const user = await UserModel.findById(userId).lean();
     if (!user) {
       return responseUnAutherized(res);
+    }
+
+    const setting = await SettingModel.findOne().lean();
+
+    if (setting?.customer_center) {
+      const pendingInquiry = await SupportMessage.findOne({
+        userId: userId,
+        status: "pending",
+      }).lean();
+
+      if (pendingInquiry) {
+        return responseBadRequest(res, t("cannot_submit_new_inquiry_with_pending"));
+      }
     }
 
     const ipAddress = requestIp.getClientIp(req) || req.ip || req.connection?.remoteAddress || t("unknown");

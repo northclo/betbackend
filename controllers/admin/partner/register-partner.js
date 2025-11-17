@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import { responseBadRequest, responseSuccess } from '../../../helper/response.js';
 import PartnerModel from '../../../models/Partner.js';
+import AdminModel from '../../../models/Admin.js';
 import UserModel from '../../../models/User.js';
 import { partnerType } from '../../../const/type.js';
 import { t } from '../../../helper/translation.js';
@@ -9,7 +10,7 @@ import { t } from '../../../helper/translation.js';
 export const registerPartner = async (req, res) => {
     try {
         const payload = req.body;
-        const userId = req.session._id;
+        const adminId = req.session._id;
 
         // Validate required fields
         if (!payload.partnerId || !payload.partnerId.trim()) {
@@ -36,13 +37,24 @@ export const registerPartner = async (req, res) => {
             return responseBadRequest(res, t("user_nickname_exists"));
         }
 
-        // Get parent partner from current user
-        const currentUser = await UserModel.findById(userId);
-        if (!currentUser) {
+        const currentAdmin = await AdminModel.findById(adminId);
+        if (!currentAdmin) {
             return responseBadRequest(res, t("current_user_not_found"));
         }
 
-        const parentPartnerId = currentUser.own_partner_id || payload.parentPartnerId;
+        let parentPartner = null;
+        if (currentAdmin.partner_id) {
+            parentPartner = await PartnerModel.findById(currentAdmin.partner_id);
+        } else {
+            parentPartner = await PartnerModel.findOne({
+                $or: [
+                    { admin_id: new mongoose.Types.ObjectId(adminId) },
+                    { user_id: new mongoose.Types.ObjectId(adminId) }
+                ]
+            });
+        }
+
+        const parentPartnerId = parentPartner?._id || payload.parentPartnerId;
         if (!parentPartnerId) {
             return responseBadRequest(res, t("parent_partner_not_found"));
         }
