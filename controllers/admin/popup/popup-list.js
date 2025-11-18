@@ -5,14 +5,13 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import {
-  ensureAdminId,
   toPopupDto,
   normalizeStatus,
 } from "./popup-utils.js";
 import { t } from "../../../helper/translation.js";
 
 export const listPopups = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -26,7 +25,7 @@ export const listPopups = async (req, res) => {
     limit = 10 
   } = req.query;
 
-  const filter = {}; // Admin can see all popups
+  const filter = {};
 
   const normalizedStatus = normalizeStatus(status);
   if (normalizedStatus) {
@@ -34,14 +33,14 @@ export const listPopups = async (req, res) => {
   }
 
   if (startDate || endDate) {
-    filter.start_date = {};
+    filter.createdAt = {};
     if (startDate) {
       const start = new Date(startDate);
       if (isNaN(start.getTime())) {
         return responseBadRequest(res, t("invalid_startdate_format"));
       }
       start.setHours(0, 0, 0, 0);
-      filter.start_date.$gte = start;
+      filter.createdAt.$gte = start;
     }
     if (endDate) {
       const end = new Date(endDate);
@@ -49,7 +48,7 @@ export const listPopups = async (req, res) => {
         return responseBadRequest(res, t("invalid_enddate_format"));
       }
       end.setHours(23, 59, 59, 999);
-      filter.start_date.$lte = end;
+      filter.createdAt.$lte = end;
     }
     
     if (startDate && endDate) {
@@ -61,7 +60,6 @@ export const listPopups = async (req, res) => {
     }
   }
 
-  // Keyword search (title or content)
   if (keyword && String(keyword).trim().length > 0) {
     const keywordRegex = new RegExp(String(keyword).trim(), "i");
     filter.$or = [
@@ -91,7 +89,6 @@ export const listPopups = async (req, res) => {
 
   return responseSuccess(res, {
     list: items,
-    items: items,
     page: pageNumber,
     pageSize: pageSize,
     limit: pageSize,

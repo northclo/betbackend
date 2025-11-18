@@ -46,6 +46,7 @@ const cleanData = (node, search) => {
             betMoneyUnit: node.bet_money_unit,
             holdingMoney: ownerBalance,
             holdingPoint: owner.point || 0,
+            onetimeEarningMin: node.onetime_earning_min || null,
         });
 
         node.members?.forEach(member => {
@@ -186,6 +187,7 @@ const cleanPartnerList = (node) => {
         betMoneyUnit: node.bet_money_unit,
         onetimeBetMin: node.onetime_bet_min,
         onetimeBetMax: node.onetime_bet_max,
+        onetimeEarningMin: node.onetime_earning_min,
         onetimeEarningMax: node.onetime_earning_max,
         oneroundBetMax: node.oneround_bet_max,
         oneroundEarningMax: node.oneround_earning_max,

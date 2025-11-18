@@ -19,15 +19,39 @@ const buildStatusFilter = (status, now) => {
         case "end":
             return {
                 end_time_stamp: { $lte: now },
-                cancel_time_stamp: { $exists: true, $gt: 0, $gt: now }
+                $and: [
+                    {
+                        $or: [
+                            { cancel_time_stamp: { $exists: false } },
+                            { cancel_time_stamp: null },
+                            { cancel_time_stamp: { $lte: 0 } },
+                            { cancel_time_stamp: { $gt: now } }
+                        ]
+                    },
+                    {
+                        $or: [
+                            { list: { $exists: false } },
+                            { list: { $size: 0 } },
+                            { list: null }
+                        ]
+                    }
+                ]
             };
         case "finish":
             return {
                 end_time_stamp: { $lte: now },
-                $or: [
-                    { cancel_time_stamp: { $exists: false } },
-                    { cancel_time_stamp: null },
-                    { cancel_time_stamp: { $lte: 0 } }
+                $and: [
+                    {
+                        $or: [
+                            { cancel_time_stamp: { $exists: false } },
+                            { cancel_time_stamp: null },
+                            { cancel_time_stamp: { $lte: 0 } }
+                        ]
+                    },
+                    {
+                        list: { $exists: true, $ne: null, $type: "array" },
+                        $expr: { $gt: [{ $size: "$list" }, 0] }
+                    }
                 ]
             };
         case "cancel":
@@ -134,14 +158,14 @@ export const getGameManagement = async (req, res) => {
             gameStatus = "r";
         } else if (startStamp <= now && endStamp > now) {
             gameStatus = "s";
-        } else if (endStamp <= now && cancelStamp && cancelStamp > 0 && now < cancelStamp) {
-            gameStatus = "e";
         } else if (cancelStamp && cancelStamp > 0 && cancelStamp <= now) {
             gameStatus = "c";
         } else if (endStamp <= now) {
-            gameStatus = "f";
-        } else {
-            gameStatus = "f";
+            if (!element.list || element.list.length === 0) {
+                gameStatus = "e";
+            } else {
+                gameStatus = "f";
+            }
         }
 
         let remainedTime = 0;

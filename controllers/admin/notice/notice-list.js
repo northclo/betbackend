@@ -2,46 +2,13 @@ import NoticeModel from "../../../models/Notice.js";
 import PartnerModel from "../../../models/Partner.js";
 import UserModel from "../../../models/User.js";
 import {
+  responseBadRequest,
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
-// Get all sub partner IDs for the current logged in partner
-const getSubPartnerIds = async (userId) => {
-  const results = await PartnerModel.aggregate([
-    {
-      $match: {
-        user_id: new mongoose.Types.ObjectId(userId),
-      }
-    },
-    {
-      $graphLookup: {
-        from: 'partners',
-        startWith: '$_id',
-        connectFromField: '_id',
-        connectToField: 'parent_partner_id',
-        as: 'subs'
-      }
-    },
-  ]);
-
-  if (!results.length) return [];
-
-  const root = results[0];
-  const allPartnerIds = [
-    root._id.toString(),
-    ...(root.subs || []).map(sub => sub._id.toString())
-  ];
-
-  return allPartnerIds;
-};
+import { getSubPartnerIds } from "./notice-utils.js";
 
 const toNoticeDto = async (notice) => {
   let partnerDisplay = t("all_partners");
@@ -106,7 +73,7 @@ const toNoticeDto = async (notice) => {
 };
 
 export const listNotices = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -169,7 +136,7 @@ export const listNotices = async (req, res) => {
         { partner_ids: { $exists: false } },
         { partner_ids: { $size: 0 } },
         { partner_ids: null },
-        { partner_ids: normalizedPartnerId }
+        { partner_ids: { $in: [normalizedPartnerId] } }
       ];
     } else {
       return responseSuccess(res, {
@@ -184,17 +151,104 @@ export const listNotices = async (req, res) => {
     }
   }
 
-  if (startDate || endDate) {
-    filter.createdAt = {};
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filter.createdAt.$gte = start;
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    
+    if (start > end) {
+      return responseBadRequest(res, t("start_date_must_be_before_end_date"));
     }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filter.createdAt.$lte = end;
+  }
+
+  if (startDate || endDate) {
+    const dateConditions = [];
+    
+    if (startDate && endDate) {
+      const filterStart = new Date(startDate);
+      const filterEnd = new Date(endDate);
+      filterStart.setHours(0, 0, 0, 0);
+      filterEnd.setHours(23, 59, 59, 999);
+      
+      dateConditions.push({
+        $or: [
+          {
+            $and: [
+              {
+                $or: [
+                  { start_date: null },
+                  { start_date: { $exists: false } },
+                  { start_date: { $lte: filterEnd } }
+                ]
+              },
+              {
+                $or: [
+                  { end_date: null },
+                  { end_date: { $exists: false } },
+                  { end_date: { $gte: filterStart } }
+                ]
+              }
+            ]
+          },
+          {
+            $and: [
+              { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
+              { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
+              { createdAt: { $gte: filterStart, $lte: filterEnd } }
+            ]
+          }
+        ]
+      });
+    } else if (startDate) {
+      const filterStart = new Date(startDate);
+      filterStart.setHours(0, 0, 0, 0);
+      
+      dateConditions.push({
+        $or: [
+          {
+            $or: [
+              { start_date: null },
+              { start_date: { $exists: false } },
+              { start_date: { $lte: filterStart } }
+            ]
+          },
+          {
+            $and: [
+              { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
+              { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
+              { createdAt: { $lte: filterStart } }
+            ]
+          }
+        ]
+      });
+    } else if (endDate) {
+      const filterEnd = new Date(endDate);
+      filterEnd.setHours(23, 59, 59, 999);
+      
+      dateConditions.push({
+        $or: [
+          {
+            $or: [
+              { end_date: null },
+              { end_date: { $exists: false } },
+              { end_date: { $gte: filterEnd } }
+            ]
+          },
+          {
+            $and: [
+              { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
+              { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
+              { createdAt: { $gte: filterEnd } }
+            ]
+          }
+        ]
+      });
+    }
+    
+    if (dateConditions.length > 0) {
+      filter.$and = filter.$and || [];
+      filter.$and.push(...dateConditions);
     }
   }
 

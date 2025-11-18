@@ -4,29 +4,16 @@ import {
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
-import { getPresignedUrl } from "../../../utils/s3.js";
-import UserModel from "../../../models/User.js";
+import AdminModel from "../../../models/Admin.js";
 import { t } from "../../../helper/translation.js";
 
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
 const toAnnouncementDto = async (post) => {
-  let imageUrl = post.image;
-  
-  if (imageUrl && !imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
-    imageUrl = await getPresignedUrl(imageUrl);
-  }
-
-  // Get author info
   let author = t("unknown");
   if (post.userId) {
     try {
-      const user = await UserModel.findById(post.userId).lean();
-      if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
+      const admin = await AdminModel.findById(post.userId).lean();
+      if (admin) {
+        author = admin.admin_nickname;
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -39,7 +26,6 @@ const toAnnouncementDto = async (post) => {
     title: post.title,
     description: post.description,
     slug: post.slug,
-    image: imageUrl,
     category: post.category,
     status: post.status,
     published_at: post.published_at ? new Date(post.published_at).toISOString() : null,
@@ -71,11 +57,6 @@ const normalizePayload = (payload) => {
 
   if (payload.description !== undefined) {
     normalized.description = String(payload.description || "").trim();
-  }
-
-  if (payload.image !== undefined) {
-    const image = String(payload.image || "").trim();
-    normalized.image = image.length ? image : null;
   }
 
   if (payload.category !== undefined) {
@@ -126,7 +107,7 @@ const generateUniqueSlug = async (title, excludeId = null) => {
 };
 
 export const createAnnouncement = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -137,28 +118,18 @@ export const createAnnouncement = async (req, res) => {
     return responseBadRequest(res, t("title_description_required"));
   }
 
-  if (req.file) {
-    payload.image = req.file.path;
-  } else if (payload.image === undefined) {
-    payload.image = null;
+  if (payload.category && !["system_notice", "maintenance", "event"].includes(payload.category)) {
+    return responseBadRequest(res, t("invalid_category"));
   }
 
-  payload.userId = adminId; // Store which admin created it
+  payload.userId = adminId;
 
   if (!payload.category) {
-    payload.category = t("default_category_system_notice");
+    payload.category = "system_notice";
   }
 
   if (!payload.status) {
     payload.status = "draft";
-  }
-
-  if (payload.status === "published" && !payload.published_at) {
-    payload.published_at = new Date();
-  }
-
-  if (payload.status !== "published") {
-    payload.published_at = null;
   }
 
   payload.slug = await generateUniqueSlug(payload.title);

@@ -48,6 +48,7 @@ export default {
   popup_not_found_or_update_failed: "Popup not found or update failed.",
   failed_process_updated_popup: "Failed to process updated popup.",
   popup_updated_successfully: "Popup updated successfully.",
+  popup_deleted_successfully: "Popup deleted successfully.",
   invalid_startdate_format: "Invalid startDate format.",
   invalid_enddate_format: "Invalid endDate format.",
   failed_process_popup_data: "Failed to process popup data.",
@@ -109,6 +110,8 @@ export default {
   game_not_available_cancellation: "Game not available for cancellation",
   cancellation_window_closed: "Cancellation window is closed",
   bet_cancellation_failed: "Bet cancellation failed",
+  game_is_currently_disabled: "Game is currently disabled",
+  duplicate_betting_not_allowed: "Duplicate betting is not allowed within the specified time limit",
   
   // Fund
   amount_required: "Amount is required",
@@ -173,6 +176,7 @@ export default {
   // Account
   invalid_administrator_payload: "Invalid administrator payload.",
   administrator_id_required: "Administrator ID is required.",
+  administrator_id_format_invalid: "Invalid administrator ID format.",
   administrator_id_valid_email: "Administrator ID must be a valid email.",
   administrator_id_cannot_changed: "Administrator ID cannot be changed.",
   administrator_password_required: "Administrator password is required.",
@@ -189,9 +193,11 @@ export default {
   title_description_required: "Title and description are required.",
   announcement_id_required: "Announcement id is required.",
   description_cannot_empty: "Description cannot be empty.",
+  invalid_category: "Invalid category. Must be one of: system_notice, maintenance, event.",
   announcement_not_found: "Announcement not found.",
   announcement_created_successfully: "Announcement created successfully.",
   announcement_updated_successfully: "Announcement updated successfully.",
+  announcement_deleted_successfully: "Announcement deleted successfully.",
   unknown: "Unknown",
   
   // Game Result
@@ -226,4 +232,73 @@ export default {
 
   // Announcement
   default_category_system_notice: "system_notice",
+  
+  // Date validation
+  start_date_before_or_equal_end_date: "Start date must be before or equal to end date.",
+  start_date_before_end_date: "Start date must be before end date",
+  
+  // Member management
+  user_id_required: "User ID is required",
+  invalid_user_id_format: "Invalid user ID format",
+  invalid_user_id_format_list: "Invalid user ID format: {0}",
+  user_nickname_email_required: "User nickname and email are required",
+  password_min_length_6: "Password must be at least 6 characters long",
+  user_email_already_exists: "User with this email already exists",
+  invalid_partner_id_format: "Invalid partner ID format",
+  invalid_own_partner_id_format: "Invalid own partner ID format",
+  own_partner_not_found: "Own partner not found",
+  at_least_one_valid_user_id_required: "At least one valid user ID is required",
+  error_processing_partner_filter: "Error processing partner filter",
+  user_name_required: "User name is required",
+  failed_register_user: "Failed to register user",
+  
+  // IP blocking
+  ip_address_required: "IP address is required.",
+  block_status_must_be_boolean: "Block status must be a boolean value.",
+  ip_address_blocked_successfully: "IP address blocked successfully.",
+  ip_address_already_blocked: "IP address is already blocked.",
+  ip_address_unblocked_successfully: "IP address unblocked successfully.",
+  ip_address_already_unblocked: "IP address is already unblocked.",
+  ip_id_required: "IP ID is required.",
+  blocked_ip_not_found: "Blocked IP not found.",
+  blocked_ip_removed_successfully: "Blocked IP removed successfully.",
+  
+  // User logout
+  user_nickname_required: "User nickname is required.",
+  failed_update_user_login_status: "Failed to update user login status.",
+  user_logged_out_successfully: "User logged out successfully.",
+  you_have_been_logged_out: "You have been logged out",
+  
+  // Game setting
+  game_setting_name_required: "Game setting name is required",
+  activate_must_be_boolean: "activate must be a boolean",
+  inactive_message_must_be_string: "inactive_message must be a string",
+  duplicate_betting_must_be_boolean: "duplicate_betting must be a boolean",
+  duplicate_betting_limit_must_be_non_negative: "duplicate_betting_limit must be a non-negative number",
+  inactive_message_required_when_disabled: "inactive_message is required when game is disabled",
+  option_must_be_array: "option must be an array",
+  option_must_contain_exactly_2_items: "option must contain exactly 2 items (A and B)",
+  option_index_must_be_object: "option[{0}] must be an object",
+  option_index_name_required: "option[{0}].name is required and must be a string",
+  option_index_name_must_be_a_or_b: "option[{0}].name must be either \"A\" or \"B\"",
+  option_index_field_must_be_non_negative: "option[{0}].{1} must be a non-negative number",
+  game_setting_not_found: "Game setting not found",
+  game_setting_updated_successfully: "Game setting updated successfully",
+  
+  // Customer auth
+  cannot_find_user: "Cannot find user",
+  password_incorrect: "Password isn't correct!",
+  
+  // Site setting validation
+  field_must_be_valid_number: "{0} must be a valid number.",
+  field_must_be_integer: "{0} must be an integer.",
+  field_must_be_greater_than_or_equal: "{0} must be greater than or equal to {1}.",
+  field_must_be_less_than_or_equal: "{0} must be less than or equal to {1}.",
+  field_must_be_valid_24hour_time: "{0} must be a valid 24-hour time (HHmm).",
+  charge_settings_payload_required: "Charge settings payload is required.",
+  charge_min_cannot_be_greater_than_max: "chargeMin cannot be greater than chargeMax.",
+  charge_start_time_must_be_earlier_than_end: "chargeStartTime must be earlier than chargeEndTime.",
+  exchange_settings_payload_required: "Exchange settings payload is required.",
+  exchange_min_cannot_be_greater_than_max: "exchangeMin cannot be greater than exchangeMax.",
+  exchange_start_time_must_be_earlier_than_end: "exchangeStartTime must be earlier than exchangeEndTime.",
 };

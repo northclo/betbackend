@@ -42,16 +42,30 @@ export const updateSupportTicket = async (req, res) => {
 
     const updateData = {};
 
-    const normalizedStatus = normalizeStatus(status);
-    if (normalizedStatus !== undefined) {
-      updateData.status = normalizedStatus;
-      if (normalizedStatus === "resolved" && !ticket.answerDate) {
+    if (answer !== undefined) {
+      const trimmedAnswer = String(answer).trim();
+      if (trimmedAnswer.length === 0) {
+        return responseBadRequest(res, t("answer_cannot_be_empty"));
+      }
+      updateData.answer = trimmedAnswer;
+      if (!ticket.answerDate) {
         updateData.answerDate = new Date();
       }
     }
 
-    if (answer !== undefined) {
-      updateData.answer = String(answer).trim();
+    const normalizedStatus = normalizeStatus(status);
+    if (normalizedStatus !== undefined) {
+      if (normalizedStatus === "resolved") {
+        const hasAnswer = (ticket.answer && ticket.answer.trim().length > 0) || 
+                         (updateData.answer && updateData.answer.trim().length > 0);
+        if (!hasAnswer) {
+          return responseBadRequest(res, t("answer_required_when_resolving"));
+        }
+        if (!ticket.answerDate && !updateData.answerDate) {
+          updateData.answerDate = new Date();
+        }
+      }
+      updateData.status = normalizedStatus;
     }
 
     Object.assign(ticket, updateData);

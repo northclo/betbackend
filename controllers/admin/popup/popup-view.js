@@ -5,13 +5,12 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import {
-  ensureAdminId,
   toPopupDto,
 } from "./popup-utils.js";
 import { t } from "../../../helper/translation.js";
 
 export const viewPopup = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }

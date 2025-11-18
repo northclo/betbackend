@@ -1,78 +1,14 @@
 import NoticeModel from "../../../models/Notice.js";
-import PartnerModel from "../../../models/Partner.js";
 import {
   responseBadRequest,
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
-import mongoose from "mongoose";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
-// Get all sub partner IDs for the current logged in partner
-const getSubPartnerIds = async (userId) => {
-  const results = await PartnerModel.aggregate([
-    {
-      $match: {
-        user_id: new mongoose.Types.ObjectId(userId),
-      }
-    },
-    {
-      $graphLookup: {
-        from: 'partners',
-        startWith: '$_id',
-        connectFromField: '_id',
-        connectToField: 'parent_partner_id',
-        as: 'subs'
-      }
-    },
-  ]);
-
-  if (!results.length) return [];
-
-  const root = results[0];
-  const allPartnerIds = [
-    root._id.toString(),
-    ...(root.subs || []).map(sub => sub._id.toString())
-  ];
-
-  return allPartnerIds;
-};
-
-const normalizePartnerIds = async (partnerIds) => {
-  if (!Array.isArray(partnerIds) || partnerIds.length === 0) {
-    return [];
-  }
-
-  const normalizedIds = [];
-  for (const partnerId of partnerIds) {
-    if (!partnerId) continue;
-    
-    const idString = String(partnerId).trim();
-    
-    if (mongoose.Types.ObjectId.isValid(idString)) {
-      normalizedIds.push(idString);
-    } else {
-      try {
-        const partner = await PartnerModel.findOne({ partner_id: idString }).lean();
-        if (partner && partner._id) {
-          normalizedIds.push(partner._id.toString());
-        }
-      } catch (error) {
-        console.error(`Error normalizing partner ID ${idString}:`, error);
-      }
-    }
-  }
-
-  return normalizedIds;
-};
+import { getSubPartnerIds, normalizePartnerIds } from "./notice-utils.js";
 
 export const updateNotice = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -139,41 +75,44 @@ export const updateNotice = async (req, res) => {
     }
   }
 
-  if (start_date !== undefined) {
-    if (start_date === null || start_date === "") {
-      updateData.start_date = null;
-    } else {
+  const hasStartDateUpdate = start_date !== undefined;
+  const hasEndDateUpdate = end_date !== undefined;
+  
+  if (hasStartDateUpdate || hasEndDateUpdate) {
+    if (hasStartDateUpdate && !hasEndDateUpdate) {
+      return responseBadRequest(res, t("both_start_and_end_date_required"));
+    }
+    if (hasEndDateUpdate && !hasStartDateUpdate) {
+      return responseBadRequest(res, t("both_start_and_end_date_required"));
+    }
+    
+    const hasStartDate = start_date !== null && start_date !== "";
+    const hasEndDate = end_date !== null && end_date !== "";
+    
+    if ((hasStartDate && !hasEndDate) || (!hasStartDate && hasEndDate)) {
+      return responseBadRequest(res, t("both_start_and_end_date_required"));
+    }
+    
+    if (hasStartDate && hasEndDate) {
       const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+      
       if (isNaN(startDate.getTime())) {
         return responseBadRequest(res, t("invalid_start_date"));
       }
-      updateData.start_date = startDate;
-    }
-  }
-
-  if (end_date !== undefined) {
-    if (end_date === null || end_date === "") {
-      updateData.end_date = null;
-    } else {
-      const endDate = new Date(end_date);
       if (isNaN(endDate.getTime())) {
         return responseBadRequest(res, t("invalid_end_date"));
       }
+      
+      if (startDate > endDate) {
+        return responseBadRequest(res, t("start_date_must_be_before_end_date"));
+      }
+      
+      updateData.start_date = startDate;
       updateData.end_date = endDate;
-    }
-  }
-
-  const finalStartDate = updateData.start_date !== undefined ? updateData.start_date : existingNotice.start_date;
-  const finalEndDate = updateData.end_date !== undefined ? updateData.end_date : existingNotice.end_date;
-  
-  if (finalStartDate && finalEndDate) {
-    const start = new Date(finalStartDate);
-    const end = new Date(finalEndDate);
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return responseBadRequest(res, t("invalid_date_range"));
-    }
-    if (start > end) {
-      return responseBadRequest(res, t("start_date_must_be_before_end_date"));
+    } else {
+      updateData.start_date = null;
+      updateData.end_date = null;
     }
   }
 

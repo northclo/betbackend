@@ -1,6 +1,7 @@
 import isEmpty from "is-empty";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import SettingModel from "../../../models/Setting.js";
+import { t } from "../../../helper/translation.js";
 
 const isEmptyValue = (value) => value === undefined || value === null || value === "";
 
@@ -29,19 +30,19 @@ const normalizeNumberField = (value, field, { optional = false, min, max, intege
 
     const numericValue = parseNumericValue(value);
     if (numericValue === null) {
-        return { error: `${field} must be a valid number.` };
+        return { error: t("field_must_be_valid_number", field) };
     }
 
     if (integer && !Number.isInteger(numericValue)) {
-        return { error: `${field} must be an integer.` };
+        return { error: t("field_must_be_integer", field) };
     }
 
     if (min !== undefined && numericValue < min) {
-        return { error: `${field} must be greater than or equal to ${min}.` };
+        return { error: t("field_must_be_greater_than_or_equal", field, min) };
     }
 
     if (max !== undefined && numericValue > max) {
-        return { error: `${field} must be less than or equal to ${max}.` };
+        return { error: t("field_must_be_less_than_or_equal", field, max) };
     }
 
     return { value: numericValue };
@@ -59,18 +60,18 @@ const normalizeTimeField = (value, field, { required = false } = {}) => {
 
     const numericValue = parseNumericValue(raw);
     if (numericValue === null || !Number.isInteger(numericValue)) {
-        return { error: `${field} must be a valid 24-hour time (HHmm).` };
+        return { error: t("field_must_be_valid_24hour_time", field) };
     }
 
     if (numericValue < 0 || numericValue > 2359) {
-        return { error: `${field} must be a valid 24-hour time (HHmm).` };
+        return { error: t("field_must_be_valid_24hour_time", field) };
     }
 
     const minutes = numericValue % 100;
     const hours = Math.floor(numericValue / 100);
 
     if (hours > 23 || minutes > 59) {
-        return { error: `${field} must be a valid 24-hour time (HHmm).` };
+        return { error: t("field_must_be_valid_24hour_time", field) };
     }
 
     return { value: hours * 100 + minutes };
@@ -80,7 +81,7 @@ const buildChargeData = (charge) => {
     const errors = [];
 
     if (!charge) {
-        return { errors: ["Charge settings payload is required."], data: {} };
+        return { errors: [t("charge_settings_payload_required")], data: {} };
     }
 
     const timezone = Boolean(charge.chargeTimezone);
@@ -99,7 +100,7 @@ const buildChargeData = (charge) => {
         maxResult.value !== null &&
         minResult.value > maxResult.value
     ) {
-        errors.push("chargeMin cannot be greater than chargeMax.");
+        errors.push(t("charge_min_cannot_be_greater_than_max"));
     }
 
     if (
@@ -109,7 +110,7 @@ const buildChargeData = (charge) => {
         endResult.value !== null &&
         startResult.value >= endResult.value
     ) {
-        errors.push("chargeStartTime must be earlier than chargeEndTime.");
+        errors.push(t("charge_start_time_must_be_earlier_than_end"));
     }
 
     return {
@@ -130,7 +131,7 @@ const buildExchangeData = (exchange) => {
     const errors = [];
 
     if (!exchange) {
-        return { errors: ["Exchange settings payload is required."], data: {} };
+        return { errors: [t("exchange_settings_payload_required")], data: {} };
     }
 
     const timezone = Boolean(exchange.exchangeTimezone);
@@ -169,7 +170,7 @@ const buildExchangeData = (exchange) => {
         maxResult.value !== null &&
         minResult.value > maxResult.value
     ) {
-        errors.push("exchangeMin cannot be greater than exchangeMax.");
+        errors.push(t("exchange_min_cannot_be_greater_than_max"));
     }
 
     if (
@@ -179,7 +180,7 @@ const buildExchangeData = (exchange) => {
         endResult.value !== null &&
         startResult.value >= endResult.value
     ) {
-        errors.push("exchangeStartTime must be earlier than exchangeEndTime.");
+        errors.push(t("exchange_start_time_must_be_earlier_than_end"));
     }
 
     return {

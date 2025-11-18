@@ -4,30 +4,25 @@ import {
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
-
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
+import { t } from "../../../helper/translation.js";
 
 export const deleteAnnouncement = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
 
   const { announcementId } = req.params;
   if (!announcementId) {
-    return responseBadRequest(res, "Announcement id is required.");
+    return responseBadRequest(res, t("announcement_id_required"));
   }
 
-  // Admin can delete any announcement (not restricted to their own)
   const deleted = await AnnouncementModel.findOneAndDelete({ _id: announcementId });
 
   if (!deleted) {
-    return responseBadRequest(res, "Announcement not found.");
+    return responseBadRequest(res, t("announcement_not_found"));
   }
 
-  return responseSuccess(res, null, "Announcement deleted successfully.");
+  return responseSuccess(res, null, t("announcement_deleted_successfully"));
 };
 

@@ -41,7 +41,7 @@ export const getBettingList = async (req, res) => {
             bettingStatus,
             bettingType,
             win,
-            sort = "created_date",
+            sort = "created_date:desc",
             page = 1,
             pageSize = 10
         } = req.query;
@@ -56,8 +56,8 @@ export const getBettingList = async (req, res) => {
             return responseBadRequest(res, t("invalid_end_date_format"));
         }
 
-        const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
-        const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
+        const pageNumber = Math.max(Math.min(parseInt(page, 10) || 1, 1000), 1);
+        const limit = Math.max(Math.min(parseInt(pageSize, 10) || 10, 100), 1);
         const skip = (pageNumber - 1) * limit;
 
         let filter = {};
@@ -243,7 +243,7 @@ export const getBettingList = async (req, res) => {
                     own_partner: { $arrayElemAt: ["$own_partners", 0] },
                     partner: { $arrayElemAt: ["$partners", 0] },
                     game: { $arrayElemAt: ["$game_result", 0] },
-                    user_id_text: { $toString: "$user._id" }
+                    user_id_text: { $ifNull: [{ $toString: "$user._id" }, ""] }
                 }
             }
         );

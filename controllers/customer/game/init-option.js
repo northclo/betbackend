@@ -8,28 +8,22 @@ import { t } from "../../../helper/translation.js";
 export const getGameOption = async (req, res) => {
     try {
         const userId = req.session._id;
-        console.log('[getGameOption] User ID from session:', userId);
 
         if (!userId) {
-            console.log('[getGameOption] No userId in session');
             return responseUnAutherized(res);
         }
 
         const user = await UserModel.findOne({ _id: userId }).lean();
-        console.log('[getGameOption] User found:', user ? 'Yes' : 'No');
         
         if (!user) {
             return responseUnAutherized(res);
         }
 
         let partnerId = user.own_partner_id || user.partner_id || '';
-        console.log('[getGameOption] Partner ID:', partnerId);
         
         let partner;
         
         if (!partnerId) {
-            console.log('[getGameOption] User does not have partner_id, creating default partner');
-            // Create a default partner for the user
             const defaultPartner = await PartnerModel.create({
                 role: partnerType.store,
                 nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
@@ -39,21 +33,16 @@ export const getGameOption = async (req, res) => {
                 dashboard_access_permission: false,
             });
             
-            // Update user with the new partner ID
             await UserModel.findByIdAndUpdate(user._id, {
                 partner_id: defaultPartner._id
             });
             
             partnerId = defaultPartner._id;
             partner = defaultPartner.toObject();
-            console.log('[getGameOption] Created default partner:', partnerId);
         } else {
             partner = await PartnerModel.findOne({ _id: partnerId }).lean();
-            console.log('[getGameOption] Partner found:', partner ? 'Yes' : 'No');
             
             if (!partner) {
-                console.log('[getGameOption] Partner not found, creating default partner');
-                // Partner was deleted or doesn't exist, create a new one
                 const defaultPartner = await PartnerModel.create({
                     role: partnerType.store,
                     nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
@@ -63,23 +52,18 @@ export const getGameOption = async (req, res) => {
                     dashboard_access_permission: false,
                 });
                 
-                // Update user with the new partner ID
                 await UserModel.findByIdAndUpdate(user._id, {
                     partner_id: defaultPartner._id
                 });
                 
                 partnerId = defaultPartner._id;
                 partner = defaultPartner.toObject();
-                console.log('[getGameOption] Created replacement partner:', partnerId);
             }
         }
 
-        const gameSetting = await GameSettingModel.find().lean();
-        console.log('[getGameOption] Game settings found:', gameSetting.length);
+        const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
         
-        if (!gameSetting || gameSetting.length === 0) {
-            console.log('[getGameOption] No game settings found');
-            // Return default values if game settings don't exist
+        if (!gameSetting) {
             return responseSuccess(res, {
                 odd: 195,
                 even: 195,
@@ -95,9 +79,7 @@ export const getGameOption = async (req, res) => {
             });
         }
 
-        if (!gameSetting[0].option || gameSetting[0].option.length === 0) {
-            console.log('[getGameOption] No options in game settings');
-            // Return default values if options don't exist
+        if (!gameSetting.option || gameSetting.option.length === 0) {
             return responseSuccess(res, {
                 odd: 195,
                 even: 195,
@@ -114,16 +96,11 @@ export const getGameOption = async (req, res) => {
         }
 
         const betRateType = partner.bet_rate_type || 'A';
-        console.log('[getGameOption] Bet rate type:', betRateType);
-        console.log('[getGameOption] Available options:', gameSetting[0].option.map(o => o.name));
         
-        const option = gameSetting[0].option.filter(item => item.name == betRateType);
-        console.log('[getGameOption] Filtered options:', option.length);
+        const option = gameSetting.option.filter(item => item.name == betRateType);
 
         if (!option || option.length === 0) {
-            console.log(`[getGameOption] Betting rate type '${betRateType}' not found, using first option or defaults`);
-            // Use first available option or defaults
-            const firstOption = gameSetting[0].option[0];
+            const firstOption = gameSetting.option[0];
             if (firstOption) {
                 return responseSuccess(res, {
                     odd: firstOption.odd || 195,
@@ -139,7 +116,6 @@ export const getGameOption = async (req, res) => {
                     match_number3: firstOption.match_number3 || 99900,
                 });
             } else {
-                // Fallback to defaults
                 return responseSuccess(res, {
                     odd: 195,
                     even: 195,
@@ -157,7 +133,6 @@ export const getGameOption = async (req, res) => {
         }
 
         const selectedOption = option[0];
-        console.log('[getGameOption] Selected option:', selectedOption);
 
         return responseSuccess(res, {
             odd: selectedOption.odd || 195,
@@ -174,7 +149,6 @@ export const getGameOption = async (req, res) => {
         });
     } catch (error) {
         console.error('[getGameOption] Error:', error);
-        console.error('[getGameOption] Error stack:', error.stack);
         return responseBadRequest(res, t("error_fetching_game_options", error.message));
     }
 }

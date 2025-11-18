@@ -1,7 +1,8 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -23,14 +24,46 @@ export const getMoneyUsageSummary = async (req, res) => {
         member
     } = req.query;
 
+    if (startDate && !normalizeDate(startDate)) {
+        return responseBadRequest(res, t("invalid_start_date_format"));
+    }
+    if (endDate && !normalizeDate(endDate, true)) {
+        return responseBadRequest(res, t("invalid_end_date_format"));
+    }
+
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
+    
+    // Validate date range
+    if (start && end && start > end) {
+        return responseBadRequest(res, t("start_date_before_or_equal_end_date"));
+    }
 
     let dateFilter = {};
+    let bettingDateFilter = {};
     if (start || end) {
         dateFilter.createdAt = {};
         if (start) dateFilter.createdAt.$gte = start;
         if (end) dateFilter.createdAt.$lte = end;
+        
+        const createdAtCondition = {};
+        const updatedAtCondition = {};
+        
+        if (start && end) {
+            createdAtCondition.createdAt = { $gte: start, $lte: end };
+            updatedAtCondition.updatedAt = { $gte: start, $lte: end };
+        } else if (start) {
+            createdAtCondition.createdAt = { $gte: start };
+            updatedAtCondition.updatedAt = { $gte: start };
+        } else if (end) {
+            createdAtCondition.createdAt = { $lte: end };
+            updatedAtCondition.updatedAt = { $lte: end };
+        }
+        
+        bettingDateFilter.$or = [
+            createdAtCondition,
+            updatedAtCondition
+        ];
     }
 
     let transactionTypeFilter = {};
@@ -79,11 +112,11 @@ export const getMoneyUsageSummary = async (req, res) => {
         ...dateFilter,
         ...transactionTypeFilter,
         ...memberFilter,
-        fund_type: { $in: ['IMPORT', 'EXCHANGE', 'OUTGOING'] }
+        fund_type: { $in: ['IMPORT', 'EXCHANGE'] }
     };
 
     const bettingFilter = {
-        ...dateFilter,
+        ...(Object.keys(bettingDateFilter).length > 0 && bettingDateFilter.$or.length > 0 ? bettingDateFilter : dateFilter),
         ...bettingMemberFilter,
         ...bettingTypeFilter
     };
@@ -105,39 +138,20 @@ export const getMoneyUsageSummary = async (req, res) => {
                         ]
                     }
                 },
-                exchange_inflow: {
-                    $sum: {
-                        $cond: [
-                            {
-                                $and: [
-                                    { $eq: ["$fund_type", "EXCHANGE"] },
-                                    { $gt: ["$fund_amount", 0] }
-                                ]
-                            },
-                            "$fund_amount",
-                            0
-                        ]
-                    }
-                },
                 exchange_outflow: {
                     $sum: {
                         $cond: [
+                            { $eq: ["$fund_type", "EXCHANGE"] },
                             {
-                                $and: [
-                                    { $eq: ["$fund_type", "EXCHANGE"] },
-                                    { $lt: ["$fund_amount", 0] }
-                                ]
+                                $switch: {
+                                    branches: [
+                                        { case: { $eq: ["$fund_status", "PENDING"] }, then: "$fund_amount" },
+                                        { case: { $eq: ["$fund_status", "APPROVED"] }, then: "$fund_amount" },
+                                        { case: { $eq: ["$fund_status", "REJECTED"] }, then: 0 }
+                                    ],
+                                    default: "$fund_amount"
+                                }
                             },
-                            { $abs: "$fund_amount" },
-                            0
-                        ]
-                    }
-                },
-                outflow: {
-                    $sum: {
-                        $cond: [
-                            { $eq: ["$fund_type", "OUTGOING"] },
-                            "$fund_amount",
                             0
                         ]
                     }
@@ -184,9 +198,7 @@ export const getMoneyUsageSummary = async (req, res) => {
     const txStats = transactionStats[0] || {
         count: 0,
         inflow: 0,
-        exchange_inflow: 0,
-        exchange_outflow: 0,
-        outflow: 0
+        exchange_outflow: 0
     };
 
     const betStats = bettingStats[0] || {
@@ -196,8 +208,8 @@ export const getMoneyUsageSummary = async (req, res) => {
     };
 
     const total_transactions = txStats.count + betStats.count;
-    const total_inflow = txStats.inflow + txStats.exchange_inflow + betStats.bet_inflow;
-    const total_outflow = txStats.outflow + txStats.exchange_outflow + betStats.bet_outflow;
+    const total_inflow = txStats.inflow + betStats.bet_inflow;
+    const total_outflow = txStats.exchange_outflow + betStats.bet_outflow;
     const net_change = total_inflow - total_outflow;
 
     responseSuccess(res, {

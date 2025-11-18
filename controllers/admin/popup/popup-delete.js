@@ -4,28 +4,25 @@ import {
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
-import {
-  ensureAdminId,
-} from "./popup-utils.js";
+import { t } from "../../../helper/translation.js";
 
 export const deletePopup = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
 
   const { popupId } = req.params;
   if (!popupId) {
-    return responseBadRequest(res, "Popup id is required.");
+    return responseBadRequest(res, t("popup_id_required"));
   }
 
-  // Admin can delete any popup (not restricted to their own)
   const deleted = await PopupModel.findOneAndDelete({ _id: popupId });
 
   if (!deleted) {
-    return responseBadRequest(res, "Popup not found.");
+    return responseBadRequest(res, t("popup_not_found"));
   }
 
-  return responseSuccess(res, null, "Popup deleted successfully.");
+  return responseSuccess(res, null, t("popup_deleted_successfully"));
 };
 

@@ -1,5 +1,6 @@
 import BettingResultModel from "../../../models/BettingResult.js";
 import GameResultModel from "../../../models/GameResult.js";
+import GameSettingModel from "../../../models/GameSetting.js";
 import { responseBadRequest, responseServerError, responseSuccess } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
@@ -66,6 +67,12 @@ export const StartGame = async (req, res) => {
         sanitizedNumberSort.sort((a, b) => a - b);
     }
 
+    const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
+    if (gameSetting && gameSetting.activate === false) {
+        const inactiveMessage = gameSetting.inactive_message || t("game_is_currently_disabled");
+        return responseBadRequest(res, inactiveMessage);
+    }
+
     const user = await UserModel.findOne({ _id: userId });
     if (!user) {
         return responseBadRequest(res, t("user_not_found"));
@@ -85,6 +92,43 @@ export const StartGame = async (req, res) => {
 
     if (availableBalance < amount) {
         return responseBadRequest(res, t("not_enough_balance"));
+    }
+
+    if (gameSetting && gameSetting.duplicate_betting === true && gameSetting.duplicate_betting_limit > 0) {
+        const timeLimit = getCurrentTime() - (gameSetting.duplicate_betting_limit * 1000);
+        
+        const recentBets = await BettingResultModel.find({
+            user_id: userId,
+            game_id: game_id,
+            betting_type: bettingType,
+            bet_amount: amount,
+            betting_status: { $ne: 'cancel' },
+            createdAt: {
+                $gte: new Date(timeLimit)
+            }
+        }).limit(1);
+
+        if (recentBets.length > 0) {
+            return responseBadRequest(res, t("duplicate_betting_not_allowed"));
+        }
+
+        if (sanitizedNumberSort && sanitizedNumberSort.length > 0) {
+            const recentBetsWithNumber = await BettingResultModel.find({
+                user_id: userId,
+                game_id: game_id,
+                betting_type: bettingType,
+                bet_amount: amount,
+                number_sort: sanitizedNumberSort,
+                betting_status: { $ne: 'cancel' },
+                createdAt: {
+                    $gte: new Date(timeLimit)
+                }
+            }).limit(1);
+
+            if (recentBetsWithNumber.length > 0) {
+                return responseBadRequest(res, t("duplicate_betting_not_allowed"));
+            }
+        }
     }
 
     const session = await mongoose.startSession();

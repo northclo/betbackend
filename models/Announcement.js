@@ -6,7 +6,6 @@ const AnnouncementSchema = new Schema(
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
     slug: { type: String, unique: true, sparse: true, trim: true },
-    image: { type: String, trim: true },
     userId: { type: String, required: true, index: true, trim: true },
     category: { type: String, required: true, trim: true },
     status: {
@@ -17,7 +16,7 @@ const AnnouncementSchema = new Schema(
       lowercase: true,
       trim: true,
     },
-    published_at: { type: Date, default: null },
+    published_at: { type: Date, default: new Date() },
   },
   { timestamps: true }
 );

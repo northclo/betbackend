@@ -12,7 +12,6 @@ export const registerPartner = async (req, res) => {
         const payload = req.body;
         const adminId = req.session._id;
 
-        // Validate required fields
         if (!payload.partnerId || !payload.partnerId.trim()) {
             return responseBadRequest(res, t("partner_id_required"));
         }
@@ -25,13 +24,11 @@ export const registerPartner = async (req, res) => {
             return responseBadRequest(res, t("password_required"));
         }
 
-        // Check if partner_id already exists
         const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
         if (existingPartner) {
             return responseBadRequest(res, t("partner_id_exists"));
         }
 
-        // Check if user nickname already exists
         const existingUser = await UserModel.findOne({ user_nickname: payload.nickname.trim() });
         if (existingUser) {
             return responseBadRequest(res, t("user_nickname_exists"));
@@ -59,11 +56,9 @@ export const registerPartner = async (req, res) => {
             return responseBadRequest(res, t("parent_partner_not_found"));
         }
 
-        // Hash password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(payload.password, salt);
 
-        // Create user for the partner owner
         const newUser = await UserModel.create({
             user_nickname: payload.nickname.trim(),
             user_email: payload.nickname.trim() + '@gmail.com',
@@ -78,15 +73,14 @@ export const registerPartner = async (req, res) => {
             match_num_bet_rate: payload.numberMatch ? Number(payload.numberMatch) : null,
         });
 
-        // Determine partner role (default to branch_office if not specified)
         const role = payload.role || partnerType.branchOffice;
 
-        // Create partner
         const newPartner = await PartnerModel.create({
             role: role,
             nickname: payload.nickname.trim(),
             partner_id: payload.partnerId.trim(),
             user_id: newUser._id,
+            admin_id: new mongoose.Types.ObjectId(adminId),
             parent_partner_id: new mongoose.Types.ObjectId(parentPartnerId),
             currency_rolling: payload.currencyRolling?.check || false,
             deposit_approved_amount: payload.currencyRolling?.amount ? Number(payload.currencyRolling.amount) : 0,
@@ -106,12 +100,20 @@ export const registerPartner = async (req, res) => {
             bet_money_unit: payload.gameSetting?.betUnit || '',
             onetime_bet_min: payload.gameSetting?.oneTimeBetMin ? Number(payload.gameSetting.oneTimeBetMin) : null,
             onetime_bet_max: payload.gameSetting?.oneTimeBetMax ? Number(payload.gameSetting.oneTimeBetMax) : null,
+            onetime_earning_min: payload.gameSetting?.oneTimeEarningMin ? Number(payload.gameSetting.oneTimeEarningMin) : null,
             onetime_earning_max: payload.gameSetting?.oneTimeEarningMax ? Number(payload.gameSetting.oneTimeEarningMax) : null,
             oneround_bet_max: payload.gameSetting?.oneRoundBetMax ? Number(payload.gameSetting.oneRoundBetMax) : null,
             oneround_earning_max: payload.gameSetting?.oneRoundEarningMax ? Number(payload.gameSetting.oneRoundEarningMax) : null,
             oneround_bet_max_slot: payload.gameSetting?.oneRoundBetMaxPerSlot ? Number(payload.gameSetting.oneRoundBetMaxPerSlot) : null,
             oneround_earning_max_slot: payload.gameSetting?.oneRoundEarningMaxPerSlot ? Number(payload.gameSetting.oneRoundEarningMaxPerSlot) : null,
             all_rounds_bet_max: payload.gameSetting?.allRoundsBetMax ? Number(payload.gameSetting.allRoundsBetMax) : null,
+            all_rounds_bet_max_by_slots: payload.gameSetting?.allRoundsBetMaxBySlots && Array.isArray(payload.gameSetting.allRoundsBetMaxBySlots) 
+                ? payload.gameSetting.allRoundsBetMaxBySlots.map(slot => ({
+                    bet_type: slot.bet_type || '',
+                    slot_bet_max: slot.slot_bet_max ? Number(slot.slot_bet_max) : null,
+                    public: slot.public || false
+                }))
+                : [],
         });
 
         await UserModel.findByIdAndUpdate(newUser._id, {

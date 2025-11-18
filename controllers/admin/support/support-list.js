@@ -30,7 +30,7 @@ const toSupportTicketDto = async (ticket) => {
       userId = ticket.userId.toString();
       const user = await UserModel.findById(ticket.userId).lean();
       if (user) {
-        userNickname = ticket.user_nickname || user.user_nickname || user.user_name || user.user_email || t("unknown");
+        userNickname = user.user_nickname || t("unknown");
         const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
         if (partner) {
           userRole = "partner";
@@ -94,14 +94,32 @@ export const listSupportTickets = async (req, res) => {
   if (startDate || endDate) {
     filter.firstMessageDate = filter.firstMessageDate || {};
     if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filter.firstMessageDate.$gte = start;
+      try {
+        const dateParts = String(startDate).split('-');
+        if (dateParts.length === 3) {
+          const [year, month, day] = dateParts.map(Number);
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+            filter.firstMessageDate.$gte = start;
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing startDate:", error);
+      }
     }
     if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filter.firstMessageDate.$lte = end;
+      try {
+        const dateParts = String(endDate).split('-');
+        if (dateParts.length === 3) {
+          const [year, month, day] = dateParts.map(Number);
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+            filter.firstMessageDate.$lte = end;
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing endDate:", error);
+      }
     }
   }
 

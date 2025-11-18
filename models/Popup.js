@@ -17,18 +17,6 @@ const PopupSchema = new Schema(
     start_date: { type: Date, default: null, index: true },
     end_date: { type: Date, default: null, index: true },
     display_order: { type: Number, default: 0, index: true },
-    position: {
-      type: String,
-      enum: ["top", "center", "bottom", "fullscreen"],
-      default: "center",
-      trim: true,
-    },
-    size: {
-      type: String,
-      enum: ["small", "medium", "large", "fullscreen"],
-      default: "medium",
-      trim: true,
-    },
     is_closable: { type: Boolean, default: true },
     click_count: { type: Number, default: 0 },
     view_count: { type: Number, default: 0 },

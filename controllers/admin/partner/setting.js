@@ -1,13 +1,14 @@
 import isEmpty from "is-empty";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js"
 import GameSettingModel from "../../../models/GameSetting.js"
+import { t } from "../../../helper/translation.js";
 
 export const getGameSetting = async (req, res) => {
     try {
         const { name } = req.query;
 
         if (!name || typeof name !== 'string' || name.trim() === '') {
-            return responseBadRequest(res, "Game setting name is required");
+            return responseBadRequest(res, t("game_setting_name_required"));
         }
 
         const gameSetting = await GameSettingModel.findOne({ name: name.trim() });
@@ -31,7 +32,7 @@ export const updateGameSetting = async (req, res) => {
         const { name } = req.query;
 
         if (!name || typeof name !== 'string' || name.trim() === '') {
-            return responseBadRequest(res, "Game setting name is required");
+            return responseBadRequest(res, t("game_setting_name_required"));
         }
 
         const {
@@ -43,37 +44,49 @@ export const updateGameSetting = async (req, res) => {
         } = req.body;
 
         if (activate !== undefined && typeof activate !== 'boolean') {
-            return responseBadRequest(res, "activate must be a boolean");
+            return responseBadRequest(res, t("activate_must_be_boolean"));
         }
 
         if (inactive_message !== undefined && typeof inactive_message !== 'string') {
-            return responseBadRequest(res, "inactive_message must be a string");
+            return responseBadRequest(res, t("inactive_message_must_be_string"));
         }
 
         if (duplicate_betting !== undefined && typeof duplicate_betting !== 'boolean') {
-            return responseBadRequest(res, "duplicate_betting must be a boolean");
+            return responseBadRequest(res, t("duplicate_betting_must_be_boolean"));
         }
 
         if (duplicate_betting_limit !== undefined) {
             const limit = Number(duplicate_betting_limit);
             if (isNaN(limit) || limit < 0) {
-                return responseBadRequest(res, "duplicate_betting_limit must be a non-negative number");
+                return responseBadRequest(res, t("duplicate_betting_limit_must_be_non_negative"));
             }
+        }
+
+        if (activate === false && (!inactive_message || typeof inactive_message !== 'string' || inactive_message.trim() === '')) {
+            return responseBadRequest(res, t("inactive_message_required_when_disabled"));
         }
 
         if (option !== undefined) {
             if (!Array.isArray(option)) {
-                return responseBadRequest(res, "option must be an array");
+                return responseBadRequest(res, t("option_must_be_array"));
+            }
+
+            if (option.length !== 2) {
+                return responseBadRequest(res, t("option_must_contain_exactly_2_items"));
             }
 
             for (let i = 0; i < option.length; i++) {
                 const opt = option[i];
                 if (!opt || typeof opt !== 'object') {
-                    return responseBadRequest(res, `option[${i}] must be an object`);
+                    return responseBadRequest(res, t("option_index_must_be_object", i));
                 }
 
                 if (!opt.name || typeof opt.name !== 'string') {
-                    return responseBadRequest(res, `option[${i}].name is required and must be a string`);
+                    return responseBadRequest(res, t("option_index_name_required", i));
+                }
+
+                if (opt.name !== 'A' && opt.name !== 'B') {
+                    return responseBadRequest(res, t("option_index_name_must_be_a_or_b", i));
                 }
 
                 const numericFields = [
@@ -86,7 +99,7 @@ export const updateGameSetting = async (req, res) => {
                     if (opt[field] !== undefined) {
                         const value = Number(opt[field]);
                         if (isNaN(value) || value < 0) {
-                            return responseBadRequest(res, `option[${i}].${field} must be a non-negative number`);
+                            return responseBadRequest(res, t("option_index_field_must_be_non_negative", i, field));
                         }
                     }
                 }
@@ -95,7 +108,7 @@ export const updateGameSetting = async (req, res) => {
 
         const existingSetting = await GameSettingModel.findOne({ name: name.trim() });
         if (!existingSetting) {
-            return responseBadRequest(res, "Game setting not found");
+            return responseBadRequest(res, t("game_setting_not_found"));
         }
 
         const updateData = {};
@@ -111,7 +124,7 @@ export const updateGameSetting = async (req, res) => {
         );
 
         const updatedSetting = await GameSettingModel.findOne({ name: name.trim() });
-        responseSuccess(res, updatedSetting, "Game setting updated successfully");
+        responseSuccess(res, updatedSetting, t("game_setting_updated_successfully"));
     } catch (error) {
         console.error('[updateGameSetting] Error:', error);
         return responseServerError(res);

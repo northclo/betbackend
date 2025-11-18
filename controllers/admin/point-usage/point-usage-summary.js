@@ -1,6 +1,7 @@
 import PointTransactionModel from "../../../models/PointTransaction.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -22,8 +23,19 @@ export const getPointUsageSummary = async (req, res) => {
         member
     } = req.query;
 
+    if (startDate && !normalizeDate(startDate)) {
+        return responseBadRequest(res, t("invalid_start_date_format"));
+    }
+    if (endDate && !normalizeDate(endDate, true)) {
+        return responseBadRequest(res, t("invalid_end_date_format"));
+    }
+
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
+    
+    if (start && end && start > end) {
+        return responseBadRequest(res, t("start_date_before_or_equal_end_date"));
+    }
 
     let dateFilter = {};
     if (start || end) {

@@ -31,16 +31,8 @@ export const replyToSupportTicket = async (req, res) => {
       return responseNotFound(res);
     }
 
-    const replyMessage = String(message).trim();
-    const timestamp = new Date().toISOString();
-    const adminReply = `[${t("admin")} - ${timestamp}]: ${replyMessage}`;
+    ticket.answer = String(message).trim();
     
-    if (ticket.answer && ticket.answer.trim().length > 0) {
-      ticket.answer = `${ticket.answer}\n\n${adminReply}`;
-    } else {
-      ticket.answer = adminReply;
-    }
-
     if (!ticket.answerDate) {
       ticket.answerDate = new Date();
     }

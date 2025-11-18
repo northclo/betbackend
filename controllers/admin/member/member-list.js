@@ -1,8 +1,10 @@
 import bcrypt from 'bcrypt';
+import mongoose from 'mongoose';
 
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 export const getMemberList = async (req, res) => {
     let {
@@ -21,8 +23,13 @@ export const getMemberList = async (req, res) => {
         pageSize = 10
     } = req.query;
 
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limit = Math.max(Math.min(parseInt(pageSize, 10) || 10, 100), 1);
+    const skip = (pageNumber - 1) * limit;
+
     const normalizeDate = (value, isEnd = false) => {
         if (!value) return null;
+        if (typeof value !== 'string') return null;
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return null;
         if (isEnd) {
@@ -34,9 +41,15 @@ export const getMemberList = async (req, res) => {
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
 
-    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
-    const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
-    const skip = (pageNumber - 1) * limit;
+    if (startDate && !start) {
+        return responseBadRequest(res, t("invalid_start_date"));
+    }
+    if (endDate && !end) {
+        return responseBadRequest(res, t("invalid_end_date"));
+    }
+    if (start && end && start > end) {
+        return responseBadRequest(res, t("start_date_before_end_date"));
+    }
 
     let filter = {};
 
@@ -108,42 +121,56 @@ export const getMemberList = async (req, res) => {
         }
     }
 
-    // partner filter
     let partnerIds = [];
     const includeSubPartners = includeSub === "true";
     if (partner) {
-        if (includeSubPartners) {
-            const rootPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
-            if (rootPartners.length) {
-                const roots = rootPartners.map((p) => p._id);
-                const subTree = await PartnerModel.aggregate([
-                    { $match: { _id: { $in: roots } } },
-                    {
-                        $graphLookup: {
-                            from: "partners",
-                            startWith: "$_id",
-                            connectFromField: "_id",
-                            connectToField: "parent_partner_id",
-                            as: "all_subs"
+        try {
+            if (includeSubPartners) {
+                const rootPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
+                if (rootPartners.length) {
+                    const roots = rootPartners.map((p) => p._id);
+                    const subTree = await PartnerModel.aggregate([
+                        { $match: { _id: { $in: roots } } },
+                        {
+                            $graphLookup: {
+                                from: "partners",
+                                startWith: "$_id",
+                                connectFromField: "_id",
+                                connectToField: "parent_partner_id",
+                                as: "all_subs"
+                            }
                         }
-                    }
-                ]);
+                    ]);
 
-                partnerIds = [
-                    ...roots,
-                    ...subTree.flatMap((d) => (d.all_subs || []).map((sp) => sp._id))
-                ];
+                    partnerIds = [
+                        ...roots,
+                        ...subTree.flatMap((d) => (d.all_subs || []).map((sp) => sp._id))
+                    ];
+                }
+            } else {
+                const directPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
+                partnerIds = directPartners.map((p) => p._id);
             }
-        } else {
-            const directPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
-            partnerIds = directPartners.map((p) => p._id);
+        } catch (error) {
+            console.error("Error fetching partners:", error);
+            return responseBadRequest(res, t("error_processing_partner_filter"));
         }
 
         if (partnerIds.length) {
-            filter.$or = [
-                { partner_id: { $in: partnerIds } },
-                { own_partner_id: { $in: partnerIds } }
-            ];
+            const partnerFilter = {
+                $or: [
+                    { partner_id: { $in: partnerIds } },
+                    { own_partner_id: { $in: partnerIds } }
+                ]
+            };
+            if (filter.$and) {
+                filter.$and.push(partnerFilter);
+            } else if (filter.$or) {
+                filter.$and = [filter.$or, partnerFilter];
+                delete filter.$or;
+            } else {
+                filter.$or = partnerFilter.$or;
+            }
         } else {
             filter.$and = filter.$and || [];
             filter.$and.push({ _id: { $exists: false } });
@@ -223,7 +250,7 @@ export const getMemberList = async (req, res) => {
         {
             $unwind: {
                 path: "$login_history",
-                preserveNullAndEmptyArrays: !isConnectedDate
+                preserveNullAndEmptyArrays: true
             }
         },
         {
@@ -279,7 +306,7 @@ export const getMemberList = async (req, res) => {
                             totalExchangeAmount: {
                                 $sum: {
                                     $cond: [
-                                        { $in: ["$fund_type", ["OUTGOING", "EXCHANGE"]] },
+                                        { $eq: ["$fund_type", "EXCHANGE"] },
                                         "$fund_amount",
                                         0
                                     ]
@@ -305,7 +332,16 @@ export const getMemberList = async (req, res) => {
                 from: "users",
                 let: { partnerId: "$own_partner_id" },
                 pipeline: [
-                    { $match: { $expr: { $eq: ["$partner_id", "$$partnerId"] } } },
+                    {
+                        $match: {
+                            $expr: {
+                                $and: [
+                                    { $ne: ["$$partnerId", null] },
+                                    { $eq: ["$partner_id", "$$partnerId"] }
+                                ]
+                            }
+                        }
+                    },
                     {
                         $lookup: {
                             from: "betting_results",
@@ -313,8 +349,8 @@ export const getMemberList = async (req, res) => {
                             pipeline: [
                                 {
                                     $match: {
-                                            $expr: { $eq: ["$user_id", "$$memberId"] },
-                                            ...(bettingDateRange ? { createdAt: bettingDateRange } : {})
+                                        $expr: { $eq: ["$user_id", "$$memberId"] },
+                                        ...(bettingDateRange ? { createdAt: bettingDateRange } : {})
                                     }
                                 },
                                 {
@@ -368,13 +404,11 @@ export const getMemberList = async (req, res) => {
 
     if (isConnectedDate) {
         const loginMatch = {};
-        if (start) {
-            loginMatch.last_login_time = { ...(loginMatch.last_login_time || {}), $gte: start };
-        }
-        if (end) {
-            loginMatch.last_login_time = { ...(loginMatch.last_login_time || {}), $lte: end };
-        }
-        if (Object.keys(loginMatch).length) {
+        if (start || end) {
+            const dateCondition = {};
+            if (start) dateCondition.$gte = start;
+            if (end) dateCondition.$lte = end;
+            loginMatch.last_login_time = dateCondition;
             basePipeline.push({ $match: loginMatch });
         }
     }
@@ -461,49 +495,166 @@ export const getMemberList = async (req, res) => {
             ? aggregation[0].total[0].count
             : 0;
 
+    const statusCountFilter = { ...filter };
+    delete statusCountFilter.user_status;
+
+    if (isCreatedDate) {
+        if (start) statusCountFilter.createdAt = { ...(statusCountFilter.createdAt || {}), $gte: start };
+        if (end) statusCountFilter.createdAt = { ...(statusCountFilter.createdAt || {}), $lte: end };
+    }
+
+    if (isPasswordChangedDate) {
+        if (start) statusCountFilter.password_change_time = { ...(statusCountFilter.password_change_time || {}), $gte: start.getTime() };
+        if (end) statusCountFilter.password_change_time = { ...(statusCountFilter.password_change_time || {}), $lte: end.getTime() };
+    }
+
+    const statusCounts = await UserModel.aggregate([
+        { $match: statusCountFilter },
+        {
+            $group: {
+                _id: "$user_status",
+                count: { $sum: 1 }
+            }
+        }
+    ]);
+
+    const counts = {
+        all: total,
+        normal: 0,
+        wait: 0,
+        stop: 0,
+        cancel: 0,
+        danger: 0,
+        tester: 0
+    };
+
+    statusCounts.forEach(item => {
+        if (item._id && counts.hasOwnProperty(item._id)) {
+            counts[item._id] = item.count;
+        }
+    });
+
     responseSuccess(res, {
         list: users,
         total,
         page: pageNumber,
-        pageSize: limit
+        pageSize: limit,
+        statusCounts: counts
     });
 };
 
 
 export const updateMemberList = async (req, res) => {
-    if (req.body.password) {
-        const salt = await bcrypt.genSalt(10);
-        req.body.password = await bcrypt.hash(req.body.password, salt);
+    const { _id, password, ...updateData } = req.body;
+
+    if (!_id) {
+        return responseBadRequest(res, t("user_id_required"));
     }
 
-    await UserModel.updateOne({ _id: req.body._id }, req.body);
+    if (!mongoose.Types.ObjectId.isValid(_id)) {
+        return responseBadRequest(res, t("invalid_user_id_format"));
+    }
+
+    const user = await UserModel.findOne({ _id });
+    if (!user) {
+        return responseBadRequest(res, t("user_not_found"));
+    }
+
+    if (password) {
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    await UserModel.updateOne({ _id }, updateData);
     return responseSuccess(res);
 }
 
 export const createMemberList = async (req, res) => {
-    let { password } = req.body;
+    const { user_nickname, user_email, password, partner_id, own_partner_id, ...otherData } = req.body;
 
-    // change password with hashed password
-    const salt = await bcrypt.genSalt(10)
-    req.body.password = await bcrypt.hash(password, salt)
+    if (!user_nickname || !user_email) {
+        return responseBadRequest(res, t("user_nickname_email_required"));
+    }
 
-    await UserModel.create(req.body);
+    if (!password) {
+        return responseBadRequest(res, t("password_required"));
+    }
 
-    return responseSuccess(res)
+    if (password.length < 6) {
+        return responseBadRequest(res, t("password_min_length_6"));
+    }
+
+    const existingUser = await UserModel.findOne({ user_email });
+    if (existingUser) {
+        return responseBadRequest(res, t("user_email_already_exists"));
+    }
+
+    if (partner_id && !mongoose.Types.ObjectId.isValid(partner_id)) {
+        return responseBadRequest(res, t("invalid_partner_id_format"));
+    }
+
+    if (own_partner_id && !mongoose.Types.ObjectId.isValid(own_partner_id)) {
+        return responseBadRequest(res, t("invalid_own_partner_id_format"));
+    }
+
+    if (partner_id) {
+        const partner = await PartnerModel.findOne({ _id: partner_id });
+        if (!partner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
+    }
+
+    if (own_partner_id) {
+        const ownPartner = await PartnerModel.findOne({ _id: own_partner_id });
+        if (!ownPartner) {
+            return responseBadRequest(res, t("own_partner_not_found"));
+        }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await UserModel.create({
+        user_nickname,
+        user_email,
+        password: hashedPassword,
+        partner_id: partner_id || undefined,
+        own_partner_id: own_partner_id || undefined,
+        ...otherData
+    });
+
+    return responseSuccess(res);
 }
 
 export const deleteMemberList = async (req, res) => {
-    let { id } = req.params;
+    const { id } = req.params;
 
-    let deleteFilter = []
-    id.split(',').forEach(element => {
-        deleteFilter.push({
-            _id: element
-        })
-    });
+    if (!id) {
+        return responseBadRequest(res, t("user_id_required"));
+    }
+
+    const ids = id.split(',').map(id => id.trim()).filter(id => id.length > 0);
+
+    if (ids.length === 0) {
+        return responseBadRequest(res, t("at_least_one_valid_user_id_required"));
+    }
+
+    const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+        return responseBadRequest(res, t("invalid_user_id_format_list", invalidIds.join(', ')));
+    }
+
+    const users = await UserModel.find({ _id: { $in: ids } }).select('_id').lean();
+    const foundIds = users.map(user => user._id.toString());
+    const notFoundIds = ids.filter(id => !foundIds.includes(id));
+
+    if (notFoundIds.length > 0) {
+        return responseBadRequest(res, `Users not found: ${notFoundIds.join(', ')}`);
+    }
 
     await UserModel.deleteMany({
-        $or: deleteFilter
-    })
-    return responseSuccess(res)
+        _id: { $in: ids }
+    });
+
+    return responseSuccess(res);
 }

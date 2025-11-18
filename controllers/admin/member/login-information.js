@@ -14,7 +14,7 @@ const normalizeDate = (value, isEnd = false) => {
 };
 
 const buildSearchStage = (searchField, searchRegex) => {
-    if (!searchRegex) return [];
+    if (!searchRegex || !searchField) return [];
 
     switch (searchField) {
         case "user_nickname":
@@ -87,12 +87,17 @@ export const getMemberLoginInformation = async (req, res) => {
 
         const filter = {};
         if (start || end) {
-            filter.login_date = {};
-            if (start) filter.login_date.$gte = start;
-            if (end) filter.login_date.$lte = end;
+            const dateFilter = {};
+            if (start) dateFilter.$gte = start;
+            if (end) dateFilter.$lte = end;
+            filter.$or = [
+                { login_date: dateFilter },
+                { login_date: { $exists: false } },
+                { login_date: null }
+            ];
         }
 
-        const searchRegex = search ? new RegExp(search, "i") : null;
+        const searchRegex = search && search.trim() ? new RegExp(search.trim(), "i") : null;
 
         const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
         const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
@@ -108,7 +113,7 @@ export const getMemberLoginInformation = async (req, res) => {
                     as: "user",
                 },
             },
-            { $unwind: "$user" },
+            { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
                     from: "block_ips",
@@ -138,7 +143,13 @@ export const getMemberLoginInformation = async (req, res) => {
                     own_partner: { $arrayElemAt: ["$own_partner", 0] },
                     partner: { $arrayElemAt: ["$partner", 0] },
                     block_ip: { $gt: [{ $size: "$block_ip" }, 0] },
-                    user_id_text: { $toString: "$user._id" },
+                    user_id_text: {
+                        $cond: [
+                            { $ifNull: ["$user._id", false] },
+                            { $toString: "$user._id" },
+                            ""
+                        ]
+                    },
                 },
             },
         ];
@@ -160,7 +171,7 @@ export const getMemberLoginInformation = async (req, res) => {
                                 key: { $toString: "$_id" },
                                 history_id: { $toString: "$_id" },
                                 user_id: "$user_id_text",
-                                user_nickname: "$user.user_nickname",
+                                user_nickname: { $ifNull: ["$user.user_nickname", ""] },
                                 own_partner_id: "$own_partner.partner_id",
                                 own_partner_nickname: "$own_partner.nickname",
                                 own_partner_role: "$own_partner.role",
@@ -200,6 +211,7 @@ export const getMemberLoginInformation = async (req, res) => {
             pageSize: limit,
         });
     } catch (err) {
+        console.error("Error in getMemberLoginInformation:", err);
         return responseServerError(res);
     }
 };

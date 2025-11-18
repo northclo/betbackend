@@ -1,8 +1,12 @@
 import BettingResultModel from "../../models/BettingResult.js";
+import UserModel from "../../models/User.js";
+import mongoose from "mongoose";
 
 export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) => {
     const bettingHistory = await BettingResultModel.find({ game_id: gameId });
     const numberSortColumn = new Set(['number_13', 'number_14', 'number_16']);
+
+    const userEarnings = new Map();
 
     const bulkOps = bettingHistory.reduce((ops, element) => {
         if (element.betting_status === "cancel") {
@@ -26,6 +30,11 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
 
         const earningAmount = win ? element.bet_amount * element.betting_rate : 0;
 
+        if (earningAmount > 0 && element.user_id) {
+            const userId = element.user_id.toString();
+            userEarnings.set(userId, (userEarnings.get(userId) || 0) + earningAmount);
+        }
+
         ops.push({
             updateOne: {
                 filter: { _id: element._id },
@@ -36,6 +45,9 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
                         win,
                         earning_amount: earningAmount,
                         betting_status: "complete"
+                    },
+                    $currentDate: {
+                        updatedAt: true
                     }
                 }
             }
@@ -46,5 +58,16 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
 
     if (bulkOps.length) {
         await BettingResultModel.bulkWrite(bulkOps);
+    }
+
+    if (userEarnings.size > 0) {
+        const balanceUpdates = Array.from(userEarnings.entries()).map(([userId, totalEarning]) => ({
+            updateOne: {
+                filter: { _id: new mongoose.Types.ObjectId(userId) },
+                update: { $inc: { own_money: totalEarning } }
+            }
+        }));
+
+        await UserModel.bulkWrite(balanceUpdates);
     }
 };

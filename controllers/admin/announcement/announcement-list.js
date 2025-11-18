@@ -1,32 +1,19 @@
 import AnnouncementModel from "../../../models/Announcement.js";
-import UserModel from "../../../models/User.js";
+import AdminModel from "../../../models/Admin.js";
 import {
   responseBadRequest,
   responseSuccess,
   responseUnAutherized,
 } from "../../../helper/response.js";
-import { getPresignedUrl } from "../../../utils/s3.js";
 import { t } from "../../../helper/translation.js";
 
-const ensureAdminId = (req) => {
-  const adminId = req?.session?._id;
-  return typeof adminId === "string" && adminId.trim().length > 0 ? adminId : null;
-};
-
 const toAnnouncementDto = async (post) => {
-  let imageUrl = post.image;
-  
-  if (imageUrl && !imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) {
-    imageUrl = await getPresignedUrl(imageUrl);
-  }
-
-  // Get author info
   let author = t("unknown");
   if (post.userId) {
     try {
-      const user = await UserModel.findById(post.userId).lean();
-      if (user) {
-        author = user.user_nickname || user.user_name || user.user_email || t("unknown");
+      const admin = await AdminModel.findById(post.userId).lean();
+      if (admin) {
+        author = admin.admin_nickname;
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -39,7 +26,6 @@ const toAnnouncementDto = async (post) => {
     title: post.title,
     description: post.description,
     slug: post.slug,
-    image: imageUrl,
     category: post.category,
     status: post.status,
     published_at: post.published_at ? new Date(post.published_at).toISOString() : null,
@@ -63,7 +49,7 @@ const normalizeStatus = (value) => {
 };
 
 export const listAnnouncements = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -86,21 +72,23 @@ export const listAnnouncements = async (req, res) => {
   }
 
   if (category && String(category).trim().length > 0 && category !== "all") {
-    filter.category = String(category).trim();
+    const normalizedCategory = String(category).trim();
+    if (["system_notice", "maintenance", "event"].includes(normalizedCategory)) {
+      filter.category = normalizedCategory;
+    }
   }
 
-  // Date range filter
   if (startDate || endDate) {
-    filter.createdAt = {};
+    filter.published_at = {};
     if (startDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-      filter.createdAt.$gte = start;
+      filter.published_at.$gte = start;
     }
     if (endDate) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      filter.createdAt.$lte = end;
+      filter.published_at.$lte = end;
     }
   }
 

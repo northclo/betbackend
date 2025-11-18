@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
 import PointTransactionModel from "../../../models/PointTransaction.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -25,8 +25,19 @@ export const getPointUsageList = async (req, res) => {
         pageSize = 10
     } = req.query;
 
+    if (startDate && !normalizeDate(startDate)) {
+        return responseBadRequest(res, t("invalid_start_date_format"));
+    }
+    if (endDate && !normalizeDate(endDate, true)) {
+        return responseBadRequest(res, t("invalid_end_date_format"));
+    }
+
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
+    
+    if (start && end && start > end) {
+        return responseBadRequest(res, t("start_date_before_or_equal_end_date"));
+    }
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
@@ -83,8 +94,7 @@ export const getPointUsageList = async (req, res) => {
         ...memberFilter
     };
 
-    // Get point transactions with user lookup
-    const transactions = await PointTransactionModel.aggregate([
+    const result = await PointTransactionModel.aggregate([
         {
             $match: filter
         },
@@ -147,12 +157,20 @@ export const getPointUsageList = async (req, res) => {
         },
         {
             $sort: { sortDate: -1 }
+        },
+        {
+            $facet: {
+                total: [{ $count: "count" }],
+                data: [
+                    { $skip: skip },
+                    { $limit: limit }
+                ]
+            }
         }
     ]);
 
-    // Apply pagination
-    const total = transactions.length;
-    const paginatedData = transactions.slice(skip, skip + limit);
+    const total = result[0]?.total[0]?.count || 0;
+    const paginatedData = result[0]?.data || [];
 
     responseSuccess(res, {
         list: paginatedData,

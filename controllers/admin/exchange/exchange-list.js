@@ -19,7 +19,6 @@ export const getExchangeList = async (req, res) => {
         startDate,
         endDate,
         status,
-        currency,
         page = 1,
         pageSize = 10
     } = req.query;
@@ -52,22 +51,6 @@ export const getExchangeList = async (req, res) => {
         if (statusMap[status]) {
             filter.fund_status = statusMap[status];
         }
-    }
-
-    if (currency && currency !== 'all') {
-        const currencyMap = {
-            'krw': 'KRW',
-            'usd': 'USD',
-            'jp': 'JPY',
-            'jpy': 'JPY'
-        };
-        const mappedCurrency = currencyMap[currency.toLowerCase()] || currency.toUpperCase();
-
-        filter.$or = [
-            { currency: mappedCurrency },
-            { from_currency: mappedCurrency },
-            { to_currency: mappedCurrency }
-        ];
     }
 
     const aggregation = await TransactionModel.aggregate([
@@ -113,16 +96,6 @@ export const getExchangeList = async (req, res) => {
                                 ]
                             },
                             member_nickname: { $ifNull: ["$user.user_nickname", "-"] },
-                            currency: { 
-                                $ifNull: [
-                                    "$to_currency",
-                                    "$currency",
-                                    "USD"
-                                ]
-                            },
-                            from_currency: { $ifNull: ["$from_currency", null] },
-                            to_currency: { $ifNull: ["$to_currency", null] },
-                            exchange_rate: { $ifNull: ["$exchange_rate", null] },
                             original_amount: { $ifNull: ["$original_amount", null] },
                             amount: "$fund_amount",
                             status: {

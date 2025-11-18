@@ -38,8 +38,7 @@ export const viewSupportTicket = async (req, res) => {
         userId = ticket.userId.toString();
         const user = await UserModel.findById(ticket.userId).lean();
         if (user) {
-          userNickname = ticket.user_nickname || user.user_nickname || user.user_name || user.user_email || t("unknown");
-
+          userNickname = user.user_nickname || t("unknown");
           const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
           if (partner) {
             userRole = "partner";

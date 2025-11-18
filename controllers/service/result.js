@@ -33,9 +33,7 @@ export const startGame = async (req, res) => {
         { $set: { betting_status: "progress" } }
     );
 
-    setTimeout(() => {
-        io.emit('start_game', { game_id: game_id })
-    }, 2000);
+    io.emit('start_game', { game_id: game_id, time_stamp: time_stamp });
 
     return res.status(200).json({ result: 0 });
 }
@@ -74,9 +72,13 @@ export const endGame = async (req, res) => {
         under: under
     });
 
-    setTimeout(() => {
-        io.emit('end_game', { time_stamp: time_stamp, game_id });
-    }, 2000);
+    io.emit('end_game', { 
+        game_id: game_id, 
+        time_stamp: time_stamp,
+        total_no: total_no,
+        today_no: new_today_no,
+        list: list
+    });
 
     return res.status(200).json({ result: 0 });
 }

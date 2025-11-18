@@ -19,6 +19,7 @@ import announcementRoute from "./announcement.js";
 import supportRoute from "./support.js";
 import popupRoute from "./popup.js";
 import noticeRoute from "./notice.js";
+import dashboardRoute from "./dashboard.js";
 
 router.use("/auth", authRoute);
 router.use("/member", checkAuth, memberRoute);
@@ -37,5 +38,6 @@ router.use("/announcement", checkAuth, announcementRoute);
 router.use("/support", checkAuth, supportRoute);
 router.use("/popup", checkAuth, popupRoute);
 router.use("/notice", checkAuth, noticeRoute);
+router.use("/dashboard", checkAuth, dashboardRoute);
 
 export default router;

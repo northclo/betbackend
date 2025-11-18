@@ -18,8 +18,14 @@ const GameResultSchema = new Schema({
     { timestamps: true }
 );
 
-GameResultSchema.index({ createdAt: -1 }); // Descending index on createdAt
-GameResultSchema.index({ today_no: 1 });        // Ascending index on odd
+GameResultSchema.index({ createdAt: -1 });
+GameResultSchema.index({ today_no: 1 });
+GameResultSchema.index({ start_time_stamp: -1 });
+GameResultSchema.index({ end_time_stamp: -1 });
+GameResultSchema.index({ cancel_time_stamp: -1 });
+GameResultSchema.index({ start_time_stamp: -1, end_time_stamp: -1 });
+GameResultSchema.index({ end_time_stamp: -1, cancel_time_stamp: -1 });
+GameResultSchema.index({ game_id: 1 });
 
 const GameResultModel = model('game_results', GameResultSchema);
 

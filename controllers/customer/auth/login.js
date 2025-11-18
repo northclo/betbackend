@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import UserModel from "../../../models/User.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { config } from "../../../config/index.js";
+import { t } from "../../../helper/translation.js";
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
@@ -13,13 +14,13 @@ export const login = async (req, res) => {
   });
 
   if (!user) {
-    return responseBadRequest(res, "Cannot find user");
+    return responseBadRequest(res, t("cannot_find_user"));
   }
 
   let isMatch = await bcrypt.compare(password, user.password);
 
   if (!isMatch) {
-    return responseBadRequest(res, "Password isn't correct!");
+    return responseBadRequest(res, t("password_incorrect"));
   }
 
   let token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });

@@ -5,14 +5,13 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import {
-  ensureAdminId,
   toPopupDto,
   normalizePayload,
 } from "./popup-utils.js";
 import { t } from "../../../helper/translation.js";
 
 export const createPopup = async (req, res) => {
-  const adminId = ensureAdminId(req);
+  const adminId = req?.session?._id;
   if (!adminId) {
     return responseUnAutherized(res);
   }
@@ -31,14 +30,6 @@ export const createPopup = async (req, res) => {
 
   if (!payload.status) {
     payload.status = "inactive";
-  }
-
-  if (!payload.position) {
-    payload.position = "center";
-  }
-
-  if (!payload.size) {
-    payload.size = "medium";
   }
 
   if (!payload.display_order) {

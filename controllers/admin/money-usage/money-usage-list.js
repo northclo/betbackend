@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -26,18 +27,49 @@ export const getMoneyUsageList = async (req, res) => {
         pageSize = 10
     } = req.query;
 
+    if (startDate && !normalizeDate(startDate)) {
+        return responseBadRequest(res, t("invalid_start_date_format"));
+    }
+    if (endDate && !normalizeDate(endDate, true)) {
+        return responseBadRequest(res, t("invalid_end_date_format"));
+    }
+
     const start = normalizeDate(startDate);
     const end = normalizeDate(endDate, true);
+    
+    if (start && end && start > end) {
+        return responseBadRequest(res, t("start_date_before_or_equal_end_date"));
+    }
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.max(parseInt(pageSize, 10) || 10, 1);
     const skip = (pageNumber - 1) * limit;
 
     let dateFilter = {};
+    let bettingDateFilter = {};
     if (start || end) {
         dateFilter.createdAt = {};
         if (start) dateFilter.createdAt.$gte = start;
         if (end) dateFilter.createdAt.$lte = end;
+        
+        const createdAtCondition = {};
+        const updatedAtCondition = {};
+        
+        if (start && end) {
+            createdAtCondition.createdAt = { $gte: start, $lte: end };
+            updatedAtCondition.updatedAt = { $gte: start, $lte: end };
+        } else if (start) {
+            createdAtCondition.createdAt = { $gte: start };
+            updatedAtCondition.updatedAt = { $gte: start };
+        } else if (end) {
+            createdAtCondition.createdAt = { $lte: end };
+            updatedAtCondition.updatedAt = { $lte: end };
+        }
+        
+        bettingDateFilter.$or = [
+            createdAtCondition,
+            updatedAtCondition
+        ];
     }
 
     let transactionTypeFilter = {};
@@ -82,11 +114,11 @@ export const getMoneyUsageList = async (req, res) => {
         ...dateFilter,
         ...transactionTypeFilter,
         ...memberFilter,
-        fund_type: { $in: ['IMPORT', 'EXCHANGE', 'OUTGOING'] }
+        fund_type: { $in: ['IMPORT', 'EXCHANGE'] }
     };
 
     const bettingFilter = {
-        ...dateFilter,
+        ...(Object.keys(bettingDateFilter).length > 0 && bettingDateFilter.$or.length > 0 ? bettingDateFilter : dateFilter),
         ...bettingMemberFilter,
         ...bettingTypeFilter
     };
@@ -125,8 +157,7 @@ export const getMoneyUsageList = async (req, res) => {
                         { $switch: {
                             branches: [
                                 { case: { $eq: ["$fund_type", "IMPORT"] }, then: "CHG-" },
-                                { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "EX-" },
-                                { case: { $eq: ["$fund_type", "OUTGOING"] }, then: "WD-" }
+                                { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "EX-" }
                             ],
                             default: "TX-"
                         }},
@@ -144,8 +175,7 @@ export const getMoneyUsageList = async (req, res) => {
                     $switch: {
                         branches: [
                             { case: { $eq: ["$fund_type", "IMPORT"] }, then: "charge" },
-                            { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "exchange" },
-                            { case: { $eq: ["$fund_type", "OUTGOING"] }, then: "withdrawal" }
+                            { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "exchange" }
                         ],
                         default: "charge"
                     }
@@ -154,8 +184,19 @@ export const getMoneyUsageList = async (req, res) => {
                     $switch: {
                         branches: [
                             { case: { $eq: ["$fund_type", "IMPORT"] }, then: "$fund_amount" },
-                            { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "$fund_amount" },
-                            { case: { $eq: ["$fund_type", "OUTGOING"] }, then: { $multiply: ["$fund_amount", -1] } }
+                            { 
+                                case: { $eq: ["$fund_type", "EXCHANGE"] }, 
+                                then: {
+                                    $switch: {
+                                        branches: [
+                                            { case: { $eq: ["$fund_status", "PENDING"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                            { case: { $eq: ["$fund_status", "APPROVED"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                            { case: { $eq: ["$fund_status", "REJECTED"] }, then: 0 }
+                                        ],
+                                        default: { $multiply: ["$fund_amount", -1] }
+                                    }
+                                }
+                            }
                         ],
                         default: "$fund_amount"
                     }
@@ -165,8 +206,7 @@ export const getMoneyUsageList = async (req, res) => {
                         { $switch: {
                             branches: [
                                 { case: { $eq: ["$fund_type", "IMPORT"] }, then: "Charge" },
-                                { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "Exchange" },
-                                { case: { $eq: ["$fund_type", "OUTGOING"] }, then: "Withdrawal" }
+                                { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "Exchange" }
                             ],
                             default: "Transaction"
                         }},
@@ -228,15 +268,27 @@ export const getMoneyUsageList = async (req, res) => {
                 member_nickname: { $ifNull: ["$user.user_nickname", "-"] },
                 type: "bet",
                 amount: {
-                    $cond: {
-                        if: { $eq: ["$betting_status", "complete"] },
-                        then: {
-                            $subtract: [
-                                { $ifNull: ["$earning_amount", 0] },
-                                { $ifNull: ["$bet_amount", 0] }
-                            ]
-                        },
-                        else: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
+                    $switch: {
+                        branches: [
+                            { 
+                                case: { $eq: ["$betting_status", "complete"] },
+                                then: {
+                                    $subtract: [
+                                        { $ifNull: ["$earning_amount", 0] },
+                                        { $ifNull: ["$bet_amount", 0] }
+                                    ]
+                                }
+                            },
+                            { 
+                                case: { $eq: ["$betting_status", "cancel"] },
+                                then: 0
+                            },
+                            { 
+                                case: { $in: ["$betting_status", ["wait", "progress"]] },
+                                then: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
+                            }
+                        ],
+                        default: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
                     }
                 },
                 bet_amount: "$bet_amount",
@@ -320,15 +372,25 @@ export const getMoneyUsageList = async (req, res) => {
                             _id: "$user_id",
                             totalAmount: {
                                 $sum: {
-                                    $cond: [
-                                        { $eq: ["$fund_type", "IMPORT"] },
-                                        "$fund_amount",
-                                        { $cond: [
-                                            { $eq: ["$fund_type", "OUTGOING"] },
-                                            { $multiply: ["$fund_amount", -1] },
-                                            "$fund_amount"
-                                        ]}
-                                    ]
+                                    $switch: {
+                                        branches: [
+                                            { case: { $eq: ["$fund_type", "IMPORT"] }, then: "$fund_amount" },
+                                            { 
+                                                case: { $eq: ["$fund_type", "EXCHANGE"] },
+                                                then: {
+                                                    $switch: {
+                                                        branches: [
+                                                            { case: { $eq: ["$fund_status", "PENDING"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                                            { case: { $eq: ["$fund_status", "APPROVED"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                                            { case: { $eq: ["$fund_status", "REJECTED"] }, then: 0 }
+                                                        ],
+                                                        default: { $multiply: ["$fund_amount", -1] }
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        default: 0
+                                    }
                                 }
                             }
                         }
@@ -357,15 +419,27 @@ export const getMoneyUsageList = async (req, res) => {
                             _id: "$user_id",
                             totalAmount: {
                                 $sum: {
-                                    $cond: {
-                                        if: { $eq: ["$betting_status", "complete"] },
-                                        then: {
-                                            $subtract: [
-                                                { $ifNull: ["$earning_amount", 0] },
-                                                { $ifNull: ["$bet_amount", 0] }
-                                            ]
-                                        },
-                                        else: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
+                                    $switch: {
+                                        branches: [
+                                            { 
+                                                case: { $eq: ["$betting_status", "complete"] },
+                                                then: {
+                                                    $subtract: [
+                                                        { $ifNull: ["$earning_amount", 0] },
+                                                        { $ifNull: ["$bet_amount", 0] }
+                                                    ]
+                                                }
+                                            },
+                                            { 
+                                                case: { $eq: ["$betting_status", "cancel"] },
+                                                then: 0
+                                            },
+                                            { 
+                                                case: { $in: ["$betting_status", ["wait", "progress"]] },
+                                                then: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
+                                            }
+                                        ],
+                                        default: { $multiply: [{ $ifNull: ["$bet_amount", 0] }, -1] }
                                     }
                                 }
                             }
@@ -383,7 +457,11 @@ export const getMoneyUsageList = async (req, res) => {
         }
     }
 
-    const chronological = [...allTransactions].reverse();
+    const chronological = [...allTransactions].sort((a, b) => {
+        const dateA = new Date(a.sortDate);
+        const dateB = new Date(b.sortDate);
+        return dateA - dateB;
+    });
     
     const userTransactions = {};
     chronological.forEach(tx => {
@@ -401,19 +479,26 @@ export const getMoneyUsageList = async (req, res) => {
         const currentBalance = userBalances[userId] || 0;
         const afterEndAmount = transactionsAfterEnd[userId] || 0;
         
-        let runningBalance = currentBalance - afterEndAmount;
+        const balanceAtEnd = currentBalance - afterEndAmount;
         
-        userTxs.forEach(tx => {
-            runningBalance -= tx.amount;
-        });
+        const totalImpact = userTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
         
+        const balanceAtStart = balanceAtEnd - totalImpact;
+        
+        let runningBalance = balanceAtStart;
         userTxs.forEach(tx => {
-            runningBalance += tx.amount;
-            tx.balance_after = Math.round(runningBalance * 100) / 100; // Round to 2 decimal places
+            runningBalance += (tx.amount || 0);
+            tx.balance_after = Math.round(runningBalance * 100) / 100;
         });
     });
 
     chronological.reverse();
+
+    chronological.forEach(tx => {
+        if (tx.balance_after === undefined || tx.balance_after === null) {
+            tx.balance_after = null;
+        }
+    });
 
     const total = chronological.length;
     const paginatedData = chronological.slice(skip, skip + limit);

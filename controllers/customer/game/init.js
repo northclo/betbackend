@@ -1,10 +1,12 @@
 import UserModel from "../../../models/User.js";
+import GameSettingModel from "../../../models/GameSetting.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
 import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
+import { t } from "../../../helper/translation.js";
 
 export const getGameInitInfo = async (req, res) => {
     const { gameId } = req.query;
@@ -12,7 +14,7 @@ export const getGameInitInfo = async (req, res) => {
 
     const user = await UserModel.findOne({ _id: userId });
     if (!user) {
-        return responseBadRequest(res, "User not found");
+        return responseBadRequest(res, t("user_not_found"));
     }
 
     let game;
@@ -28,7 +30,6 @@ export const getGameInitInfo = async (req, res) => {
         }
     }
 
-    // If no game exists in database, try to create a test game
     if (!game || !game.game_id) {
         const lastGame = await getLastGame();
         const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
@@ -38,7 +39,6 @@ export const getGameInitInfo = async (req, res) => {
         const currentTime = getCurrentTime();
         const testGameStartTime = currentTime + 180000; // Start in 3 minutes (180 seconds)
         
-        // Check if there's already a test game scheduled
         const existingTestGame = await GameResultModel.findOne({
             start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
             end_time_stamp: { $exists: false }
@@ -51,7 +51,6 @@ export const getGameInitInfo = async (req, res) => {
             gameId = existingTestGame.game_id;
             remainTime = Math.floor((existingTestGame.start_time_stamp - currentTime) / 1000);
         } else {
-            // Create a test game
             const testGame = await GameResultModel.create({
                 game_id: uuidv4(),
                 device_id: "test-device",
@@ -59,11 +58,14 @@ export const getGameInitInfo = async (req, res) => {
                 total_no: lastTotalNo + 1,
                 today_no: lastTodayNo + 1,
             });
-            console.log('[getGameInitInfo] Created test game:', testGame.game_id, 'starting in 3 minutes');
             gameId = testGame.game_id;
             remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
         }
         
+        const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
+        const isGameActivated = gameSetting?.activate !== false;
+        const inactiveMessage = gameSetting?.inactive_message || '';
+
         return responseSuccess(res, {
             game: {
                 id: gameId,
@@ -80,6 +82,10 @@ export const getGameInitInfo = async (req, res) => {
                 own_money: user.own_money ?? 0,
                 pending_addfund_balance: user.pending_addfund_balance ?? 0,
                 pending_refund_balance: user.pending_refund_balance ?? 0,
+            },
+            gameSetting: {
+                activate: isGameActivated,
+                inactive_message: inactiveMessage,
             }
         });
     }
@@ -105,32 +111,32 @@ export const getGameInitInfo = async (req, res) => {
         );
     }
 
-    // If no available game exists, create a test game for development (starts in 180 seconds = 3 minutes)
     if (remainTime === 0 && !gameId) {
         const GameResultModel = (await import("../../../models/GameResult.js")).default;
         const { v4: uuidv4 } = await import("uuid");
         const currentTime = getCurrentTime();
         const testGameStartTime = currentTime + 180000; // Start in 3 minutes (180 seconds)
 
-        // Check if there's already a test game scheduled
         const existingTestGame = await GameResultModel.findOne({
             start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
             end_time_stamp: { $exists: false }
         });
 
         if (!existingTestGame) {
-            // Create a test game
-            const testGame = await GameResultModel.create({
+            await GameResultModel.create({
                 game_id: uuidv4(),
                 device_id: "test-device",
                 start_time_stamp: testGameStartTime,
                 total_no: lastTotalNo + 1,
                 today_no: lastTodayNo + 1,
             });
-            console.log('[getGameInitInfo] Created test game:', testGame.game_id, 'starting in 3 minutes');
             remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
         }
     }
+
+    const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
+    const isGameActivated = gameSetting?.activate !== false;
+    const inactiveMessage = gameSetting?.inactive_message || '';
 
     return responseSuccess(res, {
         game: {
@@ -148,6 +154,10 @@ export const getGameInitInfo = async (req, res) => {
             own_money: user.own_money ?? 0,
             pending_addfund_balance: user.pending_addfund_balance ?? 0,
             pending_refund_balance: user.pending_refund_balance ?? 0,
+        },
+        gameSetting: {
+            activate: isGameActivated,
+            inactive_message: inactiveMessage,
         }
     });
 };
