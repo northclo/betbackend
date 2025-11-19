@@ -3,17 +3,18 @@ import {
   responseBadRequest,
   responseSuccess,
   responseUnAutherized,
+  responseServerError,
 } from "../../../helper/response.js";
-import AdminModel from "../../../models/Admin.js";
+import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
 
 const toAnnouncementDto = async (post) => {
   let author = t("unknown");
   if (post.userId) {
     try {
-      const admin = await AdminModel.findById(post.userId).lean();
-      if (admin) {
-        author = admin.admin_nickname;
+      const partner = await PartnerModel.findById(post.userId).lean();
+      if (partner) {
+        author = partner.nickname;
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -107,67 +108,72 @@ const generateUniqueSlug = async (title, excludeId = null) => {
 };
 
 export const updateAnnouncement = async (req, res) => {
-  const adminId = req?.session?._id;
-  if (!adminId) {
-    return responseUnAutherized(res);
-  }
-
-  const { announcementId } = req.params;
-  if (!announcementId) {
-    return responseBadRequest(res, t("announcement_id_required"));
-  }
-
-  const payload = normalizePayload(req.body || {});
-
-  if (payload.category && !["system_notice", "maintenance", "event"].includes(payload.category)) {
-    return responseBadRequest(res, t("invalid_category"));
-  }
-
-  if (payload.title !== undefined && !payload.title) {
-    return responseBadRequest(res, t("title_cannot_empty"));
-  }
-
-  if (payload.description !== undefined && !payload.description) {
-    return responseBadRequest(res, t("description_cannot_empty"));
-  }
-
-  const existing = await AnnouncementModel.findById(announcementId).lean();
-  if (!existing) {
-    return responseBadRequest(res, t("announcement_not_found"));
-  }
-
-  if (payload.status !== undefined) {
-    if (payload.status === "published") {
-      if (!payload.published_at && !existing.published_at) {
-        payload.published_at = new Date();
-      } else if (!payload.published_at) {
-        payload.published_at = existing.published_at;
-      }
-    } else {
-      if (existing.status === "published") {
-        payload.published_at = null;
-      }
+  try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
     }
-  } else if (existing.status === "published" && payload.published_at === undefined) {
-    payload.published_at = existing.published_at;
+
+    const { announcementId } = req.params;
+    if (!announcementId) {
+      return responseBadRequest(res, t("announcement_id_required"));
+    }
+
+    const payload = normalizePayload(req.body || {});
+
+    if (payload.category && !["system_notice", "maintenance", "event"].includes(payload.category)) {
+      return responseBadRequest(res, t("invalid_category"));
+    }
+
+    if (payload.title !== undefined && !payload.title) {
+      return responseBadRequest(res, t("title_cannot_empty"));
+    }
+
+    if (payload.description !== undefined && !payload.description) {
+      return responseBadRequest(res, t("description_cannot_empty"));
+    }
+
+    const existing = await AnnouncementModel.findById(announcementId).lean();
+    if (!existing) {
+      return responseBadRequest(res, t("announcement_not_found"));
+    }
+
+    if (payload.status !== undefined) {
+      if (payload.status === "published") {
+        if (!payload.published_at && !existing.published_at) {
+          payload.published_at = new Date();
+        } else if (!payload.published_at) {
+          payload.published_at = existing.published_at;
+        }
+      } else {
+        if (existing.status === "published") {
+          payload.published_at = null;
+        }
+      }
+    } else if (existing.status === "published" && payload.published_at === undefined) {
+      payload.published_at = existing.published_at;
+    }
+
+    if (payload.title) {
+      payload.slug = await generateUniqueSlug(payload.title, announcementId);
+    }
+
+    // Admin can update any announcement (not restricted to their own)
+    const updated = await AnnouncementModel.findOneAndUpdate(
+      { _id: announcementId },
+      payload,
+      { new: true, runValidators: true }
+    );
+
+    const dto = await toAnnouncementDto(updated);
+    return responseSuccess(
+      res,
+      dto,
+      t("announcement_updated_successfully")
+    );
+  } catch (error) {
+    console.error("Error to update an announcement:", error);
+    return responseServerError(res);
   }
-
-  if (payload.title) {
-    payload.slug = await generateUniqueSlug(payload.title, announcementId);
-  }
-
-  // Admin can update any announcement (not restricted to their own)
-  const updated = await AnnouncementModel.findOneAndUpdate(
-    { _id: announcementId },
-    payload,
-    { new: true, runValidators: true }
-  );
-
-  const dto = await toAnnouncementDto(updated);
-  return responseSuccess(
-    res,
-    dto,
-    t("announcement_updated_successfully")
-  );
 };
 

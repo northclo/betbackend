@@ -1,7 +1,7 @@
 import BettingResultModel from "../../../models/BettingResult.js";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
 import { t } from "../../../helper/translation.js";
@@ -35,7 +35,6 @@ export const getBettingList = async (req, res) => {
             endDate,
             userStatus,
             partner,
-            includeSub,
             searchField,
             search,
             bettingStatus,
@@ -83,33 +82,13 @@ export const getBettingList = async (req, res) => {
         let userStatusFilter = userStatus ? { user_status: userStatus } : {};
 
         let partnerIds = [];
-        const includeSubPartners = includeSub === "true";
         if (partner) {
-            if (includeSubPartners) {
-                const rootPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
-                if (rootPartners.length) {
-                    const roots = rootPartners.map((p) => p._id);
-                    const subTree = await PartnerModel.aggregate([
-                        { $match: { _id: { $in: roots } } },
-                        {
-                            $graphLookup: {
-                                from: "partners",
-                                startWith: "$_id",
-                                connectFromField: "_id",
-                                connectToField: "parent_partner_id",
-                                as: "all_subs"
-                            }
-                        }
-                    ]);
-
-                    partnerIds = [
-                        ...roots,
-                        ...subTree.flatMap((d) => (d.all_subs || []).map((sp) => sp._id))
-                    ];
-                }
-            } else {
+            try {
                 const directPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
                 partnerIds = directPartners.map((p) => p._id);
+            } catch (error) {
+                console.error("Error to fetch partners:", error);
+                return responseBadRequest(res, t("error_processing_partner_filter"));
             }
         }
 
@@ -155,10 +134,7 @@ export const getBettingList = async (req, res) => {
         if (partnerIds.length) {
             basePipeline.push({
                 $match: {
-                    $or: [
-                        { "user.partner_id": { $in: partnerIds } },
-                        { "user.own_partner_id": { $in: partnerIds } }
-                    ]
+                    "user.partner_id": { $in: partnerIds }
                 }
             });
         } else if (partner) {
@@ -217,14 +193,6 @@ export const getBettingList = async (req, res) => {
             {
                 $lookup: {
                     from: "partners",
-                    localField: "user.own_partner_id",
-                    foreignField: "_id",
-                    as: "own_partners"
-                }
-            },
-            {
-                $lookup: {
-                    from: "partners",
                     localField: "user.partner_id",
                     foreignField: "_id",
                     as: "partners"
@@ -240,7 +208,6 @@ export const getBettingList = async (req, res) => {
             },
             {
                 $addFields: {
-                    own_partner: { $arrayElemAt: ["$own_partners", 0] },
                     partner: { $arrayElemAt: ["$partners", 0] },
                     game: { $arrayElemAt: ["$game_result", 0] },
                     user_id_text: { $ifNull: [{ $toString: "$user._id" }, ""] }
@@ -305,9 +272,6 @@ export const getBettingList = async (req, res) => {
                                 history_view: 1,
                                 createdAt: 1,
                                 updatedAt: 1,
-                                own_partner_id: { $ifNull: [{ $toString: "$own_partner._id" }, ""] },
-                                own_partner_nickname: { $ifNull: ["$own_partner.nickname", ""] },
-                                own_partner_role: { $ifNull: ["$own_partner.role", ""] },
                                 partner_id: { $ifNull: [{ $toString: "$partner._id" }, ""] },
                                 partner_nickname: { $ifNull: ["$partner.nickname", ""] },
                                 partner_role: { $ifNull: ["$partner.role", ""] },
@@ -339,8 +303,8 @@ export const getBettingList = async (req, res) => {
             pageSize: limit
         });
     } catch (error) {
-        console.error("Error in getBettingList:", error);
-        return responseBadRequest(res, t("error_fetching_betting_list"));
+        console.error("Error to get betting list:", error);
+        return responseServerError(res);
     }
 };
 

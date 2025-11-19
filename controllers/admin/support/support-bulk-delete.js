@@ -8,18 +8,18 @@ import {
 import { t } from "../../../helper/translation.js";
 
 export const bulkDeleteSupportTickets = async (req, res) => {
-  const { ids } = req.body;
-
-  if (!ids || !Array.isArray(ids) || ids.length === 0) {
-    return responseBadRequest(res, t("ticket_ids_required"));
-  }
-
-  const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
-  if (validIds.length === 0) {
-    return responseBadRequest(res, t("no_valid_ticket_ids"));
-  }
-
   try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return responseBadRequest(res, t("ticket_ids_required"));
+    }
+
+    const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+    if (validIds.length === 0) {
+      return responseBadRequest(res, t("no_valid_ticket_ids"));
+    }
+
     const result = await SupportMessage.deleteMany({
       _id: { $in: validIds }
     });

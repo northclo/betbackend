@@ -44,7 +44,7 @@ export const viewSupportTicket = async (req, res) => {
             userRole = "partner";
           }
 
-          const userPartnerId = user.own_partner_id || user.partner_id;
+          const userPartnerId = user.partner_id;
           if (userPartnerId) {
             const userPartner = await PartnerModel.findById(userPartnerId).lean();
             if (userPartner && userPartner.parent_partner_id) {

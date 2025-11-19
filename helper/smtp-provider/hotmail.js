@@ -11,15 +11,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-/**
- * @summary
- * This featuer sends message to user via hotmail using nodemailer
- *
- * @param {string} name - service name
- * @param {string} email - user email
- * @param {string} subject - message subject
- * @param {string} text - message
- */
 export const smtpProviderForHotmail = async (name, email, subject, text) => {
   await transporter.sendMail({
     from: name,

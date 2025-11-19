@@ -22,7 +22,7 @@ export const getGameSetting = async (req, res) => {
 
         responseSuccess(res, result);
     } catch (error) {
-        console.error('[getGameSetting] Error:', error);
+        console.error('Get Game Setting Error:', error);
         return responseServerError(res);
     }
 }
@@ -126,7 +126,7 @@ export const updateGameSetting = async (req, res) => {
         const updatedSetting = await GameSettingModel.findOne({ name: name.trim() });
         responseSuccess(res, updatedSetting, t("game_setting_updated_successfully"));
     } catch (error) {
-        console.error('[updateGameSetting] Error:', error);
+        console.error('Update Game Setting Error:', error);
         return responseServerError(res);
     }
 }

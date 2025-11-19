@@ -28,6 +28,7 @@ const NUMBER_SORT_LENGTH = {
 };
 
 export const StartGame = async (req, res) => {
+    try {
     const { game_id, bettingType, bettingAmount, bettingRate, numberSort } = req.body;
     const userId = req.session._id;
 
@@ -176,8 +177,12 @@ export const StartGame = async (req, res) => {
         });
     } catch (error) {
         await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
+        }
+    } catch (error) {
+        console.error("Error starting game:", error);
         return responseServerError(res);
-    } finally {
-        session.endSession();
     }
 };

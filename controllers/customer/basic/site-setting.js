@@ -1,5 +1,5 @@
 import isEmpty from "is-empty";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseServerError } from "../../../helper/response.js";
 import SettingModel from "../../../models/Setting.js";
 
 export const getSiteSetting = async (req, res) => {
@@ -41,6 +41,7 @@ export const getSiteSetting = async (req, res) => {
         charge_restriction_limit: null,
         exchange_complete_message: '',
         customer_center: true,
+        deposit_banks: [],
       };
     } else {
       result = {
@@ -76,46 +77,14 @@ export const getSiteSetting = async (req, res) => {
         charge_restriction_limit: siteSetting.charge_restriction_limit ?? null,
         exchange_complete_message: siteSetting.exchange_complete_message || '',
         customer_center: siteSetting.customer_center ?? true,
+        deposit_banks: Array.isArray(siteSetting.deposit_banks) ? siteSetting.deposit_banks : [],
       };
     }
     
     return responseSuccess(res, result);
   } catch (error) {
     console.error("Error fetching site setting:", error);
-    return responseSuccess(res, {
-      site_activation: true,
-      disable_style: 'simple_text',
-      deactive_message: '',
-      security: true,
-      site_name: '',
-      title_bar: '',
-      copywriter: '',
-      top_notify_message: '',
-      deposit_account: '',
-      membership_registration: 'recommender',
-      membership_approval: true,
-      membership_signup_message: '',
-      charge_min: null,
-      charge_max: null,
-      charge_timezone: false,
-      charge_start_time: null,
-      charge_end_time: null,
-      charge_impossible_timezone_message: '',
-      charge_complete_message: '',
-      exchange_min: null,
-      exchange_max: null,
-      exchange_timezone: false,
-      exchange_start_time: null,
-      exchange_end_time: null,
-      exchange_impossible_timezone_message: '',
-      exchange_restriction: 'impossible',
-      exchange_restriction_use: false,
-      exchange_restriction_limit: null,
-      charge_restriction_use: false,
-      charge_restriction_limit: null,
-      exchange_complete_message: '',
-      customer_center: true,
-    });
+    return responseServerError(res);
   }
 };
 

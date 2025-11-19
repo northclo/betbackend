@@ -3,6 +3,7 @@ import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
+  responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
@@ -36,7 +37,7 @@ const toSupportTicketDto = async (ticket) => {
           userRole = "partner";
         }
 
-        const userPartnerId = user.own_partner_id || user.partner_id;
+        const userPartnerId = user.partner_id;
         if (userPartnerId) {
           const userPartner = await PartnerModel.findById(userPartnerId).lean();
           if (userPartner && userPartner.parent_partner_id) {
@@ -74,6 +75,7 @@ const toSupportTicketDto = async (ticket) => {
 };
 
 export const listSupportTickets = async (req, res) => {
+  try {
   const { 
     status, 
     searchType,
@@ -84,7 +86,7 @@ export const listSupportTickets = async (req, res) => {
     limit = 10 
   } = req.query;
 
-  const filter = {}; // Admin can see all tickets
+  const filter = {};
 
   const normalizedStatus = normalizeStatus(status);
   if (normalizedStatus) {
@@ -131,32 +133,42 @@ export const listSupportTickets = async (req, res) => {
       const searchTypeLower = String(searchType).toLowerCase().trim();
       
       if (searchTypeLower === "user_nickname") {
-        const users = await UserModel.find({
-          user_nickname: keywordRegex
-        }).select("_id").lean();
-        const userIds = users.map(u => u._id);
-        if (userIds.length > 0) {
-          filter.userId = { $in: userIds };
-        } else {
+        try {
+          const users = await UserModel.find({
+            user_nickname: keywordRegex
+          }).select("_id").lean();
+          const userIds = users.map(u => u._id);
+          if (userIds.length > 0) {
+            filter.userId = { $in: userIds };
+          } else {
+            filter._id = { $in: [] };
+          }
+        } catch (error) {
+          console.error("Error searching by user_nickname:", error);
           filter._id = { $in: [] };
         }
       } else if (searchTypeLower === "user_id") {
-        const userConditions = [
-          { user_email: keywordRegex },
-          { user_name: keywordRegex }
-        ];
-        
-        if (keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
-          userConditions.push({ _id: keywordTrimmed });
-        }
-        
-        const users = await UserModel.find({
-          $or: userConditions
-        }).select("_id").lean();
-        const userIds = users.map(u => u._id);
-        if (userIds.length > 0) {
-          filter.userId = { $in: userIds };
-        } else {
+        try {
+          const userConditions = [
+            { user_email: keywordRegex },
+            { user_name: keywordRegex }
+          ];
+          
+          if (keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
+            userConditions.push({ _id: keywordTrimmed });
+          }
+          
+          const users = await UserModel.find({
+            $or: userConditions
+          }).select("_id").lean();
+          const userIds = users.map(u => u._id);
+          if (userIds.length > 0) {
+            filter.userId = { $in: userIds };
+          } else {
+            filter._id = { $in: [] };
+          }
+        } catch (error) {
+          console.error("Error searching by user_id:", error);
           filter._id = { $in: [] };
         }
       } else if (searchTypeLower === "title") {
@@ -183,31 +195,35 @@ export const listSupportTickets = async (req, res) => {
   const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
   const skip = (pageNumber - 1) * pageSize;
 
-  const [tickets, total] = await Promise.all([
-    SupportMessage.find(filter)
-      .sort({ firstMessageDate: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(pageSize)
-      .lean(),
-    SupportMessage.countDocuments(filter),
-  ]);
+    const [tickets, total] = await Promise.all([
+      SupportMessage.find(filter)
+        .sort({ firstMessageDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      SupportMessage.countDocuments(filter),
+    ]);
 
-  const totalPages = Math.ceil(total / pageSize) || 1;
+    const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const items = await Promise.all(tickets.map((ticket) => toSupportTicketDto(ticket)));
-  
-  items.forEach((item, index) => {
-    item.no = (pageNumber - 1) * pageSize + index + 1;
-  });
+    const items = await Promise.all(tickets.map((ticket) => toSupportTicketDto(ticket)));
+    
+    items.forEach((item, index) => {
+      item.no = (pageNumber - 1) * pageSize + index + 1;
+    });
 
-  return responseSuccess(res, {
-    list: items,
-    items: items,
-    page: pageNumber,
-    pageSize: pageSize,
-    limit: pageSize,
-    total,
-    totalPages,
-  });
+    return responseSuccess(res, {
+      list: items,
+      items: items,
+      page: pageNumber,
+      pageSize: pageSize,
+      limit: pageSize,
+      total,
+      totalPages,
+    });
+  } catch (error) {
+    console.error("Error fetching support tickets:", error);
+    return responseServerError(res);
+  }
 };
 

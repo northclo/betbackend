@@ -48,6 +48,7 @@ const SettingSchema = new Schema(
         charge_restriction_limit: { type: Number },
         exchange_complete_message: { type: String },
         customer_center: { type: Boolean, default: true },
+        deposit_banks: { type: [String], default: [] },
     },
     { timestamps: true }
 );

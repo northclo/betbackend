@@ -8,10 +8,14 @@ import { membershipType } from "../../../const/type.js";
 
 export const register = async (req, res) => {
   try {
-    const { email, password, nickname, recommender_code } = req.body;
+    const { email, password, nickname, real_name, recommender_code, captcha, bank_id, bank_number, bank_owner_name } = req.body;
 
-    if (!email || !password || !nickname) {
-      return responseBadRequest(res, t("email_password_nickname_required"));
+    if (!email || !password || !nickname || !real_name) {
+      return responseBadRequest(res, t("email_password_nickname_real_name_required"));
+    }
+
+    if (!bank_id || !bank_number || !bank_owner_name) {
+      return responseBadRequest(res, t("bank_information_required"));
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,9 +45,32 @@ export const register = async (req, res) => {
     const membershipRegistration =
       siteSetting?.membership_registration || membershipType.recommender;
     const membershipApproval = siteSetting?.membership_approval ?? true;
+    const securityEnabled = siteSetting?.security ?? true;
+    const depositBanks = Array.isArray(siteSetting?.deposit_banks) ? siteSetting.deposit_banks : [];
 
     if (membershipRegistration === membershipType.no_use) {
       return responseBadRequest(res, t("registration_disabled"));
+    }
+
+    if (!depositBanks.includes(bank_id)) {
+      return responseBadRequest(res, t("invalid_bank_selected"));
+    }
+
+    if (securityEnabled) {
+      if (!captcha) {
+        return responseBadRequest(res, t("captcha_required"));
+      }
+      
+      const sessionCaptcha = req.session?.captcha;
+      if (!sessionCaptcha) {
+        return responseBadRequest(res, t("captcha_session_expired"));
+      }
+      
+      if (captcha.toLowerCase() !== sessionCaptcha.toLowerCase()) {
+        return responseBadRequest(res, t("captcha_incorrect"));
+      }
+      
+      delete req.session.captcha;
     }
 
     if (membershipRegistration === membershipType.recommender) {
@@ -65,6 +92,7 @@ export const register = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedExchangePassword = await bcrypt.hash(password, salt);
 
     const status = membershipApproval ? userStatus.wait : userStatus.normal;
 
@@ -72,11 +100,15 @@ export const register = async (req, res) => {
       user_email: email.toLowerCase(),
       user_nickname: nickname,
       password: hashedPassword,
-      user_name: nickname,
+      exchange_password: hashedExchangePassword,
+      user_name: real_name,
       user_status: status,
       user_level: 1,
       own_money: 0,
       recommend_id: recommender_code || null,
+      bank_id: bank_id.trim(),
+      bank_number: bank_number.trim(),
+      bank_owner_name: bank_owner_name.trim(),
     });
 
     return responseSuccess(res, {

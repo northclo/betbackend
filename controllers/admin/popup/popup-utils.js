@@ -1,4 +1,4 @@
-import AdminModel from "../../../models/Admin.js";
+import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
 
 export const toPopupDto = async (popup) => {
@@ -9,9 +9,9 @@ export const toPopupDto = async (popup) => {
   let author = t("unknown");
   if (popup.userId) {
     try {
-      const admin = await AdminModel.findById(popup.userId).lean();
-      if (admin) {
-        author = admin.admin_nickname || t("unknown");
+      const partner = await PartnerModel.findById(popup.userId).lean();
+      if (partner) {
+        author = partner.nickname || t("unknown");
       }
     } catch (error) {
       console.error("Error fetching author:", error);

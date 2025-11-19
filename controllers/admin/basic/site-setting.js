@@ -1,7 +1,8 @@
-import isEmpty from "is-empty";
-import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from "../../../helper/response.js";
 import SettingModel from "../../../models/Setting.js";
+import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
+import { partnerType } from "../../../const/type.js";
 
 const isEmptyValue = (value) => value === undefined || value === null || value === "";
 
@@ -203,80 +204,131 @@ const buildExchangeData = (exchange) => {
 };
 
 export const getSiteSetting = async (req, res) => {
-    const siteSetting = await SettingModel.find();
+    try {
+        const currentPartnerId = req.session?._id;
+        if (!currentPartnerId) {
+            return responseUnAutherized(res);
+        }
 
-    let result;
-    if (isEmpty(siteSetting)) {
-        result = await SettingModel.create({})
-    } else {
-        result = siteSetting[0];
+        const currentPartner = await PartnerModel.findById(currentPartnerId).lean();
+        if (!currentPartner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
+
+        if (currentPartner.role !== partnerType.headquater) {
+            return responsePermissionDenied(res);
+        }
+
+        const result = await SettingModel.findOneAndUpdate(
+            {},
+            {},
+            { 
+                upsert: true, 
+                new: true,
+                setDefaultsOnInsert: true
+            }
+        );
+
+        responseSuccess(res, result);
+    } catch (error) {
+        console.error("Error to get site setting:", error);
+        return responseServerError(res);
     }
-    responseSuccess(res, result);
 }
 
 export const updateSiteSetting = async (req, res) => {
-    const {
-        siteActivation,
-        security,
-        siteText,
-        membership,
-        charge,
-        exchange,
-        customerCenter
-    } = req.body;
+    try {
+        const currentPartnerId = req.session?._id;
+        if (!currentPartnerId) {
+            return responseUnAutherized(res);
+        }
 
-    const chargeValidation = buildChargeData(charge);
-    const exchangeValidation = buildExchangeData(exchange);
-    const validationErrors = [...chargeValidation.errors, ...exchangeValidation.errors];
+        const currentPartner = await PartnerModel.findById(currentPartnerId).lean();
+        if (!currentPartner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
 
-    if (validationErrors.length) {
-        return responseBadRequest(res, validationErrors.join(" "));
-    }
+        if (currentPartner.role !== partnerType.headquater) {
+            return responsePermissionDenied(res);
+        }
 
-    const sanitizedCharge = chargeValidation.data;
-    const sanitizedExchange = exchangeValidation.data;
+        const {
+            siteActivation,
+            security,
+            siteText,
+            membership,
+            charge,
+            exchange,
+            customerCenter,
+            depositBanks
+        } = req.body;
 
-    const data = {
-        site_activation: siteActivation?.siteActivation ?? true,
-        disable_style: siteActivation?.disableStyle ?? 'simple_text',
-        deactive_message: siteActivation?.deactiveMessage ?? '',
-        security: security ?? true,
-        site_name: siteText?.siteName ?? '',
-        title_bar: siteText?.titleBar ?? '',
-        copywriter: siteText?.copywriter ?? '',
-        top_notify_message: siteText?.topNotifyMessage ?? '',
-        deposit_account: siteText?.depositAccount ?? '',
-        membership_registration: membership?.membershipRegistration ?? 'recommender',
-        membership_approval: membership?.membershipApproval ?? true,
-        membership_signup_message: membership?.membershipSignupMessage ?? '',
-        charge_min: sanitizedCharge.charge_min,
-        charge_max: sanitizedCharge.charge_max,
-        charge_timezone: sanitizedCharge.charge_timezone,
-        charge_start_time: sanitizedCharge.charge_start_time,
-        charge_end_time: sanitizedCharge.charge_end_time,
-        charge_impossible_timezone_message: sanitizedCharge.charge_impossible_timezone_message,
-        charge_complete_message: sanitizedCharge.charge_complete_message,
-        exchange_min: sanitizedExchange.exchange_min,
-        exchange_max: sanitizedExchange.exchange_max,
-        exchange_timezone: sanitizedExchange.exchange_timezone,
-        exchange_start_time: sanitizedExchange.exchange_start_time,
-        exchange_end_time: sanitizedExchange.exchange_end_time,
-        exchange_impossible_timezone_message: sanitizedExchange.exchange_impossible_timezone_message,
-        exchange_restriction: sanitizedExchange.exchange_restriction,
-        exchange_restriction_use: sanitizedExchange.exchange_restriction_use,
-        exchange_restriction_limit: sanitizedExchange.exchange_restriction_limit,
-        charge_restriction_use: sanitizedExchange.charge_restriction_use,
-        charge_restriction_limit: sanitizedExchange.charge_restriction_limit,
-        exchange_complete_message: sanitizedExchange.exchange_complete_message,
-        customer_center: customerCenter !== undefined ? Boolean(customerCenter) : true
-    }
+        if (charge === undefined || exchange === undefined) {
+            return responseBadRequest(res, t("charge_and_exchange_settings_required"));
+        }
 
-    const siteSetting = await SettingModel.find();
-    if (isEmpty(siteSetting)) {
-        await SettingModel.create(data);
-        responseSuccess(res)
-    } else {
-        await SettingModel.updateOne({ _id: siteSetting[0]._id }, data);
-        responseSuccess(res)
+        const chargeValidation = buildChargeData(charge);
+        const exchangeValidation = buildExchangeData(exchange);
+        const validationErrors = [...chargeValidation.errors, ...exchangeValidation.errors];
+
+        if (validationErrors.length) {
+            return responseBadRequest(res, validationErrors.join(" "));
+        }
+
+        const sanitizedCharge = chargeValidation.data;
+        const sanitizedExchange = exchangeValidation.data;
+
+        const data = {
+            site_activation: siteActivation?.siteActivation ?? true,
+            disable_style: siteActivation?.disableStyle ?? 'simple_text',
+            deactive_message: siteActivation?.deactiveMessage ?? '',
+            security: security ?? true,
+            site_name: siteText?.siteName ?? '',
+            title_bar: siteText?.titleBar ?? '',
+            copywriter: siteText?.copywriter ?? '',
+            top_notify_message: siteText?.topNotifyMessage ?? '',
+            deposit_account: siteText?.depositAccount ?? '',
+            membership_registration: membership?.membershipRegistration ?? 'recommender',
+            membership_approval: membership?.membershipApproval ?? true,
+            membership_signup_message: membership?.membershipSignupMessage ?? '',
+            charge_min: sanitizedCharge.charge_min,
+            charge_max: sanitizedCharge.charge_max,
+            charge_timezone: sanitizedCharge.charge_timezone,
+            charge_start_time: sanitizedCharge.charge_start_time,
+            charge_end_time: sanitizedCharge.charge_end_time,
+            charge_impossible_timezone_message: sanitizedCharge.charge_impossible_timezone_message,
+            charge_complete_message: sanitizedCharge.charge_complete_message,
+            exchange_min: sanitizedExchange.exchange_min,
+            exchange_max: sanitizedExchange.exchange_max,
+            exchange_timezone: sanitizedExchange.exchange_timezone,
+            exchange_start_time: sanitizedExchange.exchange_start_time,
+            exchange_end_time: sanitizedExchange.exchange_end_time,
+            exchange_impossible_timezone_message: sanitizedExchange.exchange_impossible_timezone_message,
+            exchange_restriction: sanitizedExchange.exchange_restriction,
+            exchange_restriction_use: sanitizedExchange.exchange_restriction_use,
+            exchange_restriction_limit: sanitizedExchange.exchange_restriction_limit,
+            charge_restriction_use: sanitizedExchange.charge_restriction_use,
+            charge_restriction_limit: sanitizedExchange.charge_restriction_limit,
+            exchange_complete_message: sanitizedExchange.exchange_complete_message,
+            customer_center: customerCenter !== undefined ? Boolean(customerCenter) : true,
+            deposit_banks: Array.isArray(depositBanks?.depositBanks) 
+                ? depositBanks.depositBanks.filter(bank => bank && typeof bank === 'string' && bank.trim() !== '')
+                : []
+        };
+
+        await SettingModel.findOneAndUpdate(
+            {},
+            { $set: data },
+            { 
+                upsert: true, 
+                new: true,
+                setDefaultsOnInsert: true
+            }
+        );
+
+        responseSuccess(res);
+    } catch (error) {
+        console.error("Error to update site setting:", error);
+        return responseServerError(res);
     }
 }

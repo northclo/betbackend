@@ -1,27 +1,81 @@
-import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
-import { responseBadRequest, responseSuccess } from '../../../helper/response.js';
+import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from '../../../helper/response.js';
 import PartnerModel from '../../../models/Partner.js';
-import AdminModel from '../../../models/Admin.js';
-import UserModel from '../../../models/User.js';
 import { partnerType } from '../../../const/type.js';
 import { t } from '../../../helper/translation.js';
 
 export const registerPartner = async (req, res) => {
     try {
         const payload = req.body;
-        const adminId = req.session._id;
+        const currentPartnerId = req.session?._id;
+
+        if (!currentPartnerId) {
+            return responseUnAutherized(res);
+        }
+
+        const currentPartner = await PartnerModel.findById(currentPartnerId).lean();
+        if (!currentPartner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
+
+        const isHeadquater = currentPartner.role === partnerType.headquater;
+        const hasPartnerAccessPermission = currentPartner.partner_access_permission === true;
+
+        if (!isHeadquater && !hasPartnerAccessPermission) {
+            return responsePermissionDenied(res);
+        }
+
+        const hasSubPartnerCreationPermission = currentPartner.sub_partner_creation_permission === true;
+
+        if (!isHeadquater && !hasSubPartnerCreationPermission) {
+            return responsePermissionDenied(res);
+        }
 
         if (!payload.partnerId || !payload.partnerId.trim()) {
             return responseBadRequest(res, t("partner_id_required"));
+        }
+
+        let parentPartnerId = currentPartnerId;
+        if (payload.parentPartnerId) {
+            const parentPartner = await PartnerModel.findOne({ partner_id: payload.parentPartnerId.trim() });
+            if (!parentPartner) {
+                return responseBadRequest(res, t("parent_partner_not_found"));
+            }
+            parentPartnerId = parentPartner._id;
+        }
+
+        const partnerIdRegex = /^[A-Za-z][\w\-@!]{2,9}$/;
+        if (!partnerIdRegex.test(payload.partnerId.trim())) {
+            return responseBadRequest(res, t("partner_id_invalid_format"));
         }
 
         if (!payload.nickname || !payload.nickname.trim()) {
             return responseBadRequest(res, t("nickname_required"));
         }
 
+        const nicknameRegex = /^[A-Za-z][A-Za-z0-9_-]{2,9}$/;
+        if (!nicknameRegex.test(payload.nickname.trim())) {
+            return responseBadRequest(res, t("nickname_invalid_format"));
+        }
+
         if (!payload.password || !payload.password.trim()) {
             return responseBadRequest(res, t("password_required"));
+        }
+
+        if (!payload.exchangePassword || !payload.exchangePassword.trim()) {
+            return responseBadRequest(res, t("exchange_password_required"));
+        }
+
+        if (!payload.bank || !payload.bank.trim()) {
+            return responseBadRequest(res, t("bank_required"));
+        }
+
+        if (!payload.account || !payload.account.trim()) {
+            return responseBadRequest(res, t("bank_account_required"));
+        }
+
+        if (!payload.name || !payload.name.trim()) {
+            return responseBadRequest(res, t("bank_owner_name_required"));
         }
 
         const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
@@ -29,49 +83,14 @@ export const registerPartner = async (req, res) => {
             return responseBadRequest(res, t("partner_id_exists"));
         }
 
-        const existingUser = await UserModel.findOne({ user_nickname: payload.nickname.trim() });
-        if (existingUser) {
-            return responseBadRequest(res, t("user_nickname_exists"));
-        }
-
-        const currentAdmin = await AdminModel.findById(adminId);
-        if (!currentAdmin) {
-            return responseBadRequest(res, t("current_user_not_found"));
-        }
-
-        let parentPartner = null;
-        if (currentAdmin.partner_id) {
-            parentPartner = await PartnerModel.findById(currentAdmin.partner_id);
-        } else {
-            parentPartner = await PartnerModel.findOne({
-                $or: [
-                    { admin_id: new mongoose.Types.ObjectId(adminId) },
-                    { user_id: new mongoose.Types.ObjectId(adminId) }
-                ]
-            });
-        }
-
-        const parentPartnerId = parentPartner?._id || payload.parentPartnerId;
-        if (!parentPartnerId) {
-            return responseBadRequest(res, t("parent_partner_not_found"));
+        const existingPartnerByNickname = await PartnerModel.findOne({ nickname: payload.nickname.trim() });
+        if (existingPartnerByNickname) {
+            return responseBadRequest(res, t("partner_nickname_exists"));
         }
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(payload.password, salt);
-
-        const newUser = await UserModel.create({
-            user_nickname: payload.nickname.trim(),
-            user_email: payload.nickname.trim() + '@gmail.com',
-            password: hashedPassword,
-            user_name: payload.name || payload.nickname.trim(),
-            phone_number: payload.phoneNumber || '',
-            bank_id: payload.bank || '',
-            bank_number: payload.account || '',
-            bank_owner_name: payload.name || '',
-            simple_bet_rate: payload.dapol ? Number(payload.dapol) : null,
-            combined_bet_rate: payload.danpol ? Number(payload.danpol) : null,
-            match_num_bet_rate: payload.numberMatch ? Number(payload.numberMatch) : null,
-        });
+        const hashedExchangePassword = await bcrypt.hash(payload.exchangePassword.trim(), salt);
 
         const role = payload.role || partnerType.branchOffice;
 
@@ -79,12 +98,19 @@ export const registerPartner = async (req, res) => {
             role: role,
             nickname: payload.nickname.trim(),
             partner_id: payload.partnerId.trim(),
-            user_id: newUser._id,
-            admin_id: new mongoose.Types.ObjectId(adminId),
-            parent_partner_id: new mongoose.Types.ObjectId(parentPartnerId),
+            password: hashedPassword,
+            exchange_password: hashedExchangePassword,
+            parent_partner_id: parentPartnerId,
+            phone_number: payload.phoneNumber || '',
+            bank_id: payload.bank.trim(),
+            bank_number: payload.account.trim(),
+            bank_owner_name: payload.name.trim(),
+            simple_bet_rate: payload.dapol ? Number(payload.dapol) : null,
+            combined_bet_rate: payload.danpol ? Number(payload.danpol) : null,
+            match_num_bet_rate: payload.numberMatch ? Number(payload.numberMatch) : null,
             currency_rolling: payload.currencyRolling?.check || false,
             deposit_approved_amount: payload.currencyRolling?.amount ? Number(payload.currencyRolling.amount) : 0,
-            dashboard_access_permission: payload.permissions?.parnterPageAccess || false,
+            partner_access_permission: payload.permissions?.partnerPageAccess || false,
             sub_partner_creation_permission: payload.permissions?.subPartnerCreate || false,
             user_creation_permission: payload.permissions?.memberCreate || false,
             sub_partner_settlement_rate: payload.permissions?.partnerSettlement || false,
@@ -116,17 +142,76 @@ export const registerPartner = async (req, res) => {
                 : [],
         });
 
-        await UserModel.findByIdAndUpdate(newUser._id, {
-            own_partner_id: newPartner._id
-        });
-
         return responseSuccess(res, {
-            partner: newPartner,
-            user: newUser
+            partner: newPartner
         });
     } catch (error) {
         console.error('Error registering partner:', error);
-        return responseBadRequest(res, t("failed_register_partner"));
+        return responseServerError(res);
+    }
+};
+
+export const checkPartnerAvailability = async (req, res) => {
+    try {
+        const currentPartnerId = req.session?._id;
+        if (!currentPartnerId) {
+            return responseUnAutherized(res);
+        }
+
+        const currentPartner = await PartnerModel.findById(currentPartnerId).lean();
+        if (!currentPartner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
+
+        const isHeadquater = currentPartner.role === partnerType.headquater;
+        const hasPartnerAccessPermission = currentPartner.partner_access_permission === true;
+
+        if (!isHeadquater && !hasPartnerAccessPermission) {
+            return responsePermissionDenied(res);
+        }
+
+        const { type, value } = req.body || {};
+
+        if (!type || typeof type !== 'string') {
+            return responseSuccess(res, { available: false }, t("check_type_required"));
+        }
+
+        if (!value || !value.trim()) {
+            return responseSuccess(res, { available: false }, t("value_required"));
+        }
+
+        const trimmedValue = value.trim();
+        let fieldName = "";
+        let regex;
+        let invalidKey = "";
+
+        if (type === "partnerId") {
+            fieldName = "partner_id";
+            regex = /^[A-Za-z][\w\-@!]{2,9}$/;
+            invalidKey = "partner_id_invalid_format";
+        } else if (type === "nickname") {
+            fieldName = "nickname";
+            regex = /^[A-Za-z][A-Za-z0-9_-]{2,9}$/;
+            invalidKey = "nickname_invalid_format";
+        } else {
+            return responseSuccess(res, { available: false }, t("invalid_check_type"));
+        }
+
+        if (!regex.test(trimmedValue)) {
+            return responseSuccess(res, { available: false }, t(invalidKey));
+        }
+
+        const existing = await PartnerModel.findOne({ [fieldName]: trimmedValue });
+
+        if (existing) {
+            const messageKey = type === "partnerId" ? "partner_id_exists" : "partner_nickname_exists";
+            return responseSuccess(res, { available: false }, t(messageKey));
+        }
+
+        return responseSuccess(res, { available: true }, t("available"));
+    } catch (error) {
+        console.error('Error checking partner availability:', error);
+        return responseServerError(res);
     }
 };
 

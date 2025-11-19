@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
@@ -7,16 +8,63 @@ import BettingResultModel from "../../../models/BettingResult.js";
 import { responseSuccess } from "../../../helper/response.js";
 import { userStatus } from "../../../const/status.js";
 
-const normalizeDate = (value, isEnd = false) => {
-    if (!value) return null;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    if (isEnd) {
-        date.setHours(23, 59, 59, 999);
-    } else {
-        date.setHours(0, 0, 0, 0);
+
+const fetchAccessiblePartners = async (partnerId) => {
+    if (!partnerId) return { partnerIds: [], partners: [] };
+
+    const roots = await PartnerModel.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(partnerId)
+            },
+        },
+        {
+            $graphLookup: {
+                from: "partners",
+                startWith: "$_id",
+                connectFromField: "_id",
+                connectToField: "parent_partner_id",
+                as: "subs",
+            },
+        },
+        {
+            $project: {
+                allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
+            },
+        },
+        { $unwind: "$allPartners" },
+        {
+            $replaceRoot: { newRoot: "$allPartners" },
+        },
+        {
+            $project: {
+                _id: 1,
+                nickname: { $ifNull: ["$nickname", ""] },
+                partner_id: { $ifNull: ["$partner_id", ""] },
+            },
+        },
+    ]);
+
+    if (!roots.length) {
+        return { partnerIds: [], partners: [] };
     }
-    return date;
+
+    const uniqueMap = new Map();
+    roots.forEach((doc) => {
+        const key = doc._id.toString();
+        if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, {
+                id: key,
+                nickname: doc.nickname || "",
+                partnerId: doc.partner_id || "",
+            });
+        }
+    });
+
+    const partners = Array.from(uniqueMap.values());
+    const partnerIds = partners.map((partner) => new mongoose.Types.ObjectId(partner.id));
+
+    return { partnerIds, partners };
 };
 
 export const getMonthlyLoggedInUsers = async (req, res) => {
@@ -27,23 +75,33 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         endOfMonth.setHours(23, 59, 59, 999);
 
-        const partners = await PartnerModel.find({}).select("_id").lean();
-        const partnerIds = partners.map(p => p._id);
+        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
 
-        const partnerUsers = await UserModel.find({
-            $or: [
-                { partner_id: { $in: partnerIds } },
-                { own_partner_id: { $in: partnerIds } }
-            ]
-        }).select("_id").lean();
-        const partnerUserIds = partnerUsers.map(u => u._id);
+        let accessibleUserIds = [];
+        let accessiblePartnerUserIds = [];
+        if (accessiblePartnerIds.length > 0) {
+            const users = await UserModel.find({
+                partner_id: { $in: accessiblePartnerIds }
+            }).select("_id").lean();
+            accessibleUserIds = users.map(u => u._id);
+            accessiblePartnerUserIds = accessibleUserIds;
+        }
 
-        const loginHistory = await UserLoginHistoryModel.find({
+        const loginHistoryFilter = {
             createdAt: {
                 $gte: startOfMonth,
                 $lte: endOfMonth
             }
-        }).select("user_id createdAt").lean();
+        };
+
+        if (accessiblePartnerIds.length > 0 && accessibleUserIds.length > 0) {
+            loginHistoryFilter.user_id = { $in: accessibleUserIds };
+        } else {
+            loginHistoryFilter.user_id = { $exists: false };
+        }
+
+        const loginHistory = await UserLoginHistoryModel.find(loginHistoryFilter)
+            .select("user_id createdAt").lean();
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const allLoggedIn = new Array(daysInMonth).fill(0);
@@ -65,7 +123,7 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
                     allLoggedIn[day]++;
                 }
 
-                const isPartnerUser = partnerUserIds.some(pid => pid.toString() === userId);
+                const isPartnerUser = accessiblePartnerUserIds.some(pid => pid.toString() === userId);
                 if (isPartnerUser) {
                     if (!dailyPartnerUsers[day]) {
                         dailyPartnerUsers[day] = new Set();
@@ -103,15 +161,35 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
+        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
+
+        let accessibleUserIds = [];
+        if (accessiblePartnerIds.length > 0) {
+            const users = await UserModel.find({
+                partner_id: { $in: accessiblePartnerIds }
+            }).select("_id").lean();
+            accessibleUserIds = users.map(u => u._id);
+        }
+
+        const baseMatchFilter = {
+            createdAt: {
+                $gte: startOfMonth,
+                $lte: endOfMonth
+            }
+        };
+
+        if (accessiblePartnerIds.length > 0 && accessibleUserIds.length > 0) {
+            baseMatchFilter.user_id = { $in: accessibleUserIds };
+        } else {
+            baseMatchFilter.user_id = { $exists: false };
+        }
+
         const chargeData = await TransactionModel.aggregate([
             {
                 $match: {
+                    ...baseMatchFilter,
                     fund_type: 'IMPORT',
-                    fund_status: 'APPROVED',
-                    createdAt: {
-                        $gte: startOfMonth,
-                        $lte: endOfMonth
-                    }
+                    fund_status: 'APPROVED'
                 }
             },
             {
@@ -131,12 +209,9 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
         const exchangeData = await TransactionModel.aggregate([
             {
                 $match: {
+                    ...baseMatchFilter,
                     fund_type: 'EXCHANGE',
-                    fund_status: 'APPROVED',
-                    createdAt: {
-                        $gte: startOfMonth,
-                        $lte: endOfMonth
-                    }
+                    fund_status: 'APPROVED'
                 }
             },
             {
@@ -206,36 +281,61 @@ export const getDashboardSummary = async (req, res) => {
         sevenDaysAgo.setDate(now.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        const totalMembers = await UserModel.countDocuments({});
+        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
 
-        const activeMemberIds = await UserLoginHistoryModel.distinct("user_id", {
-            createdAt: {
-                $gte: startOfToday,
-                $lte: endOfToday
-            }
-        });
-        const activeMembers = activeMemberIds.length;
+        let accessibleUserIds = [];
+        let totalMembers = 0;
+        let pendingApprovals = 0;
 
-        const totalPartners = await PartnerModel.countDocuments({});
+        if (accessiblePartnerIds.length > 0) {
+            const users = await UserModel.find({
+                partner_id: { $in: accessiblePartnerIds }
+            }).select("_id user_status").lean();
+            accessibleUserIds = users.map(u => u._id);
+            totalMembers = users.length;
+            pendingApprovals = users.filter(u => u.user_status === userStatus.wait).length;
+        }
 
-        const newPartners = await PartnerModel.countDocuments({
-            createdAt: {
-                $gte: sevenDaysAgo
-            }
-        });
+        let activeMembers = 0;
+        if (accessibleUserIds.length > 0) {
+            const activeMemberIds = await UserLoginHistoryModel.distinct("user_id", {
+                user_id: { $in: accessibleUserIds },
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
+                }
+            });
+            activeMembers = activeMemberIds.length;
+        }
 
-        const pendingApprovals = await UserModel.countDocuments({
-            user_status: userStatus.wait
-        });
+        const totalPartners = accessiblePartnerIds.length;
 
-        const pendingCharges = await TransactionModel.countDocuments({
-            fund_type: 'IMPORT',
-            fund_status: 'PENDING'
-        });
+        let newPartners = 0;
+        if (accessiblePartnerIds.length > 0) {
+            newPartners = await PartnerModel.countDocuments({
+                _id: { $in: accessiblePartnerIds },
+                createdAt: {
+                    $gte: sevenDaysAgo
+                }
+            });
+        }
 
-        const supportTickets = await SupportMessageModel.countDocuments({
-            status: 'pending'
-        });
+        let pendingCharges = 0;
+        if (accessibleUserIds.length > 0) {
+            pendingCharges = await TransactionModel.countDocuments({
+                user_id: { $in: accessibleUserIds },
+                fund_type: 'IMPORT',
+                fund_status: 'PENDING'
+            });
+        }
+
+        let supportTickets = 0;
+        if (accessibleUserIds.length > 0) {
+            supportTickets = await SupportMessageModel.countDocuments({
+                userId: { $in: accessibleUserIds },
+                status: 'pending'
+            });
+        }
 
         responseSuccess(res, {
             totalMembers,

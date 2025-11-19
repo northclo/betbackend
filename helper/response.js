@@ -29,6 +29,13 @@ export const responseUnAutherized = (res) => {
   });
 };
 
+export const responsePermissionDenied = (res) => {
+  return res.status(StatusCodes.FORBIDDEN).send({
+    message: t("permission_denied"),
+    data: "",
+  });
+};
+
 export const responseServerError = (res) => {
   return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send({
     message: t("server_error"),

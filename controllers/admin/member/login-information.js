@@ -36,8 +36,8 @@ const buildSearchStage = (searchField, searchRegex) => {
                 {
                     $match: {
                         $or: [
-                            { "own_partner.nickname": searchRegex },
-                            { "own_partner.partner_id": searchRegex },
+                            { "partner.nickname": searchRegex },
+                            { "partner.partner_id": searchRegex },
                             { "partner.nickname": searchRegex },
                             { "partner.partner_id": searchRegex },
                         ],
@@ -62,7 +62,6 @@ const buildSearchStage = (searchField, searchRegex) => {
                             { ip_address: searchRegex },
                             { location: searchRegex },
                             { device: searchRegex },
-                            { "own_partner.nickname": searchRegex },
                             { "partner.nickname": searchRegex },
                         ],
                     },
@@ -125,14 +124,6 @@ export const getMemberLoginInformation = async (req, res) => {
             {
                 $lookup: {
                     from: "partners",
-                    localField: "user.own_partner_id",
-                    foreignField: "_id",
-                    as: "own_partner",
-                },
-            },
-            {
-                $lookup: {
-                    from: "partners",
                     localField: "user.partner_id",
                     foreignField: "_id",
                     as: "partner",
@@ -140,7 +131,6 @@ export const getMemberLoginInformation = async (req, res) => {
             },
             {
                 $addFields: {
-                    own_partner: { $arrayElemAt: ["$own_partner", 0] },
                     partner: { $arrayElemAt: ["$partner", 0] },
                     block_ip: { $gt: [{ $size: "$block_ip" }, 0] },
                     user_id_text: {
@@ -172,9 +162,6 @@ export const getMemberLoginInformation = async (req, res) => {
                                 history_id: { $toString: "$_id" },
                                 user_id: "$user_id_text",
                                 user_nickname: { $ifNull: ["$user.user_nickname", ""] },
-                                own_partner_id: "$own_partner.partner_id",
-                                own_partner_nickname: "$own_partner.nickname",
-                                own_partner_role: "$own_partner.role",
                                 partner_id: "$partner.partner_id",
                                 partner_nickname: "$partner.nickname",
                                 partner_role: "$partner.role",

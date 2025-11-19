@@ -4,7 +4,6 @@ const { Schema, model } = mongoose;
 
 const PartnerMessageSchema = new Schema(
     {
-        partner_id: { type: String },
         sender: { type: mongoose.Types.ObjectId },
         receiver: { type: mongoose.Types.ObjectId },
         title: { type: String },

@@ -3,17 +3,18 @@ import {
   responseBadRequest,
   responseSuccess,
   responseUnAutherized,
+  responseServerError,
 } from "../../../helper/response.js";
-import AdminModel from "../../../models/Admin.js";
+import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
 
 const toAnnouncementDto = async (post) => {
   let author = t("unknown");
   if (post.userId) {
     try {
-      const admin = await AdminModel.findById(post.userId).lean();
-      if (admin) {
-        author = admin.admin_nickname;
+      const partner = await PartnerModel.findById(post.userId).lean();
+      if (partner) {
+        author = partner.nickname;
       }
     } catch (error) {
       console.error("Error fetching author:", error);
@@ -107,40 +108,45 @@ const generateUniqueSlug = async (title, excludeId = null) => {
 };
 
 export const createAnnouncement = async (req, res) => {
-  const adminId = req?.session?._id;
-  if (!adminId) {
-    return responseUnAutherized(res);
+  try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
+    const payload = normalizePayload(req.body || {});
+
+    if (!payload.title || !payload.description) {
+      return responseBadRequest(res, t("title_description_required"));
+    }
+
+    if (payload.category && !["system_notice", "maintenance", "event"].includes(payload.category)) {
+      return responseBadRequest(res, t("invalid_category"));
+    }
+
+    payload.userId = adminId;
+
+    if (!payload.category) {
+      payload.category = "system_notice";
+    }
+
+    if (!payload.status) {
+      payload.status = "draft";
+    }
+
+    payload.slug = await generateUniqueSlug(payload.title);
+
+    const created = await AnnouncementModel.create(payload);
+
+    const dto = await toAnnouncementDto(created);
+    return responseSuccess(
+      res,
+      dto,
+      t("announcement_created_successfully")
+    );
+  } catch (error) {
+    console.error("Error to create a new announcement:", error);
+    return responseServerError(res);
   }
-
-  const payload = normalizePayload(req.body || {});
-
-  if (!payload.title || !payload.description) {
-    return responseBadRequest(res, t("title_description_required"));
-  }
-
-  if (payload.category && !["system_notice", "maintenance", "event"].includes(payload.category)) {
-    return responseBadRequest(res, t("invalid_category"));
-  }
-
-  payload.userId = adminId;
-
-  if (!payload.category) {
-    payload.category = "system_notice";
-  }
-
-  if (!payload.status) {
-    payload.status = "draft";
-  }
-
-  payload.slug = await generateUniqueSlug(payload.title);
-
-  const created = await AnnouncementModel.create(payload);
-
-  const dto = await toAnnouncementDto(created);
-  return responseSuccess(
-    res,
-    dto,
-    t("announcement_created_successfully")
-  );
 };
 

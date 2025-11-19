@@ -48,17 +48,7 @@ export const updateChargingStatus = async (req, res) => {
                 transaction.user_id,
                 {
                     $inc: {
-                        own_money: transaction.fund_amount,
-                        pending_addfund_balance: -transaction.fund_amount
-                    }
-                }
-            );
-        } else {
-            await UserModel.findByIdAndUpdate(
-                transaction.user_id,
-                {
-                    $inc: {
-                        pending_addfund_balance: -transaction.fund_amount
+                        own_money: transaction.fund_amount
                     }
                 }
             );

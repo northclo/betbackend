@@ -1,66 +1,36 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import AdminModel from "../../../models/Admin.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import { config } from "../../../config/index.js";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 import { getLoginInfo } from "../../../helper/LoginInfo/get-login-info.js";
 import { t } from "../../../helper/translation.js";
+import { partnerType } from "../../../const/type.js";
 
 export const login = async (req, res) => {
+  try {
   const { id, password } = req.body;
 
   if (!id || !password) {
     return responseBadRequest(res, t("id_password_required"));
   }
 
-  let admin = null;
-  let foundPartner = null;
-  
-  // Try to find admin by partner_id first
-  foundPartner = await PartnerModel.findOne({ partner_id: id }).lean();
-  if (foundPartner && foundPartner.admin_id) {
-    admin = await AdminModel.findById(foundPartner.admin_id).lean();
-  }
-  
-  if (!admin) {
-    admin = await AdminModel.findOne({ admin_id: id.trim() }).lean();
-  }
+  const partner = await PartnerModel.findOne({ partner_id: id.trim() }).lean();
 
-  if (!admin) {
+  if (!partner) {
     return responseBadRequest(res, t("invalid_credentials"));
   }
 
-  // Check if admin is active
-  if (!admin.is_active) {
-    return responseBadRequest(res, t("access_denied"));
-  }
-
-  const isMatch = await bcrypt.compare(password, admin.password);
+  const isMatch = await bcrypt.compare(password, partner.password);
   if (!isMatch) {
     return responseBadRequest(res, t("invalid_credentials"));
   }
 
-  // Check partner permissions if partner exists
-  if (!foundPartner && admin.partner_id) {
-    foundPartner = await PartnerModel.findById(admin.partner_id).lean();
-  }
-  
-  if (foundPartner && !foundPartner.dashboard_access_permission) {
-    return responseBadRequest(res, t("access_denied"));
-  }
-
   const loginInfo = getLoginInfo(req);
 
-  // Update admin last login
-  await AdminModel.findByIdAndUpdate(admin._id, {
-    last_login: Date.now()
-  });
-
-  // Log login history (using admin_id instead of user_id)
   await UserLoginHistoryModel.create({
-    user_id: admin._id,
+    user_id: partner._id,
     ip_address: loginInfo.ip_address,
     login_date: Date.now(),
     device: loginInfo.device,
@@ -68,7 +38,26 @@ export const login = async (req, res) => {
     mobile: loginInfo.mobile
   });
 
-  const token = jwt.sign({ id: admin._id }, config.JWT_SECRET_KEY, { expiresIn: "1h" });
+  const token = jwt.sign({ id: partner._id }, config.JWT_SECRET_KEY, { expiresIn: "1h" });
 
-  return responseSuccess(res, { token }, t("login_successful"));
+  const isHeadquater = partner.role === partnerType.headquater;
+  const permissions = isHeadquater ? {
+    partner_access_permission: true,
+    sub_partner_creation_permission: true,
+    user_creation_permission: true,
+    sub_partner_settlement_rate: true,
+    sub_partner_money_change: true,
+  } : {
+    partner_access_permission: partner.partner_access_permission || false,
+    sub_partner_creation_permission: partner.sub_partner_creation_permission || false,
+    user_creation_permission: partner.user_creation_permission || false,
+    sub_partner_settlement_rate: partner.sub_partner_settlement_rate || false,
+    sub_partner_money_change: partner.sub_partner_money_change || false,
+  };
+
+  return responseSuccess(res, { token, permissions, role: partner.role }, t("login_successful"));
+  } catch (error) {
+    console.error("Error during login:", error);
+    return responseServerError(res);
+  }
 };

@@ -33,8 +33,8 @@ const buildSearchMatch = (field, regex) => {
         case "partner":
             return {
                 $or: [
-                    { "own_partner.nickname": regex },
-                    { "own_partner.partner_id": regex },
+                    { "partner.nickname": regex },
+                    { "partner.partner_id": regex },
                     { "partner.nickname": regex },
                     { "partner.partner_id": regex },
                 ],
@@ -52,7 +52,7 @@ const buildSearchMatch = (field, regex) => {
                     { user_name: regex },
                     { user_email: regex },
                     { user_id_text: regex },
-                    { "own_partner.nickname": regex },
+                    { "partner.nickname": regex },
                     { "partner.nickname": regex },
                     { "last_login_history.ip_address": regex },
                     { "last_login_history.location": regex },
@@ -134,16 +134,6 @@ export const getCurrentLoginUser = async (req, res) => {
                 $addFields: {
                 own_money: { $ifNull: ["$own_money", 0] },
                 point: { $ifNull: ["$point", 0] },
-                pending_addfund_balance: { $ifNull: ["$pending_addfund_balance", 0] },
-                pending_refund_balance: { $ifNull: ["$pending_refund_balance", 0] },
-            },
-        },
-        {
-            $lookup: {
-                from: "partners",
-                localField: "own_partner_id",
-                foreignField: "_id",
-                as: "own_partner",
             },
         },
         {
@@ -215,7 +205,6 @@ export const getCurrentLoginUser = async (req, res) => {
         },
         {
             $addFields: {
-                own_partner: { $arrayElemAt: ["$own_partner", 0] },
                 partner: { $arrayElemAt: ["$partner", 0] },
                 last_login_history: { $arrayElemAt: ["$login_history", 0] },
                 total_import_amount: {
@@ -227,7 +216,7 @@ export const getCurrentLoginUser = async (req, res) => {
                 last_import_time: {
                     $arrayElemAt: ["$fund_stats.lastImportTime", 0],
                 },
-                user_import_amount: { $ifNull: ["$pending_addfund_balance", 0] },
+                user_import_amount: 0,
                 user_id_text: { $toString: "$_id" },
                 },
             },
@@ -342,11 +331,6 @@ export const getCurrentLoginUser = async (req, res) => {
                                 user_status: 1,
                                 own_money: 1,
                                 point: 1,
-                                own_partner: {
-                                    partner_id: "$own_partner.partner_id",
-                                    nickname: "$own_partner.nickname",
-                                    role: "$own_partner.role",
-                                },
                                 partner: {
                                     partner_id: "$partner.partner_id",
                                     nickname: "$partner.nickname",

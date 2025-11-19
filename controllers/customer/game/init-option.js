@@ -19,7 +19,7 @@ export const getGameOption = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        let partnerId = user.own_partner_id || user.partner_id || '';
+        let partnerId = user.partner_id || '';
         
         let partner;
         
@@ -30,7 +30,6 @@ export const getGameOption = async (req, res) => {
                 partner_id: `PARTNER_${user._id}`,
                 user_id: user._id,
                 bet_rate_type: 'A',
-                dashboard_access_permission: false,
             });
             
             await UserModel.findByIdAndUpdate(user._id, {
@@ -49,7 +48,6 @@ export const getGameOption = async (req, res) => {
                     partner_id: `PARTNER_${user._id}`,
                     user_id: user._id,
                     bet_rate_type: 'A',
-                    dashboard_access_permission: false,
                 });
                 
                 await UserModel.findByIdAndUpdate(user._id, {

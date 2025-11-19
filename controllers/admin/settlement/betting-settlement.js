@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 import BettingResultModel from "../../../models/BettingResult.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseServerError } from "../../../helper/response.js";
 
 const toObjectId = (value) => {
     if (!value) return null;
@@ -30,16 +30,13 @@ const buildDateFilter = (startDate, endDate) => {
     return dateFilter;
 };
 
-const fetchAccessiblePartners = async (adminId) => {
-    if (!adminId) return { partnerIds: [], partners: [] };
+const fetchAccessiblePartners = async (partnerId) => {
+    if (!partnerId) return { partnerIds: [], partners: [] };
 
     const roots = await PartnerModel.aggregate([
         {
             $match: {
-                $or: [
-                    { admin_id: new mongoose.Types.ObjectId(adminId) },
-                    { user_id: new mongoose.Types.ObjectId(adminId) }
-                ],
+                _id: new mongoose.Types.ObjectId(partnerId)
             },
         },
         {
@@ -226,9 +223,7 @@ export const getBettingSettlementProfit = async (req, res) => {
             },
             {
                 $addFields: {
-                    effectivePartnerId: {
-                        $ifNull: ["$user.own_partner_id", "$user.partner_id"],
-                    },
+                    effectivePartnerId: "$user.partner_id",
                 },
             },
             {
@@ -450,22 +445,8 @@ export const getBettingSettlementProfit = async (req, res) => {
             partners: Array.isArray(partners) ? partners : [],
         });
     } catch (error) {
-        console.error("Error in getBettingSettlementProfit:", error);
-        return responseSuccess(res, {
-            summary: {
-                totalBetAmount: 0,
-                totalPayout: 0,
-                totalProfit: 0,
-                settledRounds: 0,
-            },
-            settlements: {
-                total: 0,
-                page: 1,
-                pageSize: 20,
-                items: [],
-            },
-            partners: [],
-        });
+        console.error("Error to get betting settlement profit:", error);
+        return responseServerError(res);
     }
 };
 
