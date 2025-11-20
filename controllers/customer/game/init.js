@@ -3,7 +3,7 @@ import GameSettingModel from "../../../models/GameSetting.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
-import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
+import { getAroundBettingHistory } from "../../../helper/Game/Get-Around-Betting-History.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
 import { t } from "../../../helper/translation.js";
@@ -19,15 +19,22 @@ export const getGameInitInfo = async (req, res) => {
         }
 
         let game;
+        let bettingHistory = [];
+        
         if (gameId) {
-            const result = await getGameWithBettingHistory(gameId);
+            const result = await getGameWithBettingHistory(gameId, userId);
             game = result.game;
+            bettingHistory = result.bettingHistory;
         } else {
             const availableGame = await getAvailableGame();
             if (availableGame.length > 0) {
                 game = availableGame[0];
             } else {
                 game = await getLastGame();
+            }
+            if (game && game.game_id) {
+                const result = await getGameWithBettingHistory(game.game_id, userId);
+                bettingHistory = result.bettingHistory;
             }
         }
 
@@ -91,8 +98,7 @@ export const getGameInitInfo = async (req, res) => {
 
         const _gameId = game.game_id;
 
-        const { bettingHistory } = await getGameWithBettingHistory(_gameId, userId);
-        const aroundGameId = await getAroundGameId(_gameId);
+        const aroundGameId = await getAroundBettingHistory(_gameId, userId);
         const lastGame = await getLastGame();
         const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
         const lastTotalNo = Number.isFinite(lastGame?.total_no) ? lastGame.total_no : 0;
@@ -141,8 +147,8 @@ export const getGameInitInfo = async (req, res) => {
             game: {
                 id: _gameId,
                 list: game.list || [],
-                odd: game.odd,
-                under: game.under,
+                odd: game.odd ?? false,
+                under: game.under ?? false,
                 today_no: todayNo,
                 total_no: totalNo,
                 remain_time: remainTime,

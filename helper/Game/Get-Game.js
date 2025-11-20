@@ -14,7 +14,8 @@ export const getGameWithBettingHistory = async (gameId, userId) => {
             number_sort: 1,
             win: 1,
             earning_amount: 1,
-            betting_status: 1
+            betting_status: 1,
+            createdAt: 1
         });
 
     return {
