@@ -119,7 +119,7 @@ export const registerUser = async (req, res) => {
             password: hashedPassword,
             exchange_password: hashedExchangePassword,
             user_name: payload.userName.trim(),
-            partner_id: partnerId,
+            ownpartner_id: partnerId,
             phone_number: payload.phoneNumber || '',
             bank_id: payload.bankName.trim(),
             bank_number: payload.bankNumber.trim(),

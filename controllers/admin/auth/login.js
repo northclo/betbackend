@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import { config } from "../../../config/index.js";
-import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
+import PartnerLoginHistoryModel from "../../../models/PartnerLoginHistory.js";
 import { getLoginInfo } from "../../../helper/LoginInfo/get-login-info.js";
 import { t } from "../../../helper/translation.js";
 import { partnerType } from "../../../const/type.js";
@@ -29,8 +29,8 @@ export const login = async (req, res) => {
 
   const loginInfo = getLoginInfo(req);
 
-  await UserLoginHistoryModel.create({
-    user_id: partner._id,
+  await PartnerLoginHistoryModel.create({
+    partner_id: partner._id,
     ip_address: loginInfo.ip_address,
     login_date: Date.now(),
     device: loginInfo.device,

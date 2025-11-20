@@ -17,7 +17,7 @@ const toAnnouncementDto = async (post) => {
         author = partner.nickname;
       }
     } catch (error) {
-      console.error("Error fetching author:", error);
+      console.error("Error to fetch announcement author:", error);
     }
   }
 

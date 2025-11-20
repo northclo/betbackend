@@ -1,22 +1,26 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
 
 export const updateExchangeStatus = async (req, res) => {
-    const { transactionId, action } = req.body;
-    const adminId = req.session._id;
-
-    if (!transactionId) {
-        return responseBadRequest(res, t("transaction_id_required"));
-    }
-
-    if (!action || !['approve', 'reject'].includes(action)) {
-        return responseBadRequest(res, t("invalid_action"));
-    }
-
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const { transactionId, action } = req.body;
+
+        if (!transactionId) {
+            return responseBadRequest(res, t("transaction_id_required"));
+        }
+
+        if (!action || !['approve', 'reject'].includes(action)) {
+            return responseBadRequest(res, t("invalid_action"));
+        }
+
         const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
 
         if (action === 'reject') {
@@ -88,7 +92,7 @@ export const updateExchangeStatus = async (req, res) => {
         }
     } catch (error) {
         console.error("Error updating exchange status:", error);
-        return responseBadRequest(res, t("failed_update_exchange_status"));
+        return responseServerError(res);
     }
 };
 

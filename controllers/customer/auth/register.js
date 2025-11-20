@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import UserModel from "../../../models/User.js";
 import SettingModel from "../../../models/Setting.js";
-import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { userStatus } from "../../../const/status.js";
 import { membershipType } from "../../../const/type.js";
@@ -120,7 +120,7 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
-    return responseBadRequest(res, t("registration_failed"));
+    return responseServerError(res);
   }
 };
 

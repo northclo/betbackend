@@ -5,21 +5,26 @@ import {
   responseSuccess,
   responseNotFound,
   responseServerError,
+  responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const deleteSupportTicket = async (req, res) => {
-  const { ticketId } = req.params;
-
-  if (!ticketId) {
-    return responseBadRequest(res, t("ticket_id_required"));
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(ticketId)) {
-    return responseBadRequest(res, t("invalid_ticket_id_format"));
-  }
-
   try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
+    const { ticketId } = req.params;
+
+    if (!ticketId) {
+      return responseBadRequest(res, t("ticket_id_required"));
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+      return responseBadRequest(res, t("invalid_ticket_id_format"));
+    }
     const ticket = await SupportMessage.findById(ticketId);
 
     if (!ticket) {

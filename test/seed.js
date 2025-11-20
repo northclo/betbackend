@@ -16,7 +16,7 @@ dotenv.config();
     // Check if partner already exists
     const existingPartner = await PartnerModel.findOne({ 
       $or: [
-        { nickname: 'testadmin' },
+        { nickname: 'admin' },
         { partner_id: 'testadmin' }
       ]
     });
@@ -36,7 +36,7 @@ dotenv.config();
     // Create new partner
     const newPartner = await PartnerModel.create({
       role: partnerType.headquater,
-      nickname: 'testadmin',
+      nickname: 'admin',
       partner_id: 'testadmin',
       password: hashedPassword,
       exchange_password: hashedExchangePassword,

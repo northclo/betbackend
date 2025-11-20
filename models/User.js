@@ -10,6 +10,7 @@ const UserSchema = new Schema(
         exchange_password: { type: String, required: true },
         user_name: { type: String },
         partner_id: { type: mongoose.Types.ObjectId },
+        ownpartner_id: { type: mongoose.Types.ObjectId },
         phone_number: { type: String },
         bank_id: { type: String, required: true },
         bank_number: { type: String, required: true },

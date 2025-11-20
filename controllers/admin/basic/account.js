@@ -14,9 +14,9 @@ const validatePartnerPassword = (password) => {
     return { error: t("password_required") };
   }
 
-  if (password.length < 8) {
+  if (password.length < 6) {
     return {
-      error: t("password_min_length_8"),
+      error: t("administrator_password_min_length"),
     };
   }
 

@@ -1,21 +1,25 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const updateChargingStatus = async (req, res) => {
-    const { transactionId, action } = req.body;
-    const adminId = req.session._id;
-
-    if (!transactionId) {
-        return responseBadRequest(res, t("transaction_id_required"));
-    }
-
-    if (!action || !['approve', 'reject'].includes(action)) {
-        return responseBadRequest(res, t("invalid_action"));
-    }
-
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const { transactionId, action } = req.body;
+
+        if (!transactionId) {
+            return responseBadRequest(res, t("transaction_id_required"));
+        }
+
+        if (!action || !['approve', 'reject'].includes(action)) {
+            return responseBadRequest(res, t("invalid_action"));
+        }
+
         const transaction = await TransactionModel.findById(transactionId);
 
         if (!transaction) {
@@ -65,7 +69,7 @@ export const updateChargingStatus = async (req, res) => {
         );
     } catch (error) {
         console.error("Error updating charging status:", error);
-        return responseBadRequest(res, t("failed_update_transaction_status"));
+        return responseServerError(res);
     }
 };
 

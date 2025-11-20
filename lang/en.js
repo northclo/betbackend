@@ -33,7 +33,6 @@ export default {
   invalid_bank_selected: "Invalid bank selected. Please select a valid bank.",
   registration_success: "Registration successful! You can now login.",
   registration_success_pending_approval: "Registration submitted! Your account is pending approval. You will be notified once approved.",
-  registration_failed: "Registration failed. Please try again.",
   
   // Betting
   invalid_start_date_format: "Invalid start date format. Please use YYYY-MM-DD format.",
@@ -198,7 +197,7 @@ export default {
   administrator_id_valid_email: "Administrator ID must be a valid email.",
   administrator_id_cannot_changed: "Administrator ID cannot be changed.",
   administrator_password_required: "Administrator password is required.",
-  administrator_password_min_length: "Administrator password must be at least 8 characters long.",
+  administrator_password_min_length: "Administrator password must be at least 6 characters long.",
   invalid_view_manager_payload: "Invalid view manager payload.",
   view_manager_id_required: "View manager ID is required.",
   view_manager_id_format: "View manager ID must start with a letter and can include letters, numbers, hyphen, or underscore (4-32 characters).",
@@ -238,11 +237,6 @@ export default {
   invalid_date_range: "Invalid date range.",
   start_date_must_be_before_end_date: "Start date must be before end date.",
   
-  // Game Options
-  default_user_name: "User",
-  default_partner_suffix: "_Partner",
-  error_fetching_game_options: "Error fetching game options: {0}",
-  
   // Fund History
   default_payment_method_bank_transfer: "bank_transfer",
   fund_history_retrieved_successfully: "Fund history retrieved successfully",
@@ -278,6 +272,7 @@ export default {
   ip_id_required: "IP ID is required.",
   blocked_ip_not_found: "Blocked IP not found.",
   blocked_ip_removed_successfully: "Blocked IP removed successfully.",
+  ip_address_blocked: "Your IP address has been blocked. Please contact support.",
   
   // User logout
   user_nickname_required: "User nickname is required.",
@@ -304,6 +299,7 @@ export default {
   // Customer auth
   cannot_find_user: "Cannot find user",
   password_incorrect: "Password isn't correct!",
+  user_account_restricted: "Your account is currently restricted. Please contact support.",
   
   // Site setting validation
   field_must_be_valid_number: "{0} must be a valid number.",

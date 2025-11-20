@@ -4,11 +4,17 @@ import {
   responseBadRequest,
   responseSuccess,
   responseServerError,
+  responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const bulkDeleteSupportTickets = async (req, res) => {
   try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || ids.length === 0) {

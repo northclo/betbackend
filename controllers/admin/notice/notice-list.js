@@ -129,15 +129,7 @@ export const listNotices = async (req, res) => {
           }
         } catch (error) {
           console.error("Error normalizing partner filter:", error);
-          return responseSuccess(res, {
-            list: [],
-            items: [],
-            page: 1,
-            pageSize: limit,
-            limit: limit,
-            total: 0,
-            totalPages: 0,
-          });
+          return responseServerError(res);
         }
       }
       

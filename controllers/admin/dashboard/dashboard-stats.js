@@ -1,91 +1,30 @@
 import mongoose from "mongoose";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
+import PartnerLoginHistoryModel from "../../../models/PartnerLoginHistory.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import SupportMessageModel from "../../../models/SupportMessage.js";
 import BettingResultModel from "../../../models/BettingResult.js";
-import { responseSuccess } from "../../../helper/response.js";
+import {
+  responseSuccess,
+  responseServerError,
+  responseUnAutherized,
+} from "../../../helper/response.js";
 import { userStatus } from "../../../const/status.js";
-
-
-const fetchAccessiblePartners = async (partnerId) => {
-    if (!partnerId) return { partnerIds: [], partners: [] };
-
-    const roots = await PartnerModel.aggregate([
-        {
-            $match: {
-                _id: new mongoose.Types.ObjectId(partnerId)
-            },
-        },
-        {
-            $graphLookup: {
-                from: "partners",
-                startWith: "$_id",
-                connectFromField: "_id",
-                connectToField: "parent_partner_id",
-                as: "subs",
-            },
-        },
-        {
-            $project: {
-                allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-            },
-        },
-        { $unwind: "$allPartners" },
-        {
-            $replaceRoot: { newRoot: "$allPartners" },
-        },
-        {
-            $project: {
-                _id: 1,
-                nickname: { $ifNull: ["$nickname", ""] },
-                partner_id: { $ifNull: ["$partner_id", ""] },
-            },
-        },
-    ]);
-
-    if (!roots.length) {
-        return { partnerIds: [], partners: [] };
-    }
-
-    const uniqueMap = new Map();
-    roots.forEach((doc) => {
-        const key = doc._id.toString();
-        if (!uniqueMap.has(key)) {
-            uniqueMap.set(key, {
-                id: key,
-                nickname: doc.nickname || "",
-                partnerId: doc.partner_id || "",
-            });
-        }
-    });
-
-    const partners = Array.from(uniqueMap.values());
-    const partnerIds = partners.map((partner) => new mongoose.Types.ObjectId(partner.id));
-
-    return { partnerIds, partners };
-};
 
 export const getMonthlyLoggedInUsers = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         endOfMonth.setHours(23, 59, 59, 999);
-
-        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
-
-        let accessibleUserIds = [];
-        let accessiblePartnerUserIds = [];
-        if (accessiblePartnerIds.length > 0) {
-            const users = await UserModel.find({
-                partner_id: { $in: accessiblePartnerIds }
-            }).select("_id").lean();
-            accessibleUserIds = users.map(u => u._id);
-            accessiblePartnerUserIds = accessibleUserIds;
-        }
 
         const loginHistoryFilter = {
             createdAt: {
@@ -94,23 +33,20 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
             }
         };
 
-        if (accessiblePartnerIds.length > 0 && accessibleUserIds.length > 0) {
-            loginHistoryFilter.user_id = { $in: accessibleUserIds };
-        } else {
-            loginHistoryFilter.user_id = { $exists: false };
-        }
-
-        const loginHistory = await UserLoginHistoryModel.find(loginHistoryFilter)
+        const userLoginHistory = await UserLoginHistoryModel.find(loginHistoryFilter)
             .select("user_id createdAt").lean();
+
+        const partnerLoginHistory = await PartnerLoginHistoryModel.find(loginHistoryFilter)
+            .select("partner_id createdAt").lean();
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const allLoggedIn = new Array(daysInMonth).fill(0);
         const partnerLoggedIn = new Array(daysInMonth).fill(0);
 
         const dailyUsers = {};
-        const dailyPartnerUsers = {};
+        const dailyPartners = {};
 
-        loginHistory.forEach(login => {
+        userLoginHistory.forEach(login => {
             const day = new Date(login.createdAt).getDate() - 1;
             const userId = login.user_id?.toString();
 
@@ -122,16 +58,20 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
                     dailyUsers[day].add(userId);
                     allLoggedIn[day]++;
                 }
+            }
+        });
 
-                const isPartnerUser = accessiblePartnerUserIds.some(pid => pid.toString() === userId);
-                if (isPartnerUser) {
-                    if (!dailyPartnerUsers[day]) {
-                        dailyPartnerUsers[day] = new Set();
-                    }
-                    if (!dailyPartnerUsers[day].has(userId)) {
-                        dailyPartnerUsers[day].add(userId);
-                        partnerLoggedIn[day]++;
-                    }
+        partnerLoginHistory.forEach(login => {
+            const day = new Date(login.createdAt).getDate() - 1;
+            const partnerId = login.partner_id?.toString();
+
+            if (partnerId) {
+                if (!dailyPartners[day]) {
+                    dailyPartners[day] = new Set();
+                }
+                if (!dailyPartners[day].has(partnerId)) {
+                    dailyPartners[day].add(partnerId);
+                    partnerLoggedIn[day]++;
                 }
             }
         });
@@ -142,17 +82,18 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
             partnerLoggedIn
         });
     } catch (error) {
-        console.error("Error fetching monthly logged in users:", error);
-        responseSuccess(res, {
-            days: Array.from({ length: 30 }, (_, i) => i + 1),
-            allLoggedIn: new Array(30).fill(0),
-            partnerLoggedIn: new Array(30).fill(0)
-        });
+        console.error("Error to fetch monthly logged in users:", error);
+        return responseServerError(res);
     }
 };
 
 export const getMonthlyChargeAndExchange = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -161,28 +102,12 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
-        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
-
-        let accessibleUserIds = [];
-        if (accessiblePartnerIds.length > 0) {
-            const users = await UserModel.find({
-                partner_id: { $in: accessiblePartnerIds }
-            }).select("_id").lean();
-            accessibleUserIds = users.map(u => u._id);
-        }
-
         const baseMatchFilter = {
             createdAt: {
                 $gte: startOfMonth,
                 $lte: endOfMonth
             }
         };
-
-        if (accessiblePartnerIds.length > 0 && accessibleUserIds.length > 0) {
-            baseMatchFilter.user_id = { $in: accessibleUserIds };
-        } else {
-            baseMatchFilter.user_id = { $exists: false };
-        }
 
         const chargeData = await TransactionModel.aggregate([
             {
@@ -230,7 +155,6 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
 
         const charge = new Array(daysInMonth).fill(0);
         const exchange = new Array(daysInMonth).fill(0);
-        const chargeMinusExchange = new Array(daysInMonth).fill(0);
 
         chargeData.forEach(item => {
             const day = item._id - 1;
@@ -246,31 +170,24 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             }
         });
 
-        for (let i = 0; i < daysInMonth; i++) {
-            chargeMinusExchange[i] = charge[i] - exchange[i];
-        }
-
         responseSuccess(res, {
             days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
             charge,
-            withdraw: exchange,
-            chargeMinusWithdraw: chargeMinusExchange
+            exchange
         });
     } catch (error) {
-        console.error("Error fetching monthly charge and exchange:", error);
-        const now = new Date();
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        responseSuccess(res, {
-            days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
-            charge: new Array(daysInMonth).fill(0),
-            withdraw: new Array(daysInMonth).fill(0),
-            chargeMinusWithdraw: new Array(daysInMonth).fill(0)
-        });
+        console.error("Error to fetch monthly charge and exchange:", error);
+        return responseServerError(res);
     }
 };
 
 export const getDashboardSummary = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         startOfToday.setHours(0, 0, 0, 0);
@@ -281,25 +198,15 @@ export const getDashboardSummary = async (req, res) => {
         sevenDaysAgo.setDate(now.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        const { partnerIds: accessiblePartnerIds } = await fetchAccessiblePartners(req.session?._id);
-
-        let accessibleUserIds = [];
-        let totalMembers = 0;
-        let pendingApprovals = 0;
-
-        if (accessiblePartnerIds.length > 0) {
-            const users = await UserModel.find({
-                partner_id: { $in: accessiblePartnerIds }
-            }).select("_id user_status").lean();
-            accessibleUserIds = users.map(u => u._id);
-            totalMembers = users.length;
-            pendingApprovals = users.filter(u => u.user_status === userStatus.wait).length;
-        }
+        const allUsers = await UserModel.find({}).select("_id user_status").lean();
+        const totalMembers = allUsers.length;
+        const pendingApprovals = allUsers.filter(u => u.user_status === userStatus.wait).length;
+        const allUserIds = allUsers.map(u => u._id);
 
         let activeMembers = 0;
-        if (accessibleUserIds.length > 0) {
+        if (allUserIds.length > 0) {
             const activeMemberIds = await UserLoginHistoryModel.distinct("user_id", {
-                user_id: { $in: accessibleUserIds },
+                user_id: { $in: allUserIds },
                 createdAt: {
                     $gte: startOfToday,
                     $lte: endOfToday
@@ -308,31 +215,27 @@ export const getDashboardSummary = async (req, res) => {
             activeMembers = activeMemberIds.length;
         }
 
-        const totalPartners = accessiblePartnerIds.length;
+        const totalPartners = await PartnerModel.countDocuments({});
 
-        let newPartners = 0;
-        if (accessiblePartnerIds.length > 0) {
-            newPartners = await PartnerModel.countDocuments({
-                _id: { $in: accessiblePartnerIds },
-                createdAt: {
-                    $gte: sevenDaysAgo
-                }
-            });
-        }
+        const newPartners = await PartnerModel.countDocuments({
+            createdAt: {
+                $gte: sevenDaysAgo
+            }
+        });
 
         let pendingCharges = 0;
-        if (accessibleUserIds.length > 0) {
+        if (allUserIds.length > 0) {
             pendingCharges = await TransactionModel.countDocuments({
-                user_id: { $in: accessibleUserIds },
+                user_id: { $in: allUserIds },
                 fund_type: 'IMPORT',
                 fund_status: 'PENDING'
             });
         }
 
         let supportTickets = 0;
-        if (accessibleUserIds.length > 0) {
+        if (allUserIds.length > 0) {
             supportTickets = await SupportMessageModel.countDocuments({
-                userId: { $in: accessibleUserIds },
+                userId: { $in: allUserIds },
                 status: 'pending'
             });
         }
@@ -348,20 +251,17 @@ export const getDashboardSummary = async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching dashboard summary:", error);
-        responseSuccess(res, {
-            totalMembers: 0,
-            activeMembers: 0,
-            totalPartners: 0,
-            newPartners: 0,
-            pendingApprovals: 0,
-            pendingCharges: 0,
-            supportTickets: 0
-        });
+        return responseServerError(res);
     }
 };
 
 export const getSidebarSummary = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         startOfToday.setHours(0, 0, 0, 0);
@@ -555,26 +455,7 @@ export const getSidebarSummary = async (req, res) => {
         });
     } catch (error) {
         console.error("Error fetching sidebar summary:", error);
-        responseSuccess(res, {
-            bettingSettlementProfit: 0,
-            userPoints: 0,
-            currentSiteUsers: 0,
-            todayDeposit: 0,
-            todayWithdrawal: 0,
-            entireGame: {
-                battingGan: 0,
-                betting: 0,
-                hit: 0,
-                bettingP: 0,
-                revenue: 0
-            },
-            minigames: {
-                battingGan: 0,
-                hit: 0,
-                bettingP: 0,
-                revenue: 0
-            }
-        });
+        return responseServerError(res);
     }
 };
 

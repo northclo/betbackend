@@ -69,9 +69,6 @@ const cleanData = (node, search) => {
             simpleBetRate: owner.simple_bet_rate || 0,
             combinedBetRate: owner.combined_bet_rate || 0,
             matchNumberBetRate: owner.match_num_bet_rate || 0,
-            betMoneyUnit: node.bet_money_unit,
-            holdingMoney: ownerBalance,
-            holdingPoint: owner.point || 0,
             onetimeEarningMin: node.onetime_earning_min || null,
         });
 
@@ -89,9 +86,6 @@ const cleanData = (node, search) => {
                 simpleBetRate: member.simple_bet_rate,
                 combinedBetRate: member.combined_bet_rate,
                 matchNumberBetRate: member.match_num_bet_rate,
-                betMoneyUnit: node.bet_money_unit,
-                holdingMoney: memberBalance,
-                holdingPoint: member.point
             });
         });
     }
@@ -149,7 +143,7 @@ export const getPartner = async (req, res) => {
                                 $expr: {
                                     $or: [
                                         { $eq: ['$_id', '$$ownerId'] },
-                                        { $eq: ['$partner_id', '$$partnerId'] }
+                                        { $eq: ['$ownpartner_id', '$$partnerId'] }
                                     ]
                                 }
                             }
@@ -228,7 +222,6 @@ const cleanPartnerList = (node) => {
         deadline: node.deadline,
         cancelBet: node.cancel_bet,
         cancelBetRange: node.cancel_bet_range,
-        betMoneyUnit: node.bet_money_unit,
         onetimeBetMin: node.onetime_bet_min,
         onetimeBetMax: node.onetime_bet_max,
         onetimeEarningMin: node.onetime_earning_min,
@@ -334,7 +327,7 @@ export const deletePartner = async (req, res) => {
             return responseBadRequest(res, t("cannot_delete_partner_with_sub_partners"));
         }
 
-        const memberCount = await UserModel.countDocuments({ partner_id: partner._id });
+        const memberCount = await UserModel.countDocuments({ ownpartner_id: partner._id });
         if (memberCount > 0) {
             return responseBadRequest(res, t("cannot_delete_partner_with_members"));
         }

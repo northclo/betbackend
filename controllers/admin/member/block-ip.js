@@ -1,9 +1,14 @@
 import BlockIpModel from "../../../models/BlockIp.js";
-import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const blockIp = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { ip, block } = req.body;
 
         if (!ip || typeof ip !== 'string' || ip.trim() === '') {
@@ -40,6 +45,11 @@ export const blockIp = async (req, res) => {
 
 export const getBlockedIps = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const blockedIps = await BlockIpModel.find({})
             .sort({ createdAt: -1 })
             .lean();
@@ -59,6 +69,11 @@ export const getBlockedIps = async (req, res) => {
 
 export const removeBlockedIp = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { id } = req.params;
 
         if (!id) {

@@ -1,5 +1,5 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const getFundHistory = async (req, res) => {
@@ -48,18 +48,7 @@ export const getFundHistory = async (req, res) => {
     return responseSuccess(res, formattedTransactions, t("fund_history_retrieved_successfully"));
   } catch (error) {
     console.error("Error fetching fund history:", error);
-    if (req.query.page || req.query.pageSize) {
-      return responseSuccess(res, {
-        data: [],
-        pagination: {
-          total: 0,
-          page: 1,
-          pageSize,
-          totalPages: 1,
-        },
-      }, t("fund_history_retrieved_successfully"));
-    }
-    return responseSuccess(res, [], t("fund_history_retrieved_successfully"));
+    return responseServerError(res);
   }
 };
 

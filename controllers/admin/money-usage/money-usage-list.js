@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess, responseBadRequest } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
@@ -19,6 +19,11 @@ const normalizeDate = (value, isEnd = false) => {
 
 export const getMoneyUsageList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         let {
             startDate,
             endDate,
@@ -512,7 +517,7 @@ export const getMoneyUsageList = async (req, res) => {
         });
     } catch (error) {
         console.error("Error to get money usage list:", error);
-        throw error;
+        return responseServerError(res);
     }
 };
 

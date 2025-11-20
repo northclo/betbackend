@@ -2,7 +2,6 @@ import GameSettingModel from "../../../models/GameSetting.js";
 import PartnerModel from "../../../models/Partner.js";
 import UserModel from "../../../models/User.js";
 import { responseBadRequest, responseSuccess, responseUnAutherized } from "../../../helper/response.js";
-import { partnerType } from "../../../const/type.js";
 import { t } from "../../../helper/translation.js";
 
 export const getGameOption = async (req, res) => {
@@ -19,44 +18,11 @@ export const getGameOption = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        let partnerId = user.partner_id || '';
+        const partnerId = user.partner_id || '';
         
-        let partner;
-        
-        if (!partnerId) {
-            const defaultPartner = await PartnerModel.create({
-                role: partnerType.store,
-                nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
-                partner_id: `PARTNER_${user._id}`,
-                user_id: user._id,
-                bet_rate_type: 'A',
-            });
-            
-            await UserModel.findByIdAndUpdate(user._id, {
-                partner_id: defaultPartner._id
-            });
-            
-            partnerId = defaultPartner._id;
-            partner = defaultPartner.toObject();
-        } else {
-            partner = await PartnerModel.findOne({ _id: partnerId }).lean();
-            
-            if (!partner) {
-                const defaultPartner = await PartnerModel.create({
-                    role: partnerType.store,
-                    nickname: `${user.user_nickname || t("default_user_name")}${t("default_partner_suffix")}`,
-                    partner_id: `PARTNER_${user._id}`,
-                    user_id: user._id,
-                    bet_rate_type: 'A',
-                });
-                
-                await UserModel.findByIdAndUpdate(user._id, {
-                    partner_id: defaultPartner._id
-                });
-                
-                partnerId = defaultPartner._id;
-                partner = defaultPartner.toObject();
-            }
+        let partner = null;
+        if (partnerId) {
+            partner = await PartnerModel.findOne({ partner_id: partnerId }).lean();
         }
 
         const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
@@ -93,7 +59,7 @@ export const getGameOption = async (req, res) => {
             });
         }
 
-        const betRateType = partner.bet_rate_type || 'A';
+        const betRateType = partner?.bet_rate_type || 'A';
         
         const option = gameSetting.option.filter(item => item.name == betRateType);
 
@@ -146,7 +112,7 @@ export const getGameOption = async (req, res) => {
             match_number3: selectedOption.match_number3 || 99900,
         });
     } catch (error) {
-        console.error('[getGameOption] Error:', error);
-        return responseBadRequest(res, t("error_fetching_game_options", error.message));
+        console.error('Game Option Error:', error);
+        return responseServerError(res);
     }
 }

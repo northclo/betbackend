@@ -5,26 +5,32 @@ import {
   responseSuccess,
   responseNotFound,
   responseServerError,
+  responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const replyToSupportTicket = async (req, res) => {
-  const { ticketId } = req.params;
-  const { message } = req.body;
-
-  if (!ticketId) {
-    return responseBadRequest(res, t("ticket_id_required"));
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(ticketId)) {
-    return responseBadRequest(res, t("invalid_ticket_id_format"));
-  }
-
-  if (!message || String(message).trim().length === 0) {
-    return responseBadRequest(res, t("reply_message_required"));
-  }
-
   try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
+    const { ticketId } = req.params;
+    const { message } = req.body;
+
+    if (!ticketId) {
+      return responseBadRequest(res, t("ticket_id_required"));
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+      return responseBadRequest(res, t("invalid_ticket_id_format"));
+    }
+
+    if (!message || String(message).trim().length === 0) {
+      return responseBadRequest(res, t("reply_message_required"));
+    }
+
     const ticket = await SupportMessage.findById(ticketId);
 
     if (!ticket) {

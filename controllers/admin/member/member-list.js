@@ -587,7 +587,7 @@ export const createMemberList = async (req, res) => {
             user_email,
             password: hashedPassword,
             exchange_password: hashedExchangePassword,
-            partner_id: partner_id || undefined,
+            ownpartner_id: partner_id || undefined,
             bank_id: restData.bank_id || '',
             bank_number: restData.bank_number || '',
             bank_owner_name: restData.bank_owner_name || '',

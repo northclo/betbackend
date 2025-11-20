@@ -1,5 +1,5 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 export const getExchangeHistory = async (req, res) => {
@@ -49,18 +49,7 @@ export const getExchangeHistory = async (req, res) => {
     return responseSuccess(res, formattedTransactions, t("exchange_history_retrieved_successfully"));
   } catch (error) {
     console.error("Error fetching exchange history:", error);
-    if (req.query.page || req.query.pageSize) {
-      return responseSuccess(res, {
-        data: [],
-        pagination: {
-          total: 0,
-          page: 1,
-          pageSize,
-          totalPages: 1,
-        },
-      }, t("exchange_history_retrieved_successfully"));
-    }
-    return responseSuccess(res, [], t("exchange_history_retrieved_successfully"));
+    return responseServerError(res);
   }
 };
 

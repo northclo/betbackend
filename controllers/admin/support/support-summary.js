@@ -2,10 +2,16 @@ import SupportMessage from "../../../models/SupportMessage.js";
 import {
   responseSuccess,
   responseServerError,
+  responseUnAutherized,
 } from "../../../helper/response.js";
 
 export const getSupportSummary = async (req, res) => {
   try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
     const [
       pendingTickets,
       resolvedTickets,

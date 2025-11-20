@@ -1,10 +1,15 @@
-import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
 import { io, onlineUsers } from "../../../server.js";
 import { t } from "../../../helper/translation.js";
 
 export const logoutUser = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { user_nickname } = req.body;
 
         if (!user_nickname) {
