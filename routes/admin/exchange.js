@@ -5,9 +5,11 @@ import { catchError } from "../../middleware/error.js";
 import { getExchangeList } from "../../controllers/admin/exchange/exchange-list.js";
 import { getExchangeSummary } from "../../controllers/admin/exchange/exchange-summary.js";
 import { updateExchangeStatus } from "../../controllers/admin/exchange/exchange-action.js";
+import { deleteExchangeTransaction } from "../../controllers/admin/exchange/exchange-delete.js";
 
 router.get("/list", catchError(getExchangeList));
 router.get("/summary", catchError(getExchangeSummary));
 router.post("/action", catchError(updateExchangeStatus));
+router.delete("/:id", catchError(deleteExchangeTransaction));
 
 export default router;

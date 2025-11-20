@@ -313,4 +313,15 @@ export default {
   exchange_settings_payload_required: "Exchange settings payload is required.",
   exchange_min_cannot_be_greater_than_max: "exchangeMin cannot be greater than exchangeMax.",
   exchange_start_time_must_be_earlier_than_end: "exchangeStartTime must be earlier than exchangeEndTime.",
+  
+  // Login Information
+  login_information_id_required: "Login information ID is required.",
+  login_information_not_found: "Login information not found.",
+  login_information_deleted_successfully: "Login information deleted successfully.",
+  
+  // Charging Transaction
+  charging_transaction_deleted_successfully: "Charging transaction deleted successfully.",
+  
+  // Exchange Transaction
+  exchange_transaction_deleted_successfully: "Exchange transaction deleted successfully.",
 };

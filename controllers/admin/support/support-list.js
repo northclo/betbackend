@@ -174,7 +174,10 @@ export const listSupportTickets = async (req, res) => {
       } else if (searchTypeLower === "title") {
         filter.title = keywordRegex;
       } else if (searchTypeLower === "content") {
-        filter.question = keywordRegex;
+        filter.$or = [
+          { question: keywordRegex },
+          { answer: keywordRegex }
+        ];
       } else {
         filter.$or = [
           { title: keywordRegex },
