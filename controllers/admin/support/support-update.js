@@ -14,8 +14,8 @@ const normalizeStatus = (value) => {
     return undefined;
   }
 
-  const normalized = String(value).trim().toLowerCase();
-  if (!["pending", "resolved", "rejected"].includes(normalized)) {
+  const normalized = String(value).trim().toUpperCase();
+  if (!["PENDING", "RESOLVED", "REJECTED"].includes(normalized)) {
     return undefined;
   }
 
@@ -53,22 +53,31 @@ export const updateSupportTicket = async (req, res) => {
         return responseBadRequest(res, t("answer_cannot_be_empty"));
       }
       updateData.answer = trimmedAnswer;
-      if (!ticket.answerDate) {
-        updateData.answerDate = new Date();
+      if (!ticket.answer_date) {
+        updateData.answer_date = new Date();
+      }
+      if (!ticket.answerer_id) {
+        updateData.answerer_id = adminId;
       }
     }
 
     const normalizedStatus = normalizeStatus(status);
     if (normalizedStatus !== undefined) {
-      if (normalizedStatus === "resolved") {
+      if (normalizedStatus === "RESOLVED") {
         const hasAnswer = (ticket.answer && ticket.answer.trim().length > 0) || 
                          (updateData.answer && updateData.answer.trim().length > 0);
         if (!hasAnswer) {
           return responseBadRequest(res, t("answer_required_when_resolving"));
         }
-        if (!ticket.answerDate && !updateData.answerDate) {
-          updateData.answerDate = new Date();
+        if (!ticket.answer_date && !updateData.answer_date) {
+          updateData.answer_date = new Date();
         }
+        if (!ticket.answerer_id && !updateData.answerer_id) {
+          updateData.answerer_id = adminId;
+        }
+      } else if (normalizedStatus === "REJECTED") {
+        updateData.answer_date = null;
+        updateData.answerer_id = adminId;
       }
       updateData.status = normalizedStatus;
     }

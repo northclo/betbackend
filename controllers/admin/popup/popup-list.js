@@ -76,7 +76,7 @@ export const listPopups = async (req, res) => {
 
     const [popups, total] = await Promise.all([
       PopupModel.find(filter)
-        .sort({ display_order: 1, createdAt: -1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),

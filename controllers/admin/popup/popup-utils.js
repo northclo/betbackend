@@ -7,9 +7,9 @@ export const toPopupDto = async (popup) => {
   }
 
   let author = t("unknown");
-  if (popup.userId) {
+  if (popup.author) {
     try {
-      const partner = await PartnerModel.findById(popup.userId).lean();
+      const partner = await PartnerModel.findById(popup.author).lean();
       if (partner) {
         author = partner.nickname || t("unknown");
       }
@@ -24,15 +24,10 @@ export const toPopupDto = async (popup) => {
     title: popup.title,
     content: popup.content,
     status: popup.status,
-    start_date: popup.start_date ? new Date(popup.start_date).toISOString() : null,
-    end_date: popup.end_date ? new Date(popup.end_date).toISOString() : null,
-    display_order: popup.display_order || 0,
-    is_closable: popup.is_closable !== undefined ? popup.is_closable : true,
-    click_count: popup.click_count || 0,
-    view_count: popup.view_count || 0,
     author: author,
     createdAt: popup.createdAt ? new Date(popup.createdAt).toISOString() : null,
     updatedAt: popup.updatedAt ? new Date(popup.updatedAt).toISOString() : null,
+    date: popup.createdAt ? new Date(popup.createdAt).toISOString() : null,
   };
 };
 
@@ -41,8 +36,8 @@ export const normalizeStatus = (value) => {
     return undefined;
   }
 
-  const normalized = String(value).trim().toLowerCase();
-  if (!["active", "inactive"].includes(normalized)) {
+  const normalized = String(value).trim().toUpperCase();
+  if (!["ACTIVE", "INACTIVE"].includes(normalized)) {
     return undefined;
   }
 
@@ -62,32 +57,6 @@ export const normalizePayload = (payload) => {
 
   if (payload.status !== undefined) {
     normalized.status = normalizeStatus(payload.status);
-  }
-
-  if (payload.start_date !== undefined && payload.start_date !== null) {
-    const startDate = new Date(payload.start_date);
-    if (!isNaN(startDate.getTime())) {
-      normalized.start_date = startDate;
-    }
-  } else if (payload.start_date === null) {
-    normalized.start_date = null;
-  }
-
-  if (payload.end_date !== undefined && payload.end_date !== null) {
-    const endDate = new Date(payload.end_date);
-    if (!isNaN(endDate.getTime())) {
-      normalized.end_date = endDate;
-    }
-  } else if (payload.end_date === null) {
-    normalized.end_date = null;
-  }
-
-  if (payload.display_order !== undefined) {
-    normalized.display_order = Math.max(0, Number(payload.display_order) || 0);
-  }
-
-  if (payload.is_closable !== undefined) {
-    normalized.is_closable = Boolean(payload.is_closable);
   }
 
   return normalized;

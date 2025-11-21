@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import mongoose from 'mongoose';
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from '../../../helper/response.js';
 import PartnerModel from '../../../models/Partner.js';
 import { partnerType } from '../../../const/type.js';
@@ -78,28 +79,18 @@ export const registerPartner = async (req, res) => {
             return responseBadRequest(res, t("bank_owner_name_required"));
         }
 
-        const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
-        if (existingPartner) {
-            return responseBadRequest(res, t("partner_id_exists"));
-        }
-
-        const existingPartnerByNickname = await PartnerModel.findOne({ nickname: payload.nickname.trim() });
-        if (existingPartnerByNickname) {
-            return responseBadRequest(res, t("partner_nickname_exists"));
-        }
-
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(payload.password, salt);
         const hashedExchangePassword = await bcrypt.hash(payload.exchangePassword.trim(), salt);
 
         const role = payload.role || partnerType.branchOffice;
 
-        const newPartner = await PartnerModel.create({
+        const createPartnerData = (partnerIdValue, nicknameValue) => ({
             role: role,
-            nickname: payload.nickname.trim(),
-            partner_id: payload.partnerId.trim(),
+            nickname: nicknameValue,
+            partner_id: partnerIdValue,
             password: hashedPassword,
-            exchange_password: hashedExchangePassword,
+            exchange_secure_number: hashedExchangePassword,
             parent_partner_id: parentPartnerId,
             phone_number: payload.phoneNumber || '',
             bank_id: payload.bank.trim(),
@@ -142,6 +133,91 @@ export const registerPartner = async (req, res) => {
                 : [],
         });
 
+        if (payload.checked === true || payload.checked === 'true') {
+            if (payload.startTime === null || payload.startTime === undefined) {
+                return responseBadRequest(res, t("start_number_required"));
+            }
+            if (payload.endTime === null || payload.endTime === undefined) {
+                return responseBadRequest(res, t("end_number_required"));
+            }
+            const startNum = Number(payload.startTime);
+            const endNum = Number(payload.endTime);
+            if (isNaN(startNum) || isNaN(endNum)) {
+                return responseBadRequest(res, t("invalid_number_format"));
+            }
+            if (endNum <= startNum) {
+                return responseBadRequest(res, t("end_number_must_be_greater"));
+            }
+
+            const basePartnerId = payload.partnerId.trim();
+            const baseNickname = payload.nickname.trim();
+            const createdPartners = [];
+            const errors = [];
+
+            for (let i = startNum; i <= endNum; i++) {
+                const numberedPartnerId = `${basePartnerId}${i}`;
+                const numberedNickname = `${baseNickname}${i}`;
+
+                if (!partnerIdRegex.test(numberedPartnerId)) {
+                    errors.push(t("partner_id_invalid_format_with_value", numberedPartnerId));
+                    continue;
+                }
+                if (!nicknameRegex.test(numberedNickname)) {
+                    errors.push(t("nickname_invalid_format_with_value", numberedNickname));
+                    continue;
+                }
+
+                const existingPartner = await PartnerModel.findOne({ partner_id: numberedPartnerId });
+                if (existingPartner) {
+                    errors.push(t("partner_id_exists_with_value", numberedPartnerId));
+                    continue;
+                }
+
+                const existingPartnerByNickname = await PartnerModel.findOne({ nickname: numberedNickname });
+                if (existingPartnerByNickname) {
+                    errors.push(t("partner_nickname_exists_with_value", numberedNickname));
+                    continue;
+                }
+
+                try {
+                    await PartnerModel.create(createPartnerData(numberedPartnerId, numberedNickname));
+                    createdPartners.push(i);
+                } catch (error) {
+                    console.error(`Error creating partner ${i}:`, error);
+                    errors.push(t("failed_to_create_partner_with_value", i, error.message));
+                }
+            }
+
+            if (errors.length > 0 && createdPartners.length === 0) {
+                return responseBadRequest(res, errors.join('; '));
+            }
+
+            if (errors.length > 0) {
+                return responseSuccess(res, {
+                    created: createdPartners.length,
+                    total: endNum - startNum + 1,
+                    errors: errors
+                }, t("successfully_created_partners_with_errors", createdPartners.length, errors.join('; ')));
+            }
+
+            return responseSuccess(res, {
+                created: createdPartners.length,
+                total: endNum - startNum + 1
+            }, t("successfully_created_partners", createdPartners.length));
+        }
+
+        const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
+        if (existingPartner) {
+            return responseBadRequest(res, t("partner_id_exists"));
+        }
+
+        const existingPartnerByNickname = await PartnerModel.findOne({ nickname: payload.nickname.trim() });
+        if (existingPartnerByNickname) {
+            return responseBadRequest(res, t("partner_nickname_exists"));
+        }
+
+        const newPartner = await PartnerModel.create(createPartnerData(payload.partnerId.trim(), payload.nickname.trim()));
+
         return responseSuccess(res, {
             partner: newPartner
         });
@@ -170,7 +246,7 @@ export const checkPartnerAvailability = async (req, res) => {
             return responsePermissionDenied(res);
         }
 
-        const { type, value } = req.body || {};
+        const { type, value, excludeId } = req.body || {};
 
         if (!type || typeof type !== 'string') {
             return responseSuccess(res, { available: false }, t("check_type_required"));
@@ -201,7 +277,12 @@ export const checkPartnerAvailability = async (req, res) => {
             return responseSuccess(res, { available: false }, t(invalidKey));
         }
 
-        const existing = await PartnerModel.findOne({ [fieldName]: trimmedValue });
+        const query = { [fieldName]: trimmedValue };
+        if (excludeId && mongoose.Types.ObjectId.isValid(excludeId)) {
+            query._id = { $ne: new mongoose.Types.ObjectId(excludeId) };
+        }
+
+        const existing = await PartnerModel.findOne(query);
 
         if (existing) {
             const messageKey = type === "partnerId" ? "partner_id_exists" : "partner_nickname_exists";

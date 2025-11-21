@@ -1,5 +1,6 @@
 import NoticeModel from "../../../models/Notice.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
   responseUnAutherized,
@@ -9,14 +10,14 @@ import { t } from "../../../helper/translation.js";
 
 const toNoticeDto = async (notice) => {
   let writerName = t("admin");
-  if (notice.sender) {
+  if (notice.writer) {
     try {
-      const user = await UserModel.findById(notice.sender).lean();
-      if (user) {
-        writerName = user.user_nickname || t("admin");
+      const partner = await PartnerModel.findById(notice.writer).lean();
+      if (partner) {
+        writerName = partner.nickname;
       }
     } catch (error) {
-      console.error(`Error fetching sender ${notice.sender}:`, error);
+      console.error(`Error fetching writer ${notice.writer}:`, error);
     }
   }
 
@@ -27,8 +28,6 @@ const toNoticeDto = async (notice) => {
     writer: writerName || "",
     createdAt: notice.createdAt ? new Date(notice.createdAt).toISOString() : null,
     content: notice.content || "",
-    start_date: notice.start_date ? new Date(notice.start_date).toISOString() : null,
-    end_date: notice.end_date ? new Date(notice.end_date).toISOString() : null
   };
 };
 
@@ -51,26 +50,35 @@ export const getNoticeList = async (req, res) => {
     const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const skip = (pageNumber - 1) * pageSize;
 
+    const filter = {
+      $or: [
+        { partner_ids: { $exists: false } },
+        { partner_ids: { $size: 0 } },
+        { partner_ids: null },
+      ]
+    };
+
+    if (user.partner_id) {
+      filter.$or.push({
+        partner_ids: { $in: [user.partner_id] }
+      });
+    }
+
     const [notices, total] = await Promise.all([
-      NoticeModel.find({})
+      NoticeModel.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),
-      NoticeModel.countDocuments({}),
+      NoticeModel.countDocuments(filter),
     ]);
 
     const totalPages = Math.ceil(total / pageSize) || 1;
 
     const items = await Promise.all(notices.map((notice) => toNoticeDto(notice)));
 
-    const noticesWithIndex = items.map((item, index) => ({
-      ...item,
-      index: (pageNumber - 1) * pageSize + index + 1,
-    }));
-
     return responseSuccess(res, {
-      notices: noticesWithIndex,
+      notices: items,
       page: pageNumber,
       totalPages: totalPages,
       total: total,

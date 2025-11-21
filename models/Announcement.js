@@ -5,8 +5,12 @@ const AnnouncementSchema = new Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
-    slug: { type: String, unique: true, sparse: true, trim: true },
-    userId: { type: String, required: true, index: true, trim: true },
+    author: {
+      type: mongoose.Types.ObjectId,
+      ref: "partner",
+      required: true,
+      index: true,
+    },
     category: { type: String, required: true, trim: true },
     status: {
       type: String,
@@ -16,14 +20,12 @@ const AnnouncementSchema = new Schema(
       lowercase: true,
       trim: true,
     },
-    published_at: { type: Date, default: new Date() },
   },
   { timestamps: true }
 );
 
-AnnouncementSchema.index({ userId: 1, createdAt: -1 });
-AnnouncementSchema.index({ status: 1, published_at: -1 });
-AnnouncementSchema.index({ slug: 1 });
+AnnouncementSchema.index({ author: 1, createdAt: -1 });
+AnnouncementSchema.index({ status: 1, createdAt: -1 });
 
 const AnnouncementModel = mongoose.model("announcements", AnnouncementSchema);
 

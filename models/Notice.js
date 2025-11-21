@@ -4,13 +4,13 @@ const { Schema, model } = mongoose;
 const NoticeSchema = new Schema(
   {
     partner_ids: {
-      type: [String],
+      type: [mongoose.Types.ObjectId],
       default: [],
       index: true,
     },
-    sender: {
+    writer: {
       type: mongoose.Types.ObjectId,
-      ref: "users",
+      ref: "partner",
       required: true,
       index: true,
     },
@@ -24,23 +24,12 @@ const NoticeSchema = new Schema(
       required: true,
       trim: true,
     },
-    start_date: {
-      type: Date,
-      default: null,
-      index: true,
-    },
-    end_date: {
-      type: Date,
-      default: null,
-      index: true,
-    },
   },
   { timestamps: true }
 );
 
 NoticeSchema.index({ partner_ids: 1, createdAt: -1 });
-NoticeSchema.index({ sender: 1, createdAt: -1 });
-NoticeSchema.index({ start_date: 1, end_date: 1 });
+NoticeSchema.index({ writer: 1, createdAt: -1 });
 NoticeSchema.index({ createdAt: -1 });
 
 const NoticeModel = model("notice", NoticeSchema);

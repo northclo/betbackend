@@ -1,5 +1,4 @@
 import PointTransactionModel from "../../../models/PointTransaction.js";
-import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
@@ -20,8 +19,8 @@ export const getPointUsageSummary = async (req, res) => {
         let {
             startDate,
             endDate,
-            type,
-            member
+            fund_type,
+            fund_status
         } = req.query;
 
         if (startDate && !normalizeDate(startDate)) {
@@ -46,48 +45,29 @@ export const getPointUsageSummary = async (req, res) => {
         }
 
         let typeFilter = {};
-        if (type && type !== 'all') {
-            if (type === 'earn') {
-                typeFilter.point_type = 'EARN';
-            } else if (type === 'spend') {
-                typeFilter.point_type = 'SPEND';
+        if (fund_type && fund_type !== 'all') {
+            if (fund_type === 'CHARGE') {
+                typeFilter.fund_type = 'CHARGE';
+            } else if (fund_type === 'EXCHANGE') {
+                typeFilter.fund_type = 'EXCHANGE';
+            } else if (fund_type === 'BETTING') {
+                typeFilter.fund_type = 'BETTING';
             }
+        } else {
+            typeFilter.fund_type = { $in: ['CHARGE', 'EXCHANGE', 'BETTING'] };
         }
 
-        let memberFilter = {};
-        if (member) {
-            try {
-                const memberRegex = new RegExp(member, 'i');
-                const users = await UserModel.find({
-                    $or: [
-                        { user_nickname: memberRegex },
-                        { user_email: memberRegex },
-                        { _id: member }
-                    ]
-                }).select('_id').lean();
-                
-                const userIds = users.map(u => u._id);
-                if (userIds.length > 0) {
-                    memberFilter.user_id = { $in: userIds };
-                } else {
-                    return responseSuccess(res, {
-                        total_transactions: 0,
-                        total_points_earned: 0,
-                        total_points_spent: 0,
-                        net_points: 0
-                    });
-                }
-            } catch (error) {
-                console.error("Error fetching users for member filter:", error);
-                return responseServerError(res);
-            }
+        let statusFilter = {};
+        if (fund_status && fund_status !== 'all') {
+            statusFilter.fund_status = fund_status;
         }
 
         const filter = {
             ...dateFilter,
             ...typeFilter,
-            ...memberFilter
+            ...statusFilter
         };
+
         const stats = await PointTransactionModel.aggregate([
             {
                 $match: filter
@@ -96,20 +76,61 @@ export const getPointUsageSummary = async (req, res) => {
                 $group: {
                     _id: null,
                     count: { $sum: 1 },
-                    total_earned: {
+                    inflow: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$point_type", "EARN"] },
-                                "$point_amount",
+                                { $eq: ["$fund_type", "CHARGE"] },
+                                "$fund_amount",
                                 0
                             ]
                         }
                     },
-                    total_spent: {
+                    exchange_outflow: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$point_type", "SPEND"] },
-                                "$point_amount",
+                                { $eq: ["$fund_type", "EXCHANGE"] },
+                                {
+                                    $switch: {
+                                        branches: [
+                                            { case: { $eq: ["$fund_status", "COMPLETE"] }, then: "$fund_amount" },
+                                            { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                            { case: { $eq: ["$fund_status", "WAIT"] }, then: "$fund_amount" }
+                                        ],
+                                        default: "$fund_amount"
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                    },
+                    betting_outflow: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "BETTING"] },
+                                {
+                                    $switch: {
+                                        branches: [
+                                            { case: { $eq: ["$fund_status", "COMPLETE"] }, then: "$fund_amount" },
+                                            { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                            { case: { $in: ["$fund_status", ["WAIT"]] }, then: "$fund_amount" }
+                                        ],
+                                        default: "$fund_amount"
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                    },
+                    betting_inflow: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$fund_type", "BETTING"] },
+                                        { $eq: ["$fund_status", "COMPLETE"] }
+                                    ]
+                                },
+                                { $ifNull: ["$updated_amount", 0] },
                                 0
                             ]
                         }
@@ -120,24 +141,25 @@ export const getPointUsageSummary = async (req, res) => {
 
         const result = stats[0] || {
             count: 0,
-            total_earned: 0,
-            total_spent: 0
+            inflow: 0,
+            exchange_outflow: 0,
+            betting_outflow: 0,
+            betting_inflow: 0
         };
 
-        const total_transactions = result.count || 0;
-        const total_points_earned = result.total_earned || 0;
-        const total_points_spent = result.total_spent || 0;
-        const net_points = total_points_earned - total_points_spent;
+        const total_transactions = result.count;
+        const total_inflow = result.inflow + result.betting_inflow;
+        const total_outflow = result.exchange_outflow + result.betting_outflow;
+        const net_change = total_inflow - total_outflow;
 
         responseSuccess(res, {
             total_transactions,
-            total_points_earned,
-            total_points_spent,
-            net_points
+            total_inflow,
+            total_outflow,
+            net_change
         });
     } catch (error) {
-        console.error("Error fetching point usage summary:", error);
+        console.error("Error to get point usage summary:", error);
         return responseServerError(res);
     }
 };
-

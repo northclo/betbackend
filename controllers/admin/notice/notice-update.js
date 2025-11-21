@@ -20,7 +20,7 @@ export const updateNotice = async (req, res) => {
       return responseBadRequest(res, t("notice_id_required"));
     }
 
-    const { title, content, partnerIds, start_date, end_date } = req.body;
+    const { title, content, partnerIds } = req.body;
 
     const existingNotice = await NoticeModel.findById(noticeId).lean();
     
@@ -58,47 +58,6 @@ export const updateNotice = async (req, res) => {
       }
     }
 
-    const hasStartDateUpdate = start_date !== undefined;
-    const hasEndDateUpdate = end_date !== undefined;
-    
-    if (hasStartDateUpdate || hasEndDateUpdate) {
-      if (hasStartDateUpdate && !hasEndDateUpdate) {
-        return responseBadRequest(res, t("both_start_and_end_date_required"));
-      }
-      if (hasEndDateUpdate && !hasStartDateUpdate) {
-        return responseBadRequest(res, t("both_start_and_end_date_required"));
-      }
-      
-      const hasStartDate = start_date !== null && start_date !== "";
-      const hasEndDate = end_date !== null && end_date !== "";
-      
-      if ((hasStartDate && !hasEndDate) || (!hasStartDate && hasEndDate)) {
-        return responseBadRequest(res, t("both_start_and_end_date_required"));
-      }
-      
-      if (hasStartDate && hasEndDate) {
-        const startDate = new Date(start_date);
-        const endDate = new Date(end_date);
-        
-        if (isNaN(startDate.getTime())) {
-          return responseBadRequest(res, t("invalid_start_date"));
-        }
-        if (isNaN(endDate.getTime())) {
-          return responseBadRequest(res, t("invalid_end_date"));
-        }
-        
-        if (startDate > endDate) {
-          return responseBadRequest(res, t("start_date_must_be_before_end_date"));
-        }
-        
-        updateData.start_date = startDate;
-        updateData.end_date = endDate;
-      } else {
-        updateData.start_date = null;
-        updateData.end_date = null;
-      }
-    }
-
     const updated = await NoticeModel.findOneAndUpdate(
       { _id: noticeId },
       updateData,
@@ -116,8 +75,6 @@ export const updateNotice = async (req, res) => {
         title: updated.title,
         content: updated.content,
         partner_ids: updated.partner_ids,
-        start_date: updated.start_date,
-        end_date: updated.end_date,
       },
       t("notice_updated_successfully")
     );

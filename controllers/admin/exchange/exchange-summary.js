@@ -35,9 +35,9 @@ export const getExchangeSummary = async (req, res) => {
 
         if (status && status !== 'all') {
             const statusMap = {
-                'pending': 'PENDING',
-                'completed': 'APPROVED',
-                'cancelled': 'REJECTED'
+                'pending': 'WAIT',
+                'completed': 'COMPLETE',
+                'cancelled': 'CANCEL'
             };
             if (statusMap[status]) {
                 filter.fund_status = statusMap[status];
@@ -54,13 +54,13 @@ export const getExchangeSummary = async (req, res) => {
                     total_requests: { $sum: 1 },
                     pending_requests: {
                         $sum: {
-                            $cond: [{ $eq: ["$fund_status", "PENDING"] }, 1, 0]
+                            $cond: [{ $eq: ["$fund_status", "WAIT"] }, 1, 0]
                         }
                     },
                     completed_amount: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$fund_status", "APPROVED"] },
+                                { $eq: ["$fund_status", "COMPLETE"] },
                                 "$fund_amount",
                                 0
                             ]
@@ -69,7 +69,7 @@ export const getExchangeSummary = async (req, res) => {
                     pending_amount: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$fund_status", "PENDING"] },
+                                { $eq: ["$fund_status", "WAIT"] },
                                 "$fund_amount",
                                 0
                             ]
@@ -77,7 +77,7 @@ export const getExchangeSummary = async (req, res) => {
                     },
                     approved_count: {
                         $sum: {
-                            $cond: [{ $eq: ["$fund_status", "APPROVED"] }, 1, 0]
+                            $cond: [{ $eq: ["$fund_status", "COMPLETE"] }, 1, 0]
                         }
                     },
                 }

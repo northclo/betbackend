@@ -39,8 +39,12 @@ export const replyToSupportTicket = async (req, res) => {
 
     ticket.answer = String(message).trim();
     
-    if (!ticket.answerDate) {
-      ticket.answerDate = new Date();
+    if (!ticket.answer_date) {
+      ticket.answer_date = new Date();
+    }
+
+    if (!ticket.answerer_id) {
+      ticket.answerer_id = adminId;
     }
 
     await ticket.save();

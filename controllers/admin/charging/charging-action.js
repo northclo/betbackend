@@ -26,15 +26,15 @@ export const updateChargingStatus = async (req, res) => {
             return responseBadRequest(res, t("transaction_not_found"));
         }
 
-        if (transaction.fund_status !== 'PENDING') {
+        if (transaction.fund_status !== 'WAIT') {
             return responseBadRequest(res, t("transaction_not_pending"));
         }
 
-        if (transaction.fund_type !== 'IMPORT') {
+        if (transaction.fund_type !== 'CHARGE') {
             return responseBadRequest(res, t("only_import_transactions"));
         }
 
-        const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+        const newStatus = action === 'approve' ? 'COMPLETE' : 'CANCEL';
         const user = await UserModel.findById(transaction.user_id);
 
         if (!user) {
@@ -43,8 +43,8 @@ export const updateChargingStatus = async (req, res) => {
 
         // Update transaction status
         transaction.fund_status = newStatus;
-        transaction.processed_by = adminId;
-        transaction.processed_at = new Date();
+        transaction.action_user_id = adminId;
+        transaction.fund_status_update_date = new Date();
         await transaction.save();
 
         if (action === 'approve') {

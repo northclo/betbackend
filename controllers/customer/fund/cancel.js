@@ -14,8 +14,8 @@ export const cancelFund = async (req, res) => {
     const transaction = await TransactionModel.findOne({
       _id: transactionId,
       user_id: userId,
-      fund_type: "IMPORT",
-      fund_status: "PENDING",
+      fund_type: "CHARGE",
+      fund_status: "WAIT",
     });
 
     if (!transaction) {
@@ -23,8 +23,8 @@ export const cancelFund = async (req, res) => {
     }
 
     const updateResult = await TransactionModel.updateOne(
-      { _id: transactionId, user_id: userId, fund_status: "PENDING" },
-      { $set: { fund_status: "REJECTED" } }
+      { _id: transactionId, user_id: userId, fund_status: "WAIT" },
+      { $set: { fund_status: "CANCEL", fund_status_update_date: new Date() } }
     );
 
     if (!updateResult.modifiedCount) {

@@ -8,46 +8,65 @@ const ALLOWED_STATUS = ["", "register", "under", "end", "finish", "cancel"];
 const ALLOWED_SEARCH_FIELDS = ["total_no", "today_no"];
 
 const buildStatusFilter = (status, now) => {
+    const notCancelled = {
+        $or: [
+            { cancel_time_stamp: { $exists: false } },
+            { cancel_time_stamp: null },
+            { cancel_time_stamp: { $lte: 0 } },
+            { cancel_time_stamp: { $gt: now } }
+        ]
+    };
+
     switch (status) {
         case "register":
-            return { start_time_stamp: { $gt: now } };
+            return {
+                $and: [
+                    { start_time_stamp: { $exists: true, $gt: now } },
+                    notCancelled
+                ]
+            };
         case "under":
             return {
-                start_time_stamp: { $lte: now },
-                end_time_stamp: { $gt: now }
+                $and: [
+                    { start_time_stamp: { $exists: true, $lte: now } },
+                    { end_time_stamp: { $exists: true, $gt: now } },
+                    notCancelled
+                ]
             };
         case "end":
             return {
-                end_time_stamp: { $lte: now },
                 $and: [
                     {
                         $or: [
-                            { cancel_time_stamp: { $exists: false } },
-                            { cancel_time_stamp: null },
-                            { cancel_time_stamp: { $lte: 0 } },
-                            { cancel_time_stamp: { $gt: now } }
+                            { end_time_stamp: { $exists: true, $lte: now } },
+                            { end_time_stamp: { $exists: false } },
+                            { end_time_stamp: null },
+                            { end_time_stamp: { $lte: 0 } }
                         ]
                     },
+                    notCancelled,
                     {
                         $or: [
                             { list: { $exists: false } },
-                            { list: { $size: 0 } },
-                            { list: null }
+                            { list: null },
+                            { list: [] },
+                            { $expr: { $eq: [{ $size: { $ifNull: ["$list", []] } }, 0] } }
                         ]
                     }
                 ]
             };
         case "finish":
             return {
-                end_time_stamp: { $lte: now },
                 $and: [
                     {
                         $or: [
-                            { cancel_time_stamp: { $exists: false } },
-                            { cancel_time_stamp: null },
-                            { cancel_time_stamp: { $lte: 0 } }
+                            { end_time_stamp: { $exists: true, $lte: now } },
+                            { end_time_stamp: { $exists: false } },
+                            { end_time_stamp: null },
+                            { end_time_stamp: { $lte: 0 } }
                         ]
                     },
+                    notCancelled,
                     {
                         list: { $exists: true, $ne: null, $type: "array" },
                         $expr: { $gt: [{ $size: "$list" }, 0] }
@@ -56,7 +75,11 @@ const buildStatusFilter = (status, now) => {
             };
         case "cancel":
             return {
-                cancel_time_stamp: { $exists: true, $gt: 0, $lte: now }
+                $and: [
+                    { cancel_time_stamp: { $exists: true } },
+                    { cancel_time_stamp: { $gt: 0 } },
+                    { cancel_time_stamp: { $lte: now } }
+                ]
             };
         default:
             return {};
@@ -66,7 +89,7 @@ const buildStatusFilter = (status, now) => {
 export const getGameManagement = async (req, res) => {
     try {
         const { status = "", searchField, search, page = 1, pageSize = 10 } = req.query;
-        const normalizedStatus = status.trim().toLowerCase();
+        const normalizedStatus = (status || "").toString().trim().toLowerCase();
         const now = Date.now();
 
         if (!ALLOWED_STATUS.includes(normalizedStatus)) {
@@ -184,7 +207,6 @@ export const getGameManagement = async (req, res) => {
                 key: element._id.toString(),
                 total_no: element.total_no,
                 today_no: element.today_no,
-                list: element.list,
                 startTime: startStamp ? moment(startStamp).format("YYYY-MM-DD HH:mm") : "",
                 remainedTime: remainedTime,
                 odd: element.odd,

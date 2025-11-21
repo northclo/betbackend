@@ -113,8 +113,8 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             {
                 $match: {
                     ...baseMatchFilter,
-                    fund_type: 'IMPORT',
-                    fund_status: 'APPROVED'
+                    fund_type: 'CHARGE',
+                    fund_status: 'COMPLETE'
                 }
             },
             {
@@ -136,7 +136,7 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
                 $match: {
                     ...baseMatchFilter,
                     fund_type: 'EXCHANGE',
-                    fund_status: 'APPROVED'
+                    fund_status: 'COMPLETE'
                 }
             },
             {
@@ -227,16 +227,16 @@ export const getDashboardSummary = async (req, res) => {
         if (allUserIds.length > 0) {
             pendingCharges = await TransactionModel.countDocuments({
                 user_id: { $in: allUserIds },
-                fund_type: 'IMPORT',
-                fund_status: 'PENDING'
+                fund_type: 'CHARGE',
+                fund_status: 'WAIT'
             });
         }
 
         let supportTickets = 0;
         if (allUserIds.length > 0) {
             supportTickets = await SupportMessageModel.countDocuments({
-                userId: { $in: allUserIds },
-                status: 'pending'
+                writer: { $in: allUserIds },
+                status: 'PENDING'
             });
         }
 
@@ -271,7 +271,7 @@ export const getSidebarSummary = async (req, res) => {
         const allCompletedBets = await BettingResultModel.aggregate([
             {
                 $match: {
-                    betting_status: "complete"
+                    betting_status: "COMPLETE"
                 }
             },
             {
@@ -316,8 +316,8 @@ export const getSidebarSummary = async (req, res) => {
         const depositResult = await TransactionModel.aggregate([
             {
                 $match: {
-                    fund_type: 'IMPORT',
-                    fund_status: 'APPROVED',
+                    fund_type: 'CHARGE',
+                    fund_status: 'COMPLETE',
                     createdAt: {
                         $gte: startOfToday,
                         $lte: endOfToday
@@ -337,7 +337,7 @@ export const getSidebarSummary = async (req, res) => {
             {
                 $match: {
                     fund_type: 'EXCHANGE',
-                    fund_status: 'APPROVED',
+                    fund_status: 'COMPLETE',
                     createdAt: {
                         $gte: startOfToday,
                         $lte: endOfToday
@@ -356,7 +356,7 @@ export const getSidebarSummary = async (req, res) => {
         const entireGameStats = await BettingResultModel.aggregate([
             {
                 $match: {
-                    betting_status: { $in: ["wait", "progress", "complete"] },
+                    betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
                     betting_type: { $nin: ["number_13", "number_14", "number_16"] }
                 }
             },
@@ -366,19 +366,19 @@ export const getSidebarSummary = async (req, res) => {
                     battingGan: { $sum: 1 }, 
                     betting: {
                         $sum: {
-                            $cond: [{ $eq: ["$betting_status", "complete"] }, 1, 0]
+                            $cond: [{ $eq: ["$betting_status", "COMPLETE"] }, 1, 0]
                         }
                     }, 
                     hit: {
                         $sum: {
-                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "complete"] }] }, 1, 0]
+                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
                         }
                     },
                     bettingP: { $sum: "$bet_amount" }, 
                     revenue: {
                         $sum: {
                             $cond: [
-                                { $and: ["$win", { $eq: ["$betting_status", "complete"] }] },
+                                { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
                                 { $subtract: ["$earning_amount", "$bet_amount"] },
                                 0
                             ]
@@ -405,7 +405,7 @@ export const getSidebarSummary = async (req, res) => {
         const minigameStats = await BettingResultModel.aggregate([
             {
                 $match: {
-                    betting_status: { $in: ["wait", "progress", "complete"] },
+                    betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
                     betting_type: { $in: ["number_13", "number_14", "number_16"] }
                 }
             },
@@ -415,14 +415,14 @@ export const getSidebarSummary = async (req, res) => {
                     battingGan: { $sum: 1 },
                     hit: {
                         $sum: {
-                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "complete"] }] }, 1, 0]
+                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
                         }
                     },
                     bettingP: { $sum: "$bet_amount" },
                     revenue: {
                         $sum: {
                             $cond: [
-                                { $and: ["$win", { $eq: ["$betting_status", "complete"] }] },
+                                { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
                                 { $subtract: ["$earning_amount", "$bet_amount"] },
                                 0
                             ]

@@ -76,7 +76,7 @@ export const exchangeFund = async (req, res) => {
             if (lastExchange) {
                 if (settings.exchange_restriction === 'impossible') {
                     return responseBadRequest(res, t("exchange_not_available_within_restriction_period"));
-                } else if (settings.exchange_restriction === 'request' && lastExchange.original_amount === normalizedAmount) {
+                } else if (settings.exchange_restriction === 'request' && lastExchange.fund_amount === normalizedAmount) {
                     return responseBadRequest(res, t("same_exchange_amount_not_allowed_within_restriction_period"));
                 }
             }
@@ -88,7 +88,7 @@ export const exchangeFund = async (req, res) => {
             
             const lastCharge = await TransactionModel.findOne({
                 user_id: userId,
-                fund_type: "IMPORT",
+                fund_type: "CHARGE",
                 createdAt: { $gte: limitTime }
             }).sort({ createdAt: -1 });
 
@@ -97,12 +97,20 @@ export const exchangeFund = async (req, res) => {
             }
         }
 
-        const user = await UserModel.findById(userId).select("own_money exchange_password bank_number");
+        const user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number");
         if (!user) {
             return responseBadRequest(res, t("user_not_found"));
         }
 
-        const isSecureCodeMatch = await bcrypt.compare(secure_code.trim(), user.exchange_password);
+        if (!user.exchange_secure_number) {
+            return responseBadRequest(res, t("exchange_password_not_set"));
+        }
+
+        if (!secure_code || !secure_code.trim()) {
+            return responseBadRequest(res, t("exchange_password_required"));
+        }
+
+        const isSecureCodeMatch = await bcrypt.compare(secure_code.trim(), user.exchange_secure_number);
         if (!isSecureCodeMatch) {
             return responseBadRequest(res, t("exchange_password_incorrect"));
         }
@@ -128,9 +136,9 @@ export const exchangeFund = async (req, res) => {
         const transaction = await TransactionModel.create({
             user_id: userId,
             fund_type: "EXCHANGE",
-            fund_status: "PENDING",
+            fund_status: "WAIT",
             fund_amount: normalizedAmount,
-            original_amount: normalizedAmount
+            request_send_date: new Date()
         });
 
         const exchangeCompleteMessage = settings?.exchange_complete_message || t("exchange_request_submitted");
@@ -141,7 +149,7 @@ export const exchangeFund = async (req, res) => {
                 transaction_id: transaction._id,
                 amount: normalizedAmount,
                 balance: updatedUser.own_money,
-                status: "PENDING",
+                status: "WAIT",
                 message: exchangeCompleteMessage
             },
             exchangeCompleteMessage

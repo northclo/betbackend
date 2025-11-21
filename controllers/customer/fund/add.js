@@ -89,9 +89,10 @@ export const addFund = async (req, res) => {
 
     await TransactionModel.create({
       user_id: userId,
-      fund_type: "IMPORT",
-      fund_status: "PENDING",
-      fund_amount: normalizedAmount
+      fund_type: "CHARGE",
+      fund_status: "WAIT",
+      fund_amount: normalizedAmount,
+      request_send_date: new Date()
     });
 
     const chargeCompleteMessage = setting?.charge_complete_message || t("fund_request_submitted");
@@ -101,7 +102,7 @@ export const addFund = async (req, res) => {
       {
         amount: normalizedAmount,
         balance: user.own_money,
-        status: "PENDING",
+        status: "WAIT",
         message: chargeCompleteMessage,
       },
       chargeCompleteMessage

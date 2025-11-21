@@ -29,7 +29,7 @@ export const deleteQuestion = async (req, res) => {
 
     const question = await SupportMessage.findOne({
       _id: questionId,
-      userId: userId,
+      writer: userId,
     });
 
     if (!question) {

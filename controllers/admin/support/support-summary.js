@@ -18,9 +18,9 @@ export const getSupportSummary = async (req, res) => {
       rejectedTickets,
       allTickets,
     ] = await Promise.all([
-      SupportMessage.countDocuments({ status: "pending" }),
-      SupportMessage.countDocuments({ status: "resolved" }),
-      SupportMessage.countDocuments({ status: "rejected" }),
+      SupportMessage.countDocuments({ status: "PENDING" }),
+      SupportMessage.countDocuments({ status: "RESOLVED" }),
+      SupportMessage.countDocuments({ status: "REJECTED" }),
       SupportMessage.find({}).lean(),
     ]);
 
@@ -28,9 +28,9 @@ export const getSupportSummary = async (req, res) => {
     let ticketsWithAnswers = 0;
 
     allTickets.forEach((ticket) => {
-      if (ticket.answerDate && ticket.firstMessageDate) {
-        const firstMessageDate = new Date(ticket.firstMessageDate);
-        const answerDate = new Date(ticket.answerDate);
+      if (ticket.answer_date && ticket.first_message_date) {
+        const firstMessageDate = new Date(ticket.first_message_date);
+        const answerDate = new Date(ticket.answer_date);
         const diffMinutes = (answerDate - firstMessageDate) / (1000 * 60);
         if (diffMinutes > 0) {
           totalResponseTime += diffMinutes;

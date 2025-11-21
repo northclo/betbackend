@@ -42,22 +42,6 @@ export const updatePopup = async (req, res) => {
       return responseBadRequest(res, t("popup_not_found"));
     }
 
-    const startDate = payload.start_date !== undefined ? payload.start_date : existing.start_date;
-    const endDate = payload.end_date !== undefined ? payload.end_date : existing.end_date;
-    
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return responseBadRequest(res, t("invalid_date_format"));
-      }
-      
-      if (start > end) {
-        return responseBadRequest(res, t("start_date_before_end_date"));
-      }
-    }
-
     const updated = await PopupModel.findOneAndUpdate(
       { _id: popupId },
       payload,

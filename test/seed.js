@@ -39,7 +39,7 @@ dotenv.config();
       nickname: 'admin',
       partner_id: 'testadmin',
       password: hashedPassword,
-      exchange_password: hashedExchangePassword,
+      exchange_secure_number: hashedExchangePassword,
       bank_id: '000', // Placeholder - update with actual bank ID
       bank_number: '0000000000', // Placeholder - update with actual bank account number
       bank_owner_name: 'Test Admin', // Placeholder - update with actual bank owner name

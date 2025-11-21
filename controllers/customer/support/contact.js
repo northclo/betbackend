@@ -37,8 +37,8 @@ export const submitContact = async (req, res) => {
 
     if (setting?.customer_center) {
       const pendingInquiry = await SupportMessage.findOne({
-        userId: userId,
-        status: "pending",
+        writer: userId,
+        status: "PENDING",
       }).lean();
 
       if (pendingInquiry) {
@@ -50,21 +50,20 @@ export const submitContact = async (req, res) => {
   
     const cleanIp = ipAddress.replace(/^::ffff:/, "");
 
-    const firstMessage = await SupportMessage.findOne({ userId: userId })
-      .sort({ firstMessageDate: 1, createdAt: 1 })
+    const firstMessage = await SupportMessage.findOne({ writer: userId })
+      .sort({ first_message_date: 1, createdAt: 1 })
       .lean();
 
-    const firstMessageDate = firstMessage?.firstMessageDate || new Date();
+    const firstMessageDate = firstMessage?.first_message_date || new Date();
 
     const supportMessage = await SupportMessage.create({
-      userId: userId,
-      user_nickname: user.user_nickname || "",
+      writer: userId,
       title: String(title).trim(),
       question: String(question).trim(),
-      status: "pending",
-      firstMessageDate: firstMessageDate,
-      sendDate: new Date(),
-      ipAddress: cleanIp,
+      status: "PENDING",
+      first_message_date: firstMessageDate,
+      send_date: new Date(),
+      ip_address: cleanIp,
     });
 
     try {
@@ -73,11 +72,10 @@ export const submitContact = async (req, res) => {
         io.emit("new_support_message", {
           id: supportMessage._id.toString(),
           title: supportMessage.title,
-          user_nickname: supportMessage.user_nickname,
-          userId: userId.toString(),
+          writer: userId.toString(),
           status: supportMessage.status,
           createdAt: supportMessage.createdAt,
-          sendDate: supportMessage.sendDate,
+          send_date: supportMessage.send_date,
         });
       }
     } catch (socketError) {

@@ -38,14 +38,14 @@ export const updateQuestion = async (req, res) => {
 
     const existingQuestion = await SupportMessage.findOne({
       _id: questionId,
-      userId: userId,
+      writer: userId,
     });
 
     if (!existingQuestion) {
-      return responseNotFound(res);
+      return responseNotFound(res, t("question_not_found"));
     }
 
-    if (existingQuestion.status !== "pending") {
+    if (existingQuestion.status !== "PENDING") {
       return responseBadRequest(
         res,
         t("cannot_edit_resolved_question")
@@ -54,7 +54,7 @@ export const updateQuestion = async (req, res) => {
 
     existingQuestion.title = String(title).trim();
     existingQuestion.question = String(question).trim();
-    existingQuestion.sendDate = new Date();
+    existingQuestion.send_date = new Date();
 
     await existingQuestion.save();
 

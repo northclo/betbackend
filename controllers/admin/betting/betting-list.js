@@ -1,10 +1,10 @@
 import BettingResultModel from "../../../models/BettingResult.js";
-import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
 import { t } from "../../../helper/translation.js";
+import mongoose from "mongoose";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -28,18 +28,79 @@ const normalizeDate = (value, isEnd = false) => {
     return dateMoment.toDate();
 };
 
+const fetchAccessiblePartners = async (partnerId, includeSubs = false) => {
+    if (!partnerId) return { partnerIds: [] };
+
+    try {
+        const partner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+        if (!partner) {
+            return { partnerIds: [] };
+        }
+        
+        const partnerObjectId = partner._id;
+        
+        if (includeSubs) {
+            const roots = await PartnerModel.aggregate([
+                {
+                    $match: {
+                        _id: partnerObjectId
+                    }
+                },
+                {
+                    $graphLookup: {
+                        from: "partners",
+                        startWith: "$_id",
+                        connectFromField: "_id",
+                        connectToField: "parent_partner_id",
+                        as: "subs",
+                    },
+                },
+                {
+                    $project: {
+                        allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
+                    },
+                },
+                { $unwind: "$allPartners" },
+                {
+                    $replaceRoot: { newRoot: "$allPartners" },
+                },
+                {
+                    $project: {
+                        _id: 1,
+                    },
+                },
+            ]);
+
+            if (!roots.length) {
+                return { partnerIds: [] };
+            }
+
+            const partnerIds = roots.map((doc) => doc._id);
+            return { partnerIds };
+        } else {
+            return { partnerIds: [partnerObjectId] };
+        }
+    } catch (error) {
+        console.error("Error fetching accessible partners:", error);
+        return { partnerIds: [] };
+    }
+};
+
 export const getBettingList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         let {
             startDate,
             endDate,
-            userStatus,
-            partner,
+            partnerId,
+            includeSubPartners,
             searchField,
             search,
             bettingStatus,
-            bettingType,
-            win,
             sort = "created_date:desc",
             page = 1,
             pageSize = 10
@@ -71,25 +132,11 @@ export const getBettingList = async (req, res) => {
             filter.betting_status = bettingStatus;
         }
 
-        if (bettingType) {
-            filter.betting_type = bettingType;
-        }
-
-        if (win !== undefined && win !== '') {
-            filter.win = win === 'true' || win === true;
-        }
-
-        let userStatusFilter = userStatus ? { user_status: userStatus } : {};
-
         let partnerIds = [];
-        if (partner) {
-            try {
-                const directPartners = await PartnerModel.find({ role: partner }).select("_id").lean();
-                partnerIds = directPartners.map((p) => p._id);
-            } catch (error) {
-                console.error("Error to fetch partners:", error);
-                return responseBadRequest(res, t("error_processing_partner_filter"));
-            }
+        if (partnerId) {
+            const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
+            const result = await fetchAccessiblePartners(partnerId, includeSubs);
+            partnerIds = result.partnerIds;
         }
 
         let searchRegex = null;
@@ -120,24 +167,13 @@ export const getBettingList = async (req, res) => {
             }
         ];
 
-        if (Object.keys(userStatusFilter).length) {
-            basePipeline.push({ 
-                $match: { 
-                    $and: [
-                        { "user": { $ne: null } },
-                        { "user.user_status": userStatusFilter.user_status }
-                    ]
-                } 
-            });
-        }
-
-        if (partnerIds.length) {
+        if (partnerIds.length > 0) {
             basePipeline.push({
                 $match: {
                     "user.partner_id": { $in: partnerIds }
                 }
             });
-        } else if (partner) {
+        } else if (partnerId) {
             basePipeline.push({ $match: { _id: { $exists: false } } });
         }
 
@@ -148,6 +184,7 @@ export const getBettingList = async (req, res) => {
                     searchMatch.$or = [
                         { "user.user_email": searchRegex },
                         { "user.user_name": searchRegex },
+                        { "user.user_nickname": searchRegex },
                         {
                             $expr: {
                                 $regexMatch: {
@@ -159,22 +196,16 @@ export const getBettingList = async (req, res) => {
                         }
                     ];
                     break;
-                case "user_nickname":
-                    searchMatch["user.user_nickname"] = searchRegex;
-                    break;
-                case "game_id":
-                    searchMatch.game_id = searchRegex;
-                    break;
-                case "betting_type":
-                    searchMatch.betting_type = searchRegex;
-                    break;
-                case "total_no":
-                case "today_no":
+                case "all_rounds":
                     const numericSearch = Number(search);
-                    if (Number.isFinite(numericSearch)) {
-                        searchMatch[searchField] = numericSearch;
+                    if (Number.isFinite(numericSearch) && !Number.isNaN(numericSearch)) {
+                        searchMatch.$or = [
+                            { game_id: searchRegex },
+                            { total_no: numericSearch },
+                            { today_no: numericSearch }
+                        ];
                     } else {
-                        searchMatch._id = { $exists: false };
+                        searchMatch.game_id = searchRegex;
                     }
                     break;
                 default:
@@ -182,8 +213,7 @@ export const getBettingList = async (req, res) => {
                         { "user.user_nickname": searchRegex },
                         { "user.user_email": searchRegex },
                         { "user.user_name": searchRegex },
-                        { game_id: searchRegex },
-                        { betting_type: searchRegex }
+                        { game_id: searchRegex }
                     ];
             }
             basePipeline.push({ $match: searchMatch });
@@ -233,12 +263,6 @@ export const getBettingList = async (req, res) => {
             case "earning_amount":
                 sortStage = { earning_amount: sortDirection };
                 break;
-            case "game_id":
-                sortStage = { game_id: sortDirection };
-                break;
-            case "total_no":
-                sortStage = { total_no: sortDirection };
-                break;
             default:
                 sortStage = { createdAt: -1 };
         }
@@ -268,6 +292,7 @@ export const getBettingList = async (req, res) => {
                                 number_sort: 1,
                                 bet_amount: 1,
                                 earning_amount: 1,
+                                final_amount: 1,
                                 betting_status: 1,
                                 history_view: 1,
                                 createdAt: 1,

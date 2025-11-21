@@ -1,4 +1,5 @@
 import BettingResultModel from "../../../models/BettingResult.js";
+import GameResultModel from "../../../models/GameResult.js";
 import { responseSuccess, responseServerError } from "../../../helper/response.js";
 
 const MAX_PAGE_SIZE = 50;
@@ -12,7 +13,7 @@ export const getBettingHistory = async (req, res) => {
 
         const filter = { user_id: userId };
 
-        const [total, items] = await Promise.all([
+        const [total, bettingResults] = await Promise.all([
             BettingResultModel.countDocuments(filter),
             BettingResultModel.find(filter)
                 .sort({ createdAt: -1 })
@@ -31,9 +32,25 @@ export const getBettingHistory = async (req, res) => {
                     betting_status: 1,
                     history_view: 1,
                     createdAt: 1,
+                    updatedAt: 1,
                 })
                 .lean(),
         ]);
+
+        const gameIds = [...new Set(bettingResults.map(item => item.game_id))];
+        const gameResults = await GameResultModel.find({ game_id: { $in: gameIds } })
+            .select({ game_id: 1, end_time_stamp: 1 })
+            .lean();
+        
+        const gameResultMap = {};
+        gameResults.forEach(game => {
+            gameResultMap[game.game_id] = game.end_time_stamp;
+        });
+
+        const items = bettingResults.map(item => ({
+            ...item,
+            game_end_time: gameResultMap[item.game_id] || null,
+        }));
 
         const totalPages = Math.ceil(total / pageSize);
 

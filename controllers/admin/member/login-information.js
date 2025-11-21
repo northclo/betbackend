@@ -38,8 +38,6 @@ const buildSearchStage = (searchField, searchRegex) => {
                         $or: [
                             { "partner.nickname": searchRegex },
                             { "partner.partner_id": searchRegex },
-                            { "partner.nickname": searchRegex },
-                            { "partner.partner_id": searchRegex },
                         ],
                     },
                 },
@@ -89,11 +87,7 @@ export const getMemberLoginInformation = async (req, res) => {
             const dateFilter = {};
             if (start) dateFilter.$gte = start;
             if (end) dateFilter.$lte = end;
-            filter.$or = [
-                { login_date: dateFilter },
-                { login_date: { $exists: false } },
-                { login_date: null }
-            ];
+            filter.login_date = dateFilter;
         }
 
         const searchRegex = search && search.trim() ? new RegExp(search.trim(), "i") : null;
@@ -171,10 +165,16 @@ export const getMemberLoginInformation = async (req, res) => {
                                 organ: "$device",
                                 mobile: "$mobile",
                                 login_time: {
-                                    $dateToString: {
-                                        format: "%Y-%m-%d %H:%M:%S",
-                                        date: { $toDate: "$login_date" },
-                                    },
+                                    $cond: [
+                                        { $ifNull: ["$login_date", false] },
+                                        {
+                                            $dateToString: {
+                                                format: "%Y-%m-%d %H:%M:%S",
+                                                date: { $toDate: "$login_date" },
+                                            },
+                                        },
+                                        ""
+                                    ],
                                 },
                             },
                         },

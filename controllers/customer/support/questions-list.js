@@ -26,11 +26,12 @@ export const getQuestionsList = async (req, res) => {
     const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const skip = (pageNumber - 1) * pageSize;
 
-    const filter = { userId: userId };
+    const filter = { writer: userId };
 
     const [questions, total] = await Promise.all([
       SupportMessage.find(filter)
-        .sort({ firstMessageDate: -1, createdAt: -1 })
+        .populate('writer', 'user_nickname')
+        .sort({ first_message_date: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),
@@ -39,15 +40,14 @@ export const getQuestionsList = async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSize) || 1;
 
-    const items = questions.map((item, index) => ({
+    const items = questions.map((item) => ({
       _id: item._id.toString(),
       id: item._id.toString(),
-      index: (pageNumber - 1) * pageSize + index + 1,
       title: item.title || "",
-      writer: item.user_nickname || "",
+      writer: item.writer?.user_nickname || "",
       date: item.createdAt || new Date(),
       createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : null,
-      status: item.status || "pending",
+      status: item.status || "PENDING",
       question: item.question || "",
       answer: item.answer || "",
     }));

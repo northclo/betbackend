@@ -2,14 +2,10 @@ import mongoose from "mongoose";
 
 const SupportMessageSchema = new mongoose.Schema(
   {
-    userId: {
+    writer: {
       type: mongoose.Types.ObjectId,
       ref: "user",
       index: true,
-    },
-    user_nickname: {
-      type: String,
-      trim: true,
     },
     title: {
       type: String,
@@ -26,31 +22,36 @@ const SupportMessageSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    firstMessageDate: {
+    first_message_date: {
       type: Date,
       default: Date.now,
       index: true,
     },
-    sendDate: {
+    send_date: {
       type: Date,
       default: Date.now,
       index: true,
     },
-    ipAddress: {
+    ip_address: {
       type: String,
       trim: true,
     },
-    answerDate: {
+    answer_date: {
       type: Date,
+      default: null,
+      index: true,
+    },
+    answerer_id: {
+      type: mongoose.Types.ObjectId,
+      ref: "partner",
       default: null,
       index: true,
     },
     status: {
       type: String,
-      enum: ["pending", "resolved", "rejected"],
-      default: "pending",
+      enum: ["PENDING", "RESOLVED", "REJECTED"],
+      default: "PENDING",
       index: true,
-      lowercase: true,
       trim: true,
     },
   },
@@ -59,11 +60,12 @@ const SupportMessageSchema = new mongoose.Schema(
   }
 );
 
-SupportMessageSchema.index({ userId: 1, createdAt: -1 });
+SupportMessageSchema.index({ writer: 1, createdAt: -1 });
 SupportMessageSchema.index({ status: 1, createdAt: -1 });
-SupportMessageSchema.index({ firstMessageDate: -1 });
-SupportMessageSchema.index({ sendDate: -1 });
-SupportMessageSchema.index({ answerDate: -1 });
-SupportMessageSchema.index({ ipAddress: 1 });
+SupportMessageSchema.index({ first_message_date: -1 });
+SupportMessageSchema.index({ send_date: -1 });
+SupportMessageSchema.index({ answer_date: -1 });
+SupportMessageSchema.index({ ip_address: 1 });
+SupportMessageSchema.index({ answerer_id: 1 });
 
 export default mongoose.model("SupportMessage", SupportMessageSchema);

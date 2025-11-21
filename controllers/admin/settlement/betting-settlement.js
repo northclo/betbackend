@@ -1,452 +1,461 @@
-import mongoose from "mongoose";
-
+import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
+import TransactionModel from "../../../models/TransactionHistory.js";
 import BettingResultModel from "../../../models/BettingResult.js";
+import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess, responseServerError } from "../../../helper/response.js";
+import mongoose from "mongoose";
+import moment from "moment-timezone";
+import { config } from "../../../config/index.js";
 
-const toObjectId = (value) => {
+const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
-    return mongoose.Types.ObjectId.isValid(value) ? new mongoose.Types.ObjectId(value) : null;
+    
+    let dateMoment = moment.tz(value, "YYYY-MM-DD", config.TIME_ZONE);
+    
+    if (!dateMoment.isValid()) {
+        dateMoment = moment.tz(value, config.TIME_ZONE);
+    }
+    
+    if (!dateMoment.isValid()) {
+        return null;
+    }
+    
+    if (isEnd) {
+        dateMoment = dateMoment.endOf('day');
+    } else {
+        dateMoment = dateMoment.startOf('day');
+    }
+    
+    return dateMoment.toDate();
 };
 
-const buildDateFilter = (startDate, endDate) => {
-    const dateFilter = {};
+const fetchAccessiblePartners = async (partnerId, includeSubs = false) => {
+    if (!partnerId) return { partnerIds: [] };
 
-    if (startDate) {
-        const start = new Date(startDate);
-        if (!Number.isNaN(start.getTime())) {
-            dateFilter.$gte = start;
+    try {
+        const partner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+        if (!partner) {
+            return { partnerIds: [] };
         }
-    }
+        
+        const partnerObjectId = partner._id;
+        
+        if (includeSubs) {
+            const roots = await PartnerModel.aggregate([
+                {
+                    $match: {
+                        _id: partnerObjectId
+                    }
+                },
+                {
+                    $graphLookup: {
+                        from: "partners",
+                        startWith: "$_id",
+                        connectFromField: "_id",
+                        connectToField: "parent_partner_id",
+                        as: "subs",
+                    },
+                },
+                {
+                    $project: {
+                        allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
+                    },
+                },
+                { $unwind: "$allPartners" },
+                {
+                    $replaceRoot: { newRoot: "$allPartners" },
+                },
+                {
+                    $project: {
+                        _id: 1,
+                    },
+                },
+            ]);
 
-    if (endDate) {
-        const end = new Date(endDate);
-        if (!Number.isNaN(end.getTime())) {
-            end.setHours(23, 59, 59, 999);
-            dateFilter.$lte = end;
+            if (!roots.length) {
+                return { partnerIds: [] };
+            }
+
+            const partnerIds = roots.map((doc) => doc._id);
+            return { partnerIds };
+        } else {
+            return { partnerIds: [partnerObjectId] };
         }
+    } catch (error) {
+        console.error("Error fetching accessible partners:", error);
+        return { partnerIds: [] };
     }
-
-    return dateFilter;
-};
-
-const fetchAccessiblePartners = async (partnerId) => {
-    if (!partnerId) return { partnerIds: [], partners: [] };
-
-    const roots = await PartnerModel.aggregate([
-        {
-            $match: {
-                _id: new mongoose.Types.ObjectId(partnerId)
-            },
-        },
-        {
-            $graphLookup: {
-                from: "partners",
-                startWith: "$_id",
-                connectFromField: "_id",
-                connectToField: "parent_partner_id",
-                as: "subs",
-            },
-        },
-        {
-            $project: {
-                allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-            },
-        },
-        { $unwind: "$allPartners" },
-        {
-            $replaceRoot: { newRoot: "$allPartners" },
-        },
-        {
-            $project: {
-                _id: 1,
-                nickname: { $ifNull: ["$nickname", ""] },
-                partner_id: { $ifNull: ["$partner_id", ""] },
-            },
-        },
-    ]);
-
-    if (!roots.length) {
-        return { partnerIds: [], partners: [] };
-    }
-
-    const uniqueMap = new Map();
-    roots.forEach((doc) => {
-        const key = doc._id.toString();
-        if (!uniqueMap.has(key)) {
-            uniqueMap.set(key, {
-                id: key,
-                nickname: doc.nickname || "",
-                partnerId: doc.partner_id || "",
-            });
-        }
-    });
-
-    const partners = Array.from(uniqueMap.values());
-    const partnerIds = partners.map((partner) => new mongoose.Types.ObjectId(partner.id));
-
-    return { partnerIds, partners };
 };
 
 export const getBettingSettlementProfit = async (req, res) => {
     try {
-        const { startDate, endDate, partner = "all", page = 1, pageSize = 20 } = req.query;
-        const numericPage = Math.max(1, Math.floor(Number(page)) || 1);
-        const numericPageSize = Math.min(Math.max(1, Math.floor(Number(pageSize)) || 20), 100);
-
-        const { partnerIds: accessiblePartnerIds, partners } = await fetchAccessiblePartners(req.session?._id);
-
-        if (!accessiblePartnerIds.length) {
-            return responseSuccess(res, {
-                summary: {
-                    totalBetAmount: 0,
-                    totalPayout: 0,
-                    totalProfit: 0,
-                    settledRounds: 0,
-                },
-                settlements: {
-                    total: 0,
-                    page: numericPage,
-                    pageSize: numericPageSize,
-                    items: [],
-                },
-                partners,
-            });
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
         }
 
-        let filteredPartnerIds = accessiblePartnerIds;
+        let {
+            startDate,
+            endDate,
+            partnerId,
+            includeSubPartners,
+            page = 1,
+            pageSize = 20
+        } = req.query;
 
-        if (partner && partner !== "all") {
-            const requestedPartnerId = toObjectId(partner);
+        const start = normalizeDate(startDate);
+        const end = normalizeDate(endDate, true);
 
-            if (requestedPartnerId) {
-                const isAccessible = accessiblePartnerIds.some(
-                    (id) => id.toString() === requestedPartnerId.toString()
-                );
+        const pageNumber = Math.max(Math.min(parseInt(page, 10) || 1, 1000), 1);
+        const limit = Math.max(Math.min(parseInt(pageSize, 10) || 20, 100), 1);
+        const skip = (pageNumber - 1) * limit;
 
-                if (!isAccessible) {
-                    filteredPartnerIds = [];
-                } else {
-                    const partnerWithDescendants = await PartnerModel.aggregate([
-                        {
-                            $match: {
-                                _id: requestedPartnerId,
-                            },
-                        },
-                        {
-                            $graphLookup: {
-                                from: "partners",
-                                startWith: "$_id",
-                                connectFromField: "_id",
-                                connectToField: "parent_partner_id",
-                                as: "subs",
-                            },
-                        },
-                        {
-                            $project: {
-                                allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-                            },
-                        },
-                        { $unwind: "$allPartners" },
-                        {
-                            $replaceRoot: { newRoot: "$allPartners" },
-                        },
-                        {
-                            $project: { _id: 1 },
-                        },
-                    ]);
+        let partnerIds = [];
+        let userPartnerIds = [];
+        
+        if (partnerId) {
+            const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
+            const result = await fetchAccessiblePartners(partnerId, includeSubs);
+            partnerIds = result.partnerIds;
 
-                    const descendantIds = partnerWithDescendants.map((doc) => doc._id.toString());
-                    filteredPartnerIds = accessiblePartnerIds.filter((id) => descendantIds.includes(id.toString()));
-                }
-            } else {
-                filteredPartnerIds = [];
+            if (partnerIds.length > 0) {
+                const users = await UserModel.find({
+                    partner_id: { $in: partnerIds }
+                }).select('_id').lean();
+                userPartnerIds = users.map(u => u._id);
             }
         }
 
-        if (!filteredPartnerIds.length) {
-            return responseSuccess(res, {
-                summary: {
-                    totalBetAmount: 0,
-                    totalPayout: 0,
-                    totalProfit: 0,
-                    settledRounds: 0,
-                },
-                settlements: {
-                    total: 0,
-                    page: numericPage,
-                    pageSize: numericPageSize,
-                    items: [],
-                },
-                partners,
-            });
+        const dateFilter = {};
+        if (start || end) {
+            dateFilter.createdAt = {};
+            if (start) dateFilter.createdAt.$gte = start;
+            if (end) dateFilter.createdAt.$lte = end;
         }
 
-        const dateFilter = buildDateFilter(startDate, endDate);
-        const basePipeline = [
-            {
-                $match: {
-                    betting_status: "complete",
-                },
-            },
-            {
-                $addFields: {
-                    settled_at: {
-                        $ifNull: ["$updatedAt", "$createdAt"],
-                    },
-                },
-            },
-        ];
+        const userFilter = partnerIds.length > 0 ? { _id: { $in: userPartnerIds } } : {};
 
-        if (Object.keys(dateFilter).length) {
-            basePipeline.push({
-                $match: {
-                    settled_at: dateFilter,
-                },
-            });
+        const transactionMatch = {
+            ...dateFilter,
+            fund_status: 'COMPLETE'
+        };
+
+        if (userPartnerIds.length > 0) {
+            transactionMatch.user_id = { $in: userPartnerIds };
         }
 
-        basePipeline.push(
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user_id",
-                    foreignField: "_id",
-                    as: "user",
-                },
-            },
-            {
-                $unwind: {
-                    path: "$user",
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
-            {
-                $addFields: {
-                    effectivePartnerId: "$user.partner_id",
-                },
-            },
-            {
-                $match: {
-                    effectivePartnerId: { $in: filteredPartnerIds },
-                    user: { $ne: null },
-                },
-            },
+        const transactionAggregates = await TransactionModel.aggregate([
+            { $match: transactionMatch },
             {
                 $lookup: {
                     from: "partners",
-                    localField: "effectivePartnerId",
+                    localField: "action_user_id",
                     foreignField: "_id",
-                    as: "partner",
-                },
+                    as: "actionPartner"
+                }
             },
             {
                 $addFields: {
-                    partner: {
-                        $arrayElemAt: ["$partner", 0],
-                    },
-                },
-            }
-        );
-
-        const aggregation = await BettingResultModel.aggregate([
-            ...basePipeline,
+                    isPartnerAction: {
+                        $cond: [
+                            { $gt: [{ $size: "$actionPartner" }, 0] },
+                            true,
+                            false
+                        ]
+                    }
+                }
+            },
             {
-                $facet: {
-                    summary: [
-                        {
-                            $addFields: {
-                            normalizedRoundId: {
-                                $cond: [
-                                    { $ifNull: ["$total_no", false] },
-                                    { $toString: "$total_no" },
-                                    { $ifNull: ["$game_id", ""] },
-                                ],
-                            },
-                        },
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: config.TIME_ZONE } },
+                        fund_type: "$fund_type"
                     },
-                    {
-                        $group: {
-                            _id: null,
-                            totalBetAmount: { $sum: { $ifNull: ["$bet_amount", 0] } },
-                            totalPayout: { $sum: { $ifNull: ["$earning_amount", 0] } },
-                            roundHashes: {
-                                $addToSet: {
-                                    $concat: [
-                                        { $toString: { $ifNull: ["$effectivePartnerId", ""] } },
-                                        "|",
-                                        "$normalizedRoundId",
-                                        "|",
-                                        {
-                                            $cond: [
-                                                { $ifNull: ["$today_no", false] },
-                                                { $toString: "$today_no" },
-                                                "",
-                                            ],
-                                        },
-                                    ],
+                    total_amount: { $sum: "$fund_amount" },
+                    count: { $sum: 1 },
+                    charge_amount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "CHARGE"] },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
+                    },
+                    exchange_amount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "EXCHANGE"] },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
+                    },
+                    partner_charge: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$fund_type", "CHARGE"] },
+                                        "$isPartnerAction"
+                                    ]
                                 },
-                            },
-                        },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
                     },
-                    ],
-                    totalCount: [
-                        {
-                            $addFields: {
-                            normalizedRoundId: {
-                                $cond: [
-                                    { $ifNull: ["$total_no", false] },
-                                    { $toString: "$total_no" },
-                                    { $ifNull: ["$game_id", ""] },
-                                ],
-                            },
-                        },
-                    },
-                    {
-                        $group: {
-                            _id: {
-                                partnerId: "$effectivePartnerId",
-                                normalizedRoundId: "$normalizedRoundId",
-                                totalNo: "$total_no",
-                                todayNo: "$today_no",
-                                gameId: "$game_id",
-                            },
-                        },
-                    },
-                    {
-                        $count: "total",
-                    },
-                    ],
-                    settlements: [
-                        {
-                            $addFields: {
-                            normalizedRoundId: {
-                                $cond: [
-                                    { $ifNull: ["$total_no", false] },
-                                    { $toString: "$total_no" },
-                                    { $ifNull: ["$game_id", ""] },
-                                ],
-                            },
-                        },
-                    },
-                    {
-                        $group: {
-                            _id: {
-                                partnerId: "$effectivePartnerId",
-                                normalizedRoundId: "$normalizedRoundId",
-                                totalNo: "$total_no",
-                                todayNo: "$today_no",
-                                gameId: "$game_id",
-                            },
-                            betAmount: { $sum: { $ifNull: ["$bet_amount", 0] } },
-                            payout: { $sum: { $ifNull: ["$earning_amount", 0] } },
-                            settledAt: { $max: "$settled_at" },
-                            partnerName: { $first: { $ifNull: ["$partner.nickname", ""] } },
-                            partnerCode: { $first: { $ifNull: ["$partner.partner_id", ""] } },
-                        },
-                    },
-                    {
-                        $addFields: {
-                            profit: { $subtract: ["$betAmount", "$payout"] },
-                        },
-                    },
-                    {
-                        $sort: { settledAt: -1 },
-                    },
-                    {
-                        $skip: (numericPage - 1) * numericPageSize,
-                    },
-                    {
-                        $limit: numericPageSize,
-                    },
-                ],
+                    partner_exchange: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$fund_type", "EXCHANGE"] },
+                                        "$isPartnerAction"
+                                    ]
+                                },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
+                    }
+                }
             },
-        },
-        {
-            $addFields: {
-                summary: {
-                    $let: {
-                        vars: { summary: { $arrayElemAt: ["$summary", 0] } },
-                        in: {
-                            totalBetAmount: { $ifNull: ["$$summary.totalBetAmount", 0] },
-                            totalPayout: { $ifNull: ["$$summary.totalPayout", 0] },
-                            totalProfit: {
-                                $subtract: [
-                                    { $ifNull: ["$$summary.totalBetAmount", 0] },
-                                    { $ifNull: ["$$summary.totalPayout", 0] },
-                                ],
-                            },
-                            settledRounds: {
-                                $size: { $ifNull: ["$$summary.roundHashes", []] },
-                            },
-                        },
+            {
+                $group: {
+                    _id: "$_id.date",
+                    charge_total: { $sum: "$charge_amount" },
+                    charge_count: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$_id.fund_type", "CHARGE"] },
+                                "$count",
+                                0
+                            ]
+                        }
                     },
-                },
-            },
-        },
-        {
-            $project: {
-                summary: 1,
-                totalCount: 1,
-                settlements: 1,
-            },
-        },
+                    exchange_total: { $sum: "$exchange_amount" },
+                    exchange_count: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$_id.fund_type", "EXCHANGE"] },
+                                "$count",
+                                0
+                            ]
+                        }
+                    },
+                    partner_increase: { $sum: "$partner_charge" },
+                    partner_decrease: { $sum: "$partner_exchange" }
+                }
+            }
         ]);
 
-        const [{ summary, totalCount, settlements }] = aggregation || [
-            { summary: {}, totalCount: [{ total: 0 }], settlements: [] },
-        ];
+        const bettingDateFilter = {};
+        if (start || end) {
+            bettingDateFilter.updatedAt = {};
+            if (start) bettingDateFilter.updatedAt.$gte = start;
+            if (end) bettingDateFilter.updatedAt.$lte = end;
+        }
 
-        const totalItems = totalCount?.[0]?.total || 0;
-        const paginatedItems = (Array.isArray(settlements) ? settlements : []).map((item) => {
-            if (!item || typeof item !== "object") {
-                return {
-                    partnerId: "",
-                    totalNo: null,
-                    todayNo: null,
-                    gameId: "",
-                    betAmount: 0,
-                    payout: 0,
-                    profit: 0,
-                    settledAt: null,
-                    partnerName: "",
-                    partnerCode: "",
-                };
+        const bettingMatch = {
+            betting_status: 'COMPLETE',
+            ...bettingDateFilter
+        };
+
+        if (userPartnerIds.length > 0) {
+            bettingMatch.user_id = { $in: userPartnerIds };
+        }
+
+        const bettingAggregates = await BettingResultModel.aggregate([
+            { $match: bettingMatch },
+            {
+                $group: {
+                    _id: {
+                        date: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt", timezone: config.TIME_ZONE } }
+                    },
+                    total_betting_amount: { $sum: "$bet_amount" },
+                    win_betting_amount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$win", true] },
+                                "$bet_amount",
+                                0
+                            ]
+                        }
+                    },
+                    losing_amount: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$win", false] },
+                                "$bet_amount",
+                                0
+                            ]
+                        }
+                    },
+                    bet_increase: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$win", true] },
+                                "$earning_amount",
+                                0
+                            ]
+                        }
+                    },
+                    bet_decrease: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$win", false] },
+                                "$bet_amount",
+                                0
+                            ]
+                        }
+                    },
+                    betting_p: { $sum: "$bet_amount" },
+                    win_count: {
+                        $sum: {
+                            $cond: [{ $eq: ["$win", true] }, 1, 0]
+                        }
+                    },
+                    lose_count: {
+                        $sum: {
+                            $cond: [{ $eq: ["$win", false] }, 1, 0]
+                        }
+                    }
+                }
             }
+        ]);
 
-            const id = item._id || {};
+        const transactionMap = new Map();
+        transactionAggregates.forEach(item => {
+            transactionMap.set(item._id, item);
+        });
+
+        const bettingMap = new Map();
+        bettingAggregates.forEach(item => {
+            bettingMap.set(item._id.date, item);
+        });
+
+        const allDates = new Set();
+        transactionMap.forEach((value, key) => allDates.add(key));
+        bettingMap.forEach((value, key) => allDates.add(key));
+
+        const dailyData = Array.from(allDates).map(date => {
+            const transaction = transactionMap.get(date) || {};
+            const betting = bettingMap.get(date) || {};
+
+            const totalBettingAmount = betting.total_betting_amount || 0;
+            const winBettingAmount = betting.win_betting_amount || 0;
+            const losingAmount = betting.losing_amount || 0;
+            const betIncrease = betting.bet_increase || 0;
+            const betDecrease = betting.bet_decrease || 0;
+            const bettingProfit = totalBettingAmount - betIncrease;
+            const bettingP = betting.betting_p || 0;
+            
+            const partnerRate = 3.5;
+            
+            const companyProfit = totalBettingAmount - betIncrease - (totalBettingAmount * partnerRate / 100);
+            
+            const chargeTotalAmount = transaction.charge_total || 0;
+            const chargeAmount = transaction.charge_total || 0;
+            const partnerIncrease = transaction.partner_increase || 0;
+            
+            const exchangeTotalAmount = transaction.exchange_total || 0;
+            const withdraw = transaction.exchange_total || 0;
+            const partnerDecrease = transaction.partner_decrease || 0;
+
             return {
-                partnerId: id.partnerId?.toString() || "",
-                totalNo: id.totalNo ?? null,
-                todayNo: id.todayNo ?? null,
-                gameId: id.gameId || "",
-                betAmount: Number.isFinite(item.betAmount) ? Number(item.betAmount) : 0,
-                payout: Number.isFinite(item.payout) ? Number(item.payout) : 0,
-                profit: Number.isFinite(item.profit) ? Number(item.profit) : 0,
-                settledAt: item.settledAt || null,
-                partnerName: item.partnerName || "",
-                partnerCode: item.partnerCode || "",
+                date: date,
+                totalBettingAmount: totalBettingAmount,
+                totalBettingAmount_count: (betting.win_count || 0) + (betting.lose_count || 0),
+                winBettingAmount: winBettingAmount,
+                losingAmount: losingAmount,
+                losingAmount_count: betting.lose_count || 0,
+                bettingProfit: bettingProfit,
+                bettingP: bettingP,
+                partnerRate: partnerRate,
+                companyProfit: companyProfit,
+                chargeTotalAmount: chargeTotalAmount,
+                chargeAmount: chargeAmount,
+                chargeAmount_count: transaction.charge_count || 0,
+                partnerIncrease: partnerIncrease,
+                exchangeTotalAmount: exchangeTotalAmount,
+                withdraw: withdraw,
+                withdraw_count: transaction.exchange_count || 0,
+                partnerDecrease: partnerDecrease
             };
         });
 
-        return responseSuccess(res, {
-            summary: {
-                totalBetAmount: Number.isFinite(summary?.totalBetAmount) ? Number(summary.totalBetAmount) : 0,
-                totalPayout: Number.isFinite(summary?.totalPayout) ? Number(summary.totalPayout) : 0,
-                totalProfit: Number.isFinite(summary?.totalProfit) ? Number(summary.totalProfit) : 0,
-                settledRounds: Number.isFinite(summary?.settledRounds) ? Number(summary.settledRounds) : 0,
-            },
-            settlements: {
-                total: Number.isFinite(totalItems) ? Number(totalItems) : 0,
-                page: numericPage,
-                pageSize: numericPageSize,
-                items: Array.isArray(paginatedItems) ? paginatedItems : [],
-            },
-            partners: Array.isArray(partners) ? partners : [],
+        dailyData.sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            return dateB - dateA;
         });
+
+        const sumRow = dailyData.reduce((sum, item) => {
+            return {
+                totalBettingAmount: sum.totalBettingAmount + (item.totalBettingAmount || 0),
+                winBettingAmount: sum.winBettingAmount + (item.winBettingAmount || 0),
+                losingAmount: sum.losingAmount + (item.losingAmount || 0),
+                bettingProfit: sum.bettingProfit + (item.bettingProfit || 0),
+                bettingP: sum.bettingP + (item.bettingP || 0),
+                companyProfit: sum.companyProfit + (item.companyProfit || 0),
+                chargeTotalAmount: sum.chargeTotalAmount + (item.chargeTotalAmount || 0),
+                chargeAmount: sum.chargeAmount + (item.chargeAmount || 0),
+                partnerIncrease: sum.partnerIncrease + (item.partnerIncrease || 0),
+                exchangeTotalAmount: sum.exchangeTotalAmount + (item.exchangeTotalAmount || 0),
+                withdraw: sum.withdraw + (item.withdraw || 0),
+                partnerDecrease: sum.partnerDecrease + (item.partnerDecrease || 0),
+                totalBettingAmount_count: sum.totalBettingAmount_count + (item.totalBettingAmount_count || 0),
+                losingAmount_count: sum.losingAmount_count + (item.losingAmount_count || 0),
+                chargeAmount_count: sum.chargeAmount_count + (item.chargeAmount_count || 0),
+                withdraw_count: sum.withdraw_count + (item.withdraw_count || 0)
+            };
+        }, {
+            totalBettingAmount: 0,
+            winBettingAmount: 0,
+            losingAmount: 0,
+            losingAmount_count: 0,
+            bettingProfit: 0,
+            bettingP: 0,
+            companyProfit: 0,
+            chargeTotalAmount: 0,
+            chargeAmount: 0,
+            partnerIncrease: 0,
+            exchangeTotalAmount: 0,
+            withdraw: 0,
+            partnerDecrease: 0,
+            totalBettingAmount_count: 0,
+            losingAmount_count: 0,
+            chargeAmount_count: 0,
+            withdraw_count: 0
+        });
+
+        const avgPartnerRate = dailyData.length > 0 
+            ? dailyData.reduce((sum, item) => sum + (item.partnerRate || 0), 0) / dailyData.length 
+            : 0;
+
+        const sumRowWithDate = {
+            ...sumRow,
+            date: null,
+            partnerRate: avgPartnerRate,
+            isSum: true
+        };
+
+        const total = dailyData.length;
+        const paginatedData = dailyData.slice(skip, skip + limit);
+        const resultData = [sumRowWithDate, ...paginatedData];
+
+        return responseSuccess(res, {
+            settlements: {
+                items: resultData,
+                total: total,
+                page: pageNumber,
+                pageSize: limit
+            }
+        });
+
     } catch (error) {
-        console.error("Error to get betting settlement profit:", error);
+        console.error("Error fetching betting settlement profit:", error);
         return responseServerError(res);
     }
 };
-

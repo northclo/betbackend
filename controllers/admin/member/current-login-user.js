@@ -164,7 +164,7 @@ export const getCurrentLoginUser = async (req, res) => {
                     {
                         $match: {
                             $expr: { $eq: ["$user_id", "$$uid"] },
-                            fund_status: "APPROVED",
+                            fund_status: "COMPLETE",
                         },
                     },
                     {
@@ -173,7 +173,7 @@ export const getCurrentLoginUser = async (req, res) => {
                             totalImportAmount: {
                                 $sum: {
                                     $cond: [
-                                        { $eq: ["$fund_type", "IMPORT"] },
+                                        { $eq: ["$fund_type", "CHARGE"] },
                                         "$fund_amount",
                                         0,
                                     ],
@@ -191,7 +191,7 @@ export const getCurrentLoginUser = async (req, res) => {
                             lastImportTime: {
                                 $max: {
                                     $cond: [
-                                        { $eq: ["$fund_type", "IMPORT"] },
+                                        { $eq: ["$fund_type", "CHARGE"] },
                                         "$createdAt",
                                         null,
                                     ],
@@ -216,7 +216,9 @@ export const getCurrentLoginUser = async (req, res) => {
                 last_import_time: {
                     $arrayElemAt: ["$fund_stats.lastImportTime", 0],
                 },
-                user_import_amount: 0,
+                user_import_amount: {
+                    $ifNull: [{ $arrayElemAt: ["$fund_stats.totalImportAmount", 0] }, 0],
+                },
                 user_id_text: { $toString: "$_id" },
                 },
             },

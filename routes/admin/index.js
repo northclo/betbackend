@@ -20,6 +20,7 @@ import supportRoute from "./support.js";
 import popupRoute from "./popup.js";
 import noticeRoute from "./notice.js";
 import dashboardRoute from "./dashboard.js";
+import bankAccountRoute from "./bank-account.js";
 
 router.use("/auth", authRoute);
 router.use("/member", checkAuth, memberRoute);
@@ -39,5 +40,6 @@ router.use("/support", checkAuth, supportRoute);
 router.use("/popup", checkAuth, popupRoute);
 router.use("/notice", checkAuth, noticeRoute);
 router.use("/dashboard", checkAuth, dashboardRoute);
+router.use("/bank-account", checkAuth, bankAccountRoute);
 
 export default router;

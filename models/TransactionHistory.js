@@ -4,19 +4,19 @@ const { Schema } = mongoose;
 const TransactionSchema = new Schema(
     {
         user_id: { type: mongoose.Types.ObjectId },
-        fund_type: { type: String, enum: ['IMPORT', 'EXCHANGE'] },
-        fund_status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'] },
+        fund_type: { type: String, enum: ['CHARGE', 'EXCHANGE', 'BETTING'] },
+        fund_status: { type: String, enum: ['WAIT', 'COMPLETE', 'CANCEL'], default: 'WAIT' },
         fund_amount: { type: Number, default: 0 },
-        payment_method: { type: String, default: 'bank_transfer' },
-        original_amount: { type: Number, default: null },
-        processed_by: { type: mongoose.Types.ObjectId, default: null },
-        processed_at: { type: Date, default: null }
+        action_user_id: { type: mongoose.Types.ObjectId, default: null },
+        request_send_date: { type: Date, default: Date.now },
+        fund_status_update_date: { type: Date, default: null },
+        comment: { type: String, default: null },
+        updated_amount: { type: Number, default: null }
     },
     { timestamps: true }
 );
 
 TransactionSchema.index({ fund_type: 1, fund_status: 1, createdAt: -1 });
-TransactionSchema.index({ fund_type: 1, createdAt: -1 });
 
 const TransactionModel = mongoose.model("transaction_history", TransactionSchema);
 

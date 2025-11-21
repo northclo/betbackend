@@ -24,7 +24,7 @@ export const getChargingSummary = async (req, res) => {
         const end = normalizeDate(endDate, true);
 
         let dateFilter = {
-            fund_type: 'IMPORT'
+            fund_type: 'CHARGE'
         };
         if (start || end) {
             dateFilter.createdAt = {};
@@ -42,13 +42,13 @@ export const getChargingSummary = async (req, res) => {
                     total_requests: { $sum: 1 },
                     pending_requests: {
                         $sum: {
-                            $cond: [{ $eq: ["$fund_status", "PENDING"] }, 1, 0]
+                            $cond: [{ $eq: ["$fund_status", "WAIT"] }, 1, 0]
                         }
                     },
                     completed_amount: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$fund_status", "APPROVED"] },
+                                { $eq: ["$fund_status", "COMPLETE"] },
                                 "$fund_amount",
                                 0
                             ]
@@ -57,7 +57,7 @@ export const getChargingSummary = async (req, res) => {
                     pending_amount: {
                         $sum: {
                             $cond: [
-                                { $eq: ["$fund_status", "PENDING"] },
+                                { $eq: ["$fund_status", "WAIT"] },
                                 "$fund_amount",
                                 0
                             ]
@@ -65,7 +65,7 @@ export const getChargingSummary = async (req, res) => {
                     },
                     approved_count: {
                         $sum: {
-                            $cond: [{ $eq: ["$fund_status", "APPROVED"] }, 1, 0]
+                            $cond: [{ $eq: ["$fund_status", "COMPLETE"] }, 1, 0]
                         }
                     }
                 }
@@ -81,16 +81,16 @@ export const getChargingSummary = async (req, res) => {
         };
 
         const approvedTransactions = await TransactionModel.find({
-            fund_type: 'IMPORT',
+            fund_type: 'CHARGE',
             ...dateFilter,
-            fund_status: "APPROVED",
-            processed_at: { $exists: true, $ne: null }
-        }).select("createdAt processed_at").lean();
+            fund_status: "COMPLETE",
+            fund_status_update_date: { $exists: true, $ne: null }
+        }).select("createdAt fund_status_update_date").lean();
 
         let averageProcessingTime = 0;
         if (approvedTransactions.length > 0) {
             const totalProcessingTime = approvedTransactions.reduce((sum, tx) => {
-                const diff = new Date(tx.processed_at) - new Date(tx.createdAt);
+                const diff = new Date(tx.fund_status_update_date) - new Date(tx.createdAt);
                 return sum + diff;
             }, 0);
             averageProcessingTime = Math.round(totalProcessingTime / approvedTransactions.length / 1000 / 60); // in minutes

@@ -9,10 +9,10 @@ import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
 
 const toAnnouncementDto = async (post) => {
-  let author = t("unknown");
-  if (post.userId) {
+  let author = "-";
+  if (post.author) {
     try {
-      const partner = await PartnerModel.findById(post.userId).lean();
+      const partner = await PartnerModel.findById(post.author).lean();
       if (partner) {
         author = partner.nickname;
       }
@@ -26,11 +26,10 @@ const toAnnouncementDto = async (post) => {
     _id: post._id.toString(),
     title: post.title,
     description: post.description,
-    slug: post.slug,
     category: post.category,
     status: post.status,
-    published_at: post.published_at ? new Date(post.published_at).toISOString() : null,
     author: author,
+    date: post.createdAt ? new Date(post.createdAt).toISOString() : null,
     createdAt: post.createdAt ? new Date(post.createdAt).toISOString() : null,
     updatedAt: post.updatedAt ? new Date(post.updatedAt).toISOString() : null,
   };
@@ -68,43 +67,7 @@ const normalizePayload = (payload) => {
     normalized.status = normalizeStatus(payload.status);
   }
 
-  if (payload.published_at !== undefined && payload.published_at !== null) {
-    const published = new Date(payload.published_at);
-    if (!isNaN(published.getTime())) {
-      normalized.published_at = published;
-    }
-  } else if (payload.published_at === null) {
-    normalized.published_at = null;
-  }
-
   return normalized;
-};
-
-const slugify = (value) =>
-  String(value || "")
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-const generateUniqueSlug = async (title, excludeId = null) => {
-  const baseSlug = slugify(title) || `announcement-${Date.now()}`;
-  let slug = baseSlug;
-  let counter = 1;
-
-  const query = (candidate) => {
-    const filter = { slug: candidate };
-    if (excludeId) {
-      filter._id = { $ne: excludeId };
-    }
-    return filter;
-  };
-
-  while (await AnnouncementModel.exists(query(slug))) {
-    slug = `${baseSlug}-${counter++}`;
-  }
-
-  return slug;
 };
 
 export const updateAnnouncement = async (req, res) => {
@@ -138,27 +101,6 @@ export const updateAnnouncement = async (req, res) => {
       return responseBadRequest(res, t("announcement_not_found"));
     }
 
-    if (payload.status !== undefined) {
-      if (payload.status === "published") {
-        if (!payload.published_at && !existing.published_at) {
-          payload.published_at = new Date();
-        } else if (!payload.published_at) {
-          payload.published_at = existing.published_at;
-        }
-      } else {
-        if (existing.status === "published") {
-          payload.published_at = null;
-        }
-      }
-    } else if (existing.status === "published" && payload.published_at === undefined) {
-      payload.published_at = existing.published_at;
-    }
-
-    if (payload.title) {
-      payload.slug = await generateUniqueSlug(payload.title, announcementId);
-    }
-
-    // Admin can update any announcement (not restricted to their own)
     const updated = await AnnouncementModel.findOneAndUpdate(
       { _id: announcementId },
       payload,

@@ -1,8 +1,6 @@
 import NoticeModel from "../../../models/Notice.js";
 import PartnerModel from "../../../models/Partner.js";
-import UserModel from "../../../models/User.js";
 import {
-  responseBadRequest,
   responseSuccess,
   responseUnAutherized,
   responseServerError,
@@ -22,18 +20,23 @@ const toNoticeDto = async (notice) => {
           
           try {
             let partner = null;
-            const idString = String(partnerId).trim();
             
-            if (mongoose.Types.ObjectId.isValid(idString)) {
-              partner = await PartnerModel.findById(idString).lean();
+            if (partnerId instanceof mongoose.Types.ObjectId || mongoose.Types.ObjectId.isValid(partnerId)) {
+              partner = await PartnerModel.findById(partnerId).lean();
             }
             
             if (!partner) {
-              partner = await PartnerModel.findOne({ partner_id: idString }).lean();
+              const idString = String(partnerId).trim();
+              if (mongoose.Types.ObjectId.isValid(idString)) {
+                partner = await PartnerModel.findById(idString).lean();
+              }
+              if (!partner) {
+                partner = await PartnerModel.findOne({ partner_id: idString }).lean();
+              }
             }
             
             if (partner) {
-              partnerNames.push(partner.nickname || partner.partner_id || partner._id?.toString() || t("unknown"));
+              partnerNames.push(partner.nickname|| t("unknown"));
             }
           } catch (partnerError) {
             console.error(`Error fetching partner ${partnerId}:`, partnerError);
@@ -46,14 +49,14 @@ const toNoticeDto = async (notice) => {
     }
 
     let senderName = t("unknown");
-    if (notice.sender) {
+    if (notice.writer) {
       try {
-        const user = await UserModel.findById(notice.sender).lean();
-        if (user) {
-          senderName = user.user_nickname || user.user_name || user.user_email || t("unknown");
+        const partner = await PartnerModel.findById(notice.writer).lean();
+        if (partner) {
+          senderName = partner.nickname || t("unknown");
         }
       } catch (error) {
-        console.error(`Error fetching sender ${notice.sender}:`, error);
+        console.error(`Error fetching writer ${notice.writer}:`, error);
       }
     }
 
@@ -65,8 +68,6 @@ const toNoticeDto = async (notice) => {
       partner_ids: notice.partner_ids || [],
       partner: partnerDisplay,
       sender: senderName,
-      start_date: notice.start_date ? new Date(notice.start_date).toISOString() : null,
-      end_date: notice.end_date ? new Date(notice.end_date).toISOString() : null,
       createdAt: notice.createdAt ? new Date(notice.createdAt).toISOString() : null,
       updatedAt: notice.updatedAt ? new Date(notice.updatedAt).toISOString() : null,
       date: notice.createdAt ? new Date(notice.createdAt).toISOString() : null,
@@ -81,8 +82,6 @@ const toNoticeDto = async (notice) => {
       partner_ids: notice?.partner_ids || [],
       partner: t("all_partners"),
       sender: t("unknown"),
-      start_date: notice?.start_date ? new Date(notice.start_date).toISOString() : null,
-      end_date: notice?.end_date ? new Date(notice.end_date).toISOString() : null,
       createdAt: notice?.createdAt ? new Date(notice.createdAt).toISOString() : null,
       updatedAt: notice?.updatedAt ? new Date(notice.updatedAt).toISOString() : null,
       date: notice?.createdAt ? new Date(notice.createdAt).toISOString() : null,
@@ -101,21 +100,39 @@ export const listNotices = async (req, res) => {
       searchType = "title",
       keyword = "",
       partnerId = "",
-      startDate,
-      endDate,
+      startDate = "",
+      endDate = "",
       page = 1,
       limit = 10
     } = req.query;
 
     const filter = {};
 
+    if (startDate && startDate.trim() !== "" || endDate && endDate.trim() !== "") {
+      filter.createdAt = {};
+      if (startDate && startDate.trim() !== "") {
+        const start = new Date(startDate.trim());
+        start.setHours(0, 0, 0, 0);
+        filter.createdAt.$gte = start;
+      }
+      if (endDate && endDate.trim() !== "") {
+        const end = new Date(endDate.trim());
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
     if (partnerId && partnerId.trim() !== "" && partnerId !== "all") {
-      let normalizedPartnerId = partnerId.trim();
-      if (!mongoose.Types.ObjectId.isValid(normalizedPartnerId)) {
+      let normalizedPartnerId = null;
+      const partnerIdString = partnerId.trim();
+      
+      if (mongoose.Types.ObjectId.isValid(partnerIdString)) {
+        normalizedPartnerId = new mongoose.Types.ObjectId(partnerIdString);
+      } else {
         try {
-          const partner = await PartnerModel.findOne({ partner_id: normalizedPartnerId }).lean();
+          const partner = await PartnerModel.findOne({ partner_id: partnerIdString }).lean();
           if (partner && partner._id) {
-            normalizedPartnerId = partner._id.toString();
+            normalizedPartnerId = partner._id;
           } else {
             return responseSuccess(res, {
               list: [],
@@ -139,107 +156,6 @@ export const listNotices = async (req, res) => {
         { partner_ids: null },
         { partner_ids: { $in: [normalizedPartnerId] } }
       ];
-    }
-
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
-      
-      if (start > end) {
-        return responseBadRequest(res, t("start_date_must_be_before_end_date"));
-      }
-    }
-
-    if (startDate || endDate) {
-      const dateConditions = [];
-      
-      if (startDate && endDate) {
-        const filterStart = new Date(startDate);
-        const filterEnd = new Date(endDate);
-        filterStart.setHours(0, 0, 0, 0);
-        filterEnd.setHours(23, 59, 59, 999);
-        
-        dateConditions.push({
-          $or: [
-            {
-              $and: [
-                {
-                  $or: [
-                    { start_date: null },
-                    { start_date: { $exists: false } },
-                    { start_date: { $lte: filterEnd } }
-                  ]
-                },
-                {
-                  $or: [
-                    { end_date: null },
-                    { end_date: { $exists: false } },
-                    { end_date: { $gte: filterStart } }
-                  ]
-                }
-              ]
-            },
-            {
-              $and: [
-                { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
-                { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
-                { createdAt: { $gte: filterStart, $lte: filterEnd } }
-              ]
-            }
-          ]
-        });
-      } else if (startDate) {
-        const filterStart = new Date(startDate);
-        filterStart.setHours(0, 0, 0, 0);
-        
-        dateConditions.push({
-          $or: [
-            {
-              $or: [
-                { start_date: null },
-                { start_date: { $exists: false } },
-                { start_date: { $lte: filterStart } }
-              ]
-            },
-            {
-              $and: [
-                { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
-                { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
-                { createdAt: { $lte: filterStart } }
-              ]
-            }
-          ]
-        });
-      } else if (endDate) {
-        const filterEnd = new Date(endDate);
-        filterEnd.setHours(23, 59, 59, 999);
-        
-        dateConditions.push({
-          $or: [
-            {
-              $or: [
-                { end_date: null },
-                { end_date: { $exists: false } },
-                { end_date: { $gte: filterEnd } }
-              ]
-            },
-            {
-              $and: [
-                { $or: [{ start_date: null }, { start_date: { $exists: false } }] },
-                { $or: [{ end_date: null }, { end_date: { $exists: false } }] },
-                { createdAt: { $gte: filterEnd } }
-              ]
-            }
-          ]
-        });
-      }
-      
-      if (dateConditions.length > 0) {
-        filter.$and = filter.$and || [];
-        filter.$and.push(...dateConditions);
-      }
     }
 
     if (keyword && String(keyword).trim().length > 0) {

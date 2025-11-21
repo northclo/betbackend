@@ -100,7 +100,7 @@ export const register = async (req, res) => {
       user_email: email.toLowerCase(),
       user_nickname: nickname,
       password: hashedPassword,
-      exchange_password: hashedExchangePassword,
+      exchange_secure_number: hashedExchangePassword,
       user_name: real_name,
       user_status: status,
       user_level: 1,

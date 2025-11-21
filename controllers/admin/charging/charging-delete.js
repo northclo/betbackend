@@ -21,7 +21,7 @@ export const deleteChargingTransaction = async (req, res) => {
 
     const transaction = await TransactionModel.findOne({ 
       _id: id, 
-      fund_type: 'IMPORT' 
+      fund_type: 'CHARGE' 
     });
 
     if (!transaction) {

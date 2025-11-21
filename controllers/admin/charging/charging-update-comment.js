@@ -1,0 +1,54 @@
+import TransactionModel from "../../../models/TransactionHistory.js";
+import {
+  responseBadRequest,
+  responseSuccess,
+  responseServerError,
+  responseUnAutherized,
+} from "../../../helper/response.js";
+import { t } from "../../../helper/translation.js";
+import mongoose from "mongoose";
+
+export const updateChargingComment = async (req, res) => {
+  try {
+    const adminId = req?.session?._id;
+    if (!adminId) {
+      return responseUnAutherized(res);
+    }
+
+    const { transactionId } = req.params;
+    const { comment } = req.body;
+
+    if (!transactionId) {
+      return responseBadRequest(res, t("transaction_id_required"));
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return responseBadRequest(res, t("invalid_transaction_id"));
+    }
+
+    const transaction = await TransactionModel.findOne({
+      _id: transactionId,
+      fund_type: 'CHARGE'
+    });
+
+    if (!transaction) {
+      return responseBadRequest(res, t("transaction_not_found"));
+    }
+
+    transaction.comment = comment !== undefined ? (comment || null) : transaction.comment;
+    await transaction.save();
+
+    return responseSuccess(
+      res,
+      {
+        transactionId: transaction._id.toString(),
+        comment: transaction.comment
+      },
+      t("comment_updated_successfully")
+    );
+  } catch (error) {
+    console.error("Error updating charging comment:", error);
+    return responseServerError(res);
+  }
+};
+

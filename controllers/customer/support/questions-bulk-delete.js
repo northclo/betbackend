@@ -29,7 +29,7 @@ export const bulkDeleteQuestions = async (req, res) => {
 
     const result = await SupportMessage.deleteMany({
       _id: { $in: validIds },
-      userId: userId,
+      writer: userId,
     });
 
     return responseSuccess(

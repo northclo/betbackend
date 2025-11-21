@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
@@ -12,8 +13,8 @@ const normalizeStatus = (value) => {
     return undefined;
   }
 
-  const normalized = String(value).trim().toLowerCase();
-  if (!["pending", "resolved", "rejected"].includes(normalized)) {
+  const normalized = String(value).trim().toUpperCase();
+  if (!["PENDING", "RESOLVED", "REJECTED"].includes(normalized)) {
     return undefined;
   }
 
@@ -22,14 +23,15 @@ const normalizeStatus = (value) => {
 
 const toSupportTicketDto = async (ticket) => {
   let userId = null;
-  let userNickname = ticket.user_nickname || t("unknown");
+  let userNickname = t("unknown");
   let userRole = "user";
   let parentPartnerName = null;
+  let answererName = null;
 
-  if (ticket.userId) {
+  if (ticket.writer) {
     try {
-      userId = ticket.userId.toString();
-      const user = await UserModel.findById(ticket.userId).lean();
+      userId = ticket.writer.toString();
+      const user = await UserModel.findById(ticket.writer).lean();
       if (user) {
         userNickname = user.user_nickname || t("unknown");
         const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
@@ -37,15 +39,10 @@ const toSupportTicketDto = async (ticket) => {
           userRole = "partner";
         }
 
-        const userPartnerId = user.partner_id;
+        const userPartnerId = user.ownpartner_id;
         if (userPartnerId) {
           const userPartner = await PartnerModel.findById(userPartnerId).lean();
-          if (userPartner && userPartner.parent_partner_id) {
-            const parentPartner = await PartnerModel.findById(userPartner.parent_partner_id).lean();
-            if (parentPartner) {
-              parentPartnerName = parentPartner.nickname || parentPartner.partner_id || null;
-            }
-          }
+          parentPartnerName = userPartner.nickname || "-";
         }
       }
     } catch (error) {
@@ -53,20 +50,30 @@ const toSupportTicketDto = async (ticket) => {
     }
   }
 
+  if (ticket.answerer_id) {
+    try {
+      const answerer = await PartnerModel.findById(ticket.answerer_id).lean();
+      if (answerer) {
+        answererName = answerer.nickname || null;
+      }
+    } catch (error) {
+      console.error("Error fetching answerer:", error);
+    }
+  }
+
   return {
     id: ticket._id.toString(),
-    no: null,
     title: ticket.title || "",
     userId: userId,
     userNickname: userNickname,
     userRole: userRole,
-    userDisplay: `${userNickname}${userId ? `(${userId.slice(-8)})` : ""}${userRole === "partner" ? "(partner)" : "(user)"}`,
     parentPartnerName: parentPartnerName,
-    firstMessageDate: ticket.firstMessageDate ? new Date(ticket.firstMessageDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
-    messageSendDate: ticket.sendDate ? new Date(ticket.sendDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
-    ipAddress: ticket.ipAddress || "-",
-    answerDate: ticket.answerDate ? new Date(ticket.answerDate).toISOString() : null,
-    status: ticket.status || "pending",
+    firstMessageDate: ticket.first_message_date ? new Date(ticket.first_message_date).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+    messageSendDate: ticket.send_date ? new Date(ticket.send_date).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+    ipAddress: ticket.ip_address || "-",
+    answerDate: ticket.answer_date ? new Date(ticket.answer_date).toISOString() : null,
+    answererName: answererName,
+    status: ticket.status || "PENDING",
     question: ticket.question || "",
     answer: ticket.answer || "",
     createdAt: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null,
@@ -94,29 +101,31 @@ export const listSupportTickets = async (req, res) => {
   }
 
   if (startDate || endDate) {
-    filter.firstMessageDate = filter.firstMessageDate || {};
+    filter.send_date = filter.send_date || {};
+    
     if (startDate) {
       try {
         const dateParts = String(startDate).split('-');
         if (dateParts.length === 3) {
           const [year, month, day] = dateParts.map(Number);
-          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day) && year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
             const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-            filter.firstMessageDate.$gte = start;
+            filter.send_date.$gte = start;
           }
         }
       } catch (error) {
         console.error("Error parsing startDate:", error);
       }
     }
+    
     if (endDate) {
       try {
         const dateParts = String(endDate).split('-');
         if (dateParts.length === 3) {
           const [year, month, day] = dateParts.map(Number);
-          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day) && year > 0 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
             const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-            filter.firstMessageDate.$lte = end;
+            filter.send_date.$lte = end;
           }
         }
       } catch (error) {
@@ -139,7 +148,7 @@ export const listSupportTickets = async (req, res) => {
           }).select("_id").lean();
           const userIds = users.map(u => u._id);
           if (userIds.length > 0) {
-            filter.userId = { $in: userIds };
+            filter.writer = { $in: userIds };
           } else {
             filter._id = { $in: [] };
           }
@@ -149,21 +158,24 @@ export const listSupportTickets = async (req, res) => {
         }
       } else if (searchTypeLower === "user_id") {
         try {
-          const userConditions = [
+          const userConditions = [];
+          
+          if (mongoose.Types.ObjectId.isValid(keywordTrimmed) && keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
+            userConditions.push({ _id: new mongoose.Types.ObjectId(keywordTrimmed) });
+          }
+          
+          userConditions.push(
             { user_email: keywordRegex },
             { user_name: keywordRegex }
-          ];
-          
-          if (keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
-            userConditions.push({ _id: keywordTrimmed });
-          }
+          );
           
           const users = await UserModel.find({
             $or: userConditions
           }).select("_id").lean();
+          
           const userIds = users.map(u => u._id);
           if (userIds.length > 0) {
-            filter.userId = { $in: userIds };
+            filter.writer = { $in: userIds };
           } else {
             filter._id = { $in: [] };
           }
@@ -182,14 +194,12 @@ export const listSupportTickets = async (req, res) => {
         filter.$or = [
           { title: keywordRegex },
           { question: keywordRegex },
-          { user_nickname: keywordRegex },
         ];
       }
     } else {
       filter.$or = [
         { title: keywordRegex },
         { question: keywordRegex },
-        { user_nickname: keywordRegex },
       ];
     }
   }
@@ -200,7 +210,7 @@ export const listSupportTickets = async (req, res) => {
 
     const [tickets, total] = await Promise.all([
       SupportMessage.find(filter)
-        .sort({ firstMessageDate: -1, createdAt: -1 })
+        .sort({ first_message_date: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),

@@ -15,7 +15,7 @@ export const createNotice = async (req, res) => {
       return responseUnAutherized(res);
     }
 
-    const { title, content, partnerIds, start_date, end_date } = req.body;
+    const { title, content, partnerIds } = req.body;
 
     if (!title || !title.trim()) {
       return responseBadRequest(res, t("title_required"));
@@ -35,39 +35,12 @@ export const createNotice = async (req, res) => {
       
       partner_ids = normalizedIds;
     }
-    
-    let startDate = null;
-    let endDate = null;
-
-    if (start_date !== undefined && start_date !== null && start_date !== "") {
-      startDate = new Date(start_date);
-      if (isNaN(startDate.getTime())) {
-        return responseBadRequest(res, t("invalid_start_date"));
-      }
-    }
-
-    if (end_date !== undefined && end_date !== null && end_date !== "") {
-      endDate = new Date(end_date);
-      if (isNaN(endDate.getTime())) {
-        return responseBadRequest(res, t("invalid_end_date"));
-      }
-    }
-
-    if (startDate && endDate && startDate > endDate) {
-      return responseBadRequest(res, t("start_date_must_be_before_end_date"));
-    }
-
-    if ((startDate && !endDate) || (!startDate && endDate)) {
-      return responseBadRequest(res, t("both_start_and_end_date_required"));
-    }
 
     const notice = await NoticeModel.create({
       partner_ids: partner_ids,
-      sender: adminId,
+      writer: adminId,
       title: title.trim(),
       content: content.trim(),
-      start_date: startDate,
-      end_date: endDate,
     });
 
     return responseSuccess(
@@ -77,8 +50,6 @@ export const createNotice = async (req, res) => {
         title: notice.title,
         content: notice.content,
         partner_ids: notice.partner_ids,
-        start_date: notice.start_date,
-        end_date: notice.end_date,
       },
       t("notice_created_successfully")
     );

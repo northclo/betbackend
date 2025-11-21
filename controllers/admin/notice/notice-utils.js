@@ -12,18 +12,23 @@ export const normalizePartnerIds = async (partnerIds) => {
       if (!partnerId) continue;
       
       const idString = String(partnerId).trim();
+      let objectId = null;
       
       if (mongoose.Types.ObjectId.isValid(idString)) {
-        normalizedIds.push(idString);
+        objectId = new mongoose.Types.ObjectId(idString);
       } else {
         try {
           const partner = await PartnerModel.findOne({ partner_id: idString }).lean();
           if (partner && partner._id) {
-            normalizedIds.push(partner._id.toString());
+            objectId = partner._id;
           }
         } catch (error) {
           console.error(`Error normalizing partner ID ${idString}:`, error);
         }
+      }
+      
+      if (objectId) {
+        normalizedIds.push(objectId);
       }
     }
 

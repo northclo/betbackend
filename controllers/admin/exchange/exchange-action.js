@@ -21,7 +21,7 @@ export const updateExchangeStatus = async (req, res) => {
             return responseBadRequest(res, t("invalid_action"));
         }
 
-        const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+        const newStatus = action === 'approve' ? 'COMPLETE' : 'CANCEL';
 
         if (action === 'reject') {
             const session = await mongoose.startSession();
@@ -29,8 +29,8 @@ export const updateExchangeStatus = async (req, res) => {
 
             try {
                 const transaction = await TransactionModel.findOneAndUpdate(
-                    { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'PENDING' },
-                    { $set: { fund_status: newStatus, processed_by: adminId, processed_at: new Date() } },
+                    { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'WAIT' },
+                    { $set: { fund_status: newStatus, action_user_id: adminId, fund_status_update_date: new Date() } },
                     { new: true, session }
                 );
 
@@ -71,8 +71,8 @@ export const updateExchangeStatus = async (req, res) => {
             }
         } else {
             const transaction = await TransactionModel.findOneAndUpdate(
-                { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'PENDING' },
-                { $set: { fund_status: newStatus, processed_by: adminId, processed_at: new Date() } },
+                { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'WAIT' },
+                { $set: { fund_status: newStatus, action_user_id: adminId, fund_status_update_date: new Date() } },
                 { new: true }
             );
 

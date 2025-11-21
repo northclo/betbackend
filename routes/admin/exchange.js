@@ -6,10 +6,14 @@ import { getExchangeList } from "../../controllers/admin/exchange/exchange-list.
 import { getExchangeSummary } from "../../controllers/admin/exchange/exchange-summary.js";
 import { updateExchangeStatus } from "../../controllers/admin/exchange/exchange-action.js";
 import { deleteExchangeTransaction } from "../../controllers/admin/exchange/exchange-delete.js";
+import { bulkDeleteExchangeTransactions } from "../../controllers/admin/exchange/exchange-bulk-delete.js";
+import { updateExchangeComment } from "../../controllers/admin/exchange/exchange-update-comment.js";
 
 router.get("/list", catchError(getExchangeList));
 router.get("/summary", catchError(getExchangeSummary));
 router.post("/action", catchError(updateExchangeStatus));
+router.post("/bulk-delete", catchError(bulkDeleteExchangeTransactions));
+router.put("/:transactionId/comment", catchError(updateExchangeComment));
 router.delete("/:id", catchError(deleteExchangeTransaction));
 
 export default router;

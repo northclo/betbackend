@@ -1,23 +1,21 @@
 import AnnouncementModel from "../../../models/Announcement.js";
 import PartnerModel from "../../../models/Partner.js";
 import {
-  responseBadRequest,
   responseSuccess,
   responseUnAutherized,
   responseServerError,
 } from "../../../helper/response.js";
-import { t } from "../../../helper/translation.js";
 
 const toAnnouncementDto = async (post) => {
-  let author = t("unknown");
-  if (post.userId) {
+  let author = "-";
+  if (post.author) {
     try {
-      const partner = await PartnerModel.findById(post.userId).lean();
+      const partner = await PartnerModel.findById(post.author).lean();
       if (partner) {
         author = partner.nickname;
       }
     } catch (error) {
-      console.error("Error to fetch announcement author:", error);
+      console.error("Error fetching author:", error);
     }
   }
 
@@ -26,11 +24,10 @@ const toAnnouncementDto = async (post) => {
     _id: post._id.toString(),
     title: post.title,
     description: post.description,
-    slug: post.slug,
     category: post.category,
     status: post.status,
-    published_at: post.published_at ? new Date(post.published_at).toISOString() : null,
     author: author,
+    date: post.createdAt ? new Date(post.createdAt).toISOString() : null,
     createdAt: post.createdAt ? new Date(post.createdAt).toISOString() : null,
     updatedAt: post.updatedAt ? new Date(post.updatedAt).toISOString() : null,
   };
@@ -66,7 +63,7 @@ export const listAnnouncements = async (req, res) => {
       limit = 10 
     } = req.query;
 
-    const filter = {}; // Admin can see all announcements, not filtered by userId
+    const filter = {};
 
     const normalizedStatus = normalizeStatus(status);
     if (normalizedStatus) {
@@ -81,20 +78,19 @@ export const listAnnouncements = async (req, res) => {
     }
 
     if (startDate || endDate) {
-      filter.published_at = {};
+      filter.createdAt = {};
       if (startDate) {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
-        filter.published_at.$gte = start;
+        filter.createdAt.$gte = start;
       }
       if (endDate) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
-        filter.published_at.$lte = end;
+        filter.createdAt.$lte = end;
       }
     }
 
-    // Keyword search (title or description)
     if (keyword && String(keyword).trim().length > 0) {
       const keywordRegex = new RegExp(String(keyword).trim(), "i");
       filter.$or = [

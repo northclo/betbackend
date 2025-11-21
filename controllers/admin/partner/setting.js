@@ -11,11 +11,12 @@ export const getGameSetting = async (req, res) => {
             return responseBadRequest(res, t("game_setting_name_required"));
         }
 
-        const gameSetting = await GameSettingModel.findOne({ name: name.trim() });
+        const gameSetting = await GameSettingModel.findOne({ name: name.trim() }).lean();
 
         let result;
         if (isEmpty(gameSetting)) {
-            result = await GameSettingModel.create({ name: name.trim() });
+            const newSetting = await GameSettingModel.create({ name: name.trim() });
+            result = newSetting.toObject();
         } else {
             result = gameSetting;
         }
@@ -123,7 +124,7 @@ export const updateGameSetting = async (req, res) => {
             { $set: updateData }
         );
 
-        const updatedSetting = await GameSettingModel.findOne({ name: name.trim() });
+        const updatedSetting = await GameSettingModel.findOne({ name: name.trim() }).lean();
         responseSuccess(res, updatedSetting, t("game_setting_updated_successfully"));
     } catch (error) {
         console.error('Update Game Setting Error:', error);

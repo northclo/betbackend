@@ -1,4 +1,5 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
+import UserModel from "../../../models/User.js";
 import { responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
@@ -14,7 +15,7 @@ export const getFundHistory = async (req, res) => {
   try {
     const filter = {
       user_id: userId,
-      fund_type: "IMPORT",
+      fund_type: "CHARGE",
     };
 
     const [total, transactions] = await Promise.all([
@@ -25,13 +26,29 @@ export const getFundHistory = async (req, res) => {
         .skip(calculatedSkip)
     ]);
 
-    const formattedTransactions = transactions.map((transaction) => ({
-      _id: transaction._id,
-      amount: transaction.fund_amount,
-      payment_method: transaction.payment_method || t("default_payment_method_bank_transfer"),
-      status: transaction.fund_status,
-      createdAt: transaction.createdAt,
-    }));
+    const formattedTransactions = await Promise.all(
+      transactions.map(async (transaction) => {
+        let userNickname = null;
+        if (transaction.user_id) {
+          try {
+            const user = await UserModel.findById(transaction.user_id).select('user_nickname').lean();
+            if (user) {
+              userNickname = user.user_nickname || "";
+            }
+          } catch (error) {
+            console.error("Error fetching user nickname:", error);
+          }
+        }
+        
+        return {
+          _id: transaction._id,
+          amount: transaction.fund_amount,
+          user_nickname: userNickname,
+          status: transaction.fund_status,
+          createdAt: transaction.createdAt,
+        };
+      })
+    );
 
     if (req.query.page || req.query.pageSize) {
       return responseSuccess(res, {

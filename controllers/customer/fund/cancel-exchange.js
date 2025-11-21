@@ -15,7 +15,7 @@ export const cancelExchange = async (req, res) => {
       _id: transactionId,
       user_id: userId,
       fund_type: "EXCHANGE",
-      fund_status: "PENDING",
+      fund_status: "WAIT",
     });
 
     if (!transaction) {
@@ -23,15 +23,15 @@ export const cancelExchange = async (req, res) => {
     }
 
     const updateResult = await TransactionModel.updateOne(
-      { _id: transactionId, user_id: userId, fund_status: "PENDING" },
-      { $set: { fund_status: "REJECTED" } }
+      { _id: transactionId, user_id: userId, fund_status: "WAIT" },
+      { $set: { fund_status: "CANCEL", fund_status_update_date: new Date() } }
     );
 
     if (!updateResult.modifiedCount) {
       return responseBadRequest(res, t("failed_to_cancel_transaction"));
     }
 
-    const refundAmount = transaction.original_amount || transaction.fund_amount || 0;
+    const refundAmount = transaction.fund_amount || 0;
     const updatedUser = await UserModel.findByIdAndUpdate(
       userId,
       { $inc: { own_money: refundAmount } },

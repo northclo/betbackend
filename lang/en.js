@@ -1,11 +1,6 @@
 export default {
   // Common
-  RUNNING_BALL: 'RUNNIG_BALL',
-  wrong_email: "Wrong Email",
-  wrong_password: "Wrong Password",
   available: "Available",
-  
-  // Response messages
   api_not_found: "Requested API not found (404)",
   unauthorized_user: "Unautherized user",
   permission_denied: "Permission denied",
@@ -16,7 +11,6 @@ export default {
   // Auth
   id_password_required: "ID and password are required.",
   invalid_credentials: "Invalid credentials.",
-  access_denied: "Access denied.",
   login_successful: "Login successful.",
   email_password_nickname_real_name_required: "Email, password, nickname, and real name are required.",
   invalid_email_format: "Invalid email format.",
@@ -38,12 +32,10 @@ export default {
   invalid_start_date_format: "Invalid start date format. Please use YYYY-MM-DD format.",
   invalid_end_date_format: "Invalid end date format. Please use YYYY-MM-DD format.",
   invalid_search_pattern: "Invalid search pattern. Please check your search input.",
-  error_fetching_betting_list: "An error occurred while fetching betting list. Please try again.",
   
   // Popup
   title_content_required: "Title and content are required.",
   invalid_status_value: "Invalid status value. Must be 'active' or 'inactive'.",
-  invalid_date_format: "Invalid date format.",
   start_date_before_end_date: "Start date must be before end date.",
   failed_process_created_popup: "Failed to process created popup.",
   popup_created_successfully: "Popup created successfully.",
@@ -66,18 +58,13 @@ export default {
   user_not_found: "User not found",
   exchange_transaction_approved_successfully: "Exchange transaction approved successfully",
   exchange_transaction_rejected_successfully: "Exchange transaction rejected successfully",
-  failed_update_exchange_status: "Failed to update exchange transaction status",
-  from_to_currency_required: "From currency and to currency are required",
-  currencies_must_different: "From currency and to currency must be different",
   original_amount_required: "Original amount is required",
   invalid_amount_positive: "Invalid amount. Please enter a valid positive number",
-  invalid_currency: "Invalid currency. Supported currencies: USD, KRW, JPY",
   system_settings_not_found: "System settings not found",
   minimum_exchange_amount: "Minimum exchange amount is",
   maximum_exchange_amount: "Maximum exchange amount is",
   exchange_not_available: "Exchange is not available at this time",
   insufficient_balance: "Insufficient balance",
-  converted_amount_too_small: "Converted amount is too small",
   failed_update_user_balance: "Failed to update user balance",
   exchange_request_submitted: "Exchange request submitted and awaiting approval",
   exchange_request_cancelled: "Exchange request cancelled successfully",
@@ -91,7 +78,6 @@ export default {
   only_import_transactions: "Only deposit (IMPORT) transactions can be processed in Charging Management",
   transaction_approved_successfully: "Transaction approved successfully",
   transaction_rejected_successfully: "Transaction rejected successfully",
-  failed_update_transaction_status: "Failed to update transaction status",
   
   // Game
   invalid_status_filter: "Invalid status filter.",
@@ -131,9 +117,6 @@ export default {
   bank_number_mismatch: "Bank number does not match",
   
   // Support
-  provide_name_email_subject_message: "Please provide your name, email, subject, and message.",
-  provide_valid_email: "Please provide a valid email address.",
-  message_received: "Your message has been received. Our support team will reach out soon.",
   ticket_id_required: "Ticket ID is required.",
   invalid_ticket_id_format: "Invalid ticket ID format.",
   reply_message_required: "Reply message is required.",
@@ -157,7 +140,6 @@ export default {
   cannot_submit_new_inquiry_with_pending: "You cannot submit a new inquiry while you have a pending inquiry. Please wait for a response to your existing inquiry before submitting a new one.",
   
   // Partner
-  nickname_exists: "Nickname is exist",
   title_required: "Title is required.",
   content_required: "Content is required.",
   type_required: "Type is required.",
@@ -171,6 +153,7 @@ export default {
   partner_nickname_exists: "Partner nickname already exists",
   password_required: "Password is required",
   exchange_password_required: "Exchange password is required",
+  exchange_password_not_set: "Exchange password is not set for this user",
   exchange_password_incorrect: "Exchange secure code is incorrect",
   bank_required: "Bank is required",
   bank_account_required: "Bank account is required",
@@ -181,30 +164,26 @@ export default {
   check_type_required: "Check type is required",
   invalid_check_type: "Invalid check type",
   value_required: "Value is required",
-  failed_register_partner: "Failed to register partner",
   invalid_amount: "Invalid amount",
   user_not_found: "User not found",
   partner_not_found: "Partner not found",
+  partner_required: "Partner is required",
   insufficient_funds: "Insufficient funds",
   cannot_delete_partner_with_sub_partners: "Cannot delete partner with sub-partners",
   cannot_delete_partner_with_members: "Cannot delete partner with members",
-  delete_failed: "Delete failed",
+  
+  // Bank Account
+  bank_name_required: "Bank name is required",
+  bank_name_already_exists: "Bank name already exists",
+  bank_account_id_required: "Bank account ID is required",
+  bank_account_not_found: "Bank account not found",
+  bank_account_created_successfully: "Bank account created successfully",
+  bank_account_updated_successfully: "Bank account updated successfully",
+  bank_account_deleted_successfully: "Bank account deleted successfully",
+  no_update_data_provided: "No update data provided",
   
   // Account
-  invalid_administrator_payload: "Invalid administrator payload.",
-  administrator_id_required: "Administrator ID is required.",
-  administrator_id_format_invalid: "Invalid administrator ID format.",
-  administrator_id_valid_email: "Administrator ID must be a valid email.",
-  administrator_id_cannot_changed: "Administrator ID cannot be changed.",
-  administrator_password_required: "Administrator password is required.",
   administrator_password_min_length: "Administrator password must be at least 6 characters long.",
-  invalid_view_manager_payload: "Invalid view manager payload.",
-  view_manager_id_required: "View manager ID is required.",
-  view_manager_id_format: "View manager ID must start with a letter and can include letters, numbers, hyphen, or underscore (4-32 characters).",
-  view_manager_password_min_length: "View manager password must be at least 8 characters long.",
-  administrator_not_found: "Administrator not found.",
-  administrator_or_view_manager_required: "Administrator or view manager information is required.",
-  view_manager_id_in_use: "View manager ID already in use.",
   
   // Announcement
   title_description_required: "Title and description are required.",
@@ -233,15 +212,10 @@ export default {
   notice_updated_successfully: "Notice updated successfully.",
   notice_deleted_successfully: "Notice deleted successfully.",
   all_partners: "All partners",
-  both_start_and_end_date_required: "Both start date and end date are required.",
-  invalid_date_range: "Invalid date range.",
-  start_date_must_be_before_end_date: "Start date must be before end date.",
   
   // Fund History
-  default_payment_method_bank_transfer: "bank_transfer",
   fund_history_retrieved_successfully: "Fund history retrieved successfully",
   exchange_history_retrieved_successfully: "Exchange history retrieved successfully",
-  default_category_system_notice: "system_notice",
   
   start_date_before_or_equal_end_date: "Start date must be before or equal to end date.",
   
@@ -260,7 +234,23 @@ export default {
   email_required: "Email is required",
   user_nickname_exists: "User nickname already exists",
   user_nickname_invalid_format: "User nickname must be 2-10 English letters and numbers (no special characters)",
-  failed_register_user: "Failed to register user",
+  start_number_required: "Start number is required",
+  end_number_required: "End number is required",
+  end_number_must_be_greater: "End number must be greater than start number",
+  invalid_number_format: "Invalid number format",
+  user_name_invalid_format_with_value: "User name \"{0}\" is invalid format",
+  nickname_invalid_format_with_value: "Nickname \"{0}\" is invalid format",
+  nickname_already_exists_with_value: "Nickname \"{0}\" already exists",
+  email_already_exists_with_value: "Email \"{0}\" already exists",
+  failed_to_create_user_with_value: "Failed to create user {0}: {1}",
+  successfully_created_users: "Successfully created {0} user(s).",
+  successfully_created_users_with_errors: "Successfully created {0} user(s). Some errors occurred: {1}",
+  partner_id_invalid_format_with_value: "Partner ID \"{0}\" is invalid format",
+  partner_id_exists_with_value: "Partner ID \"{0}\" already exists",
+  partner_nickname_exists_with_value: "Partner nickname \"{0}\" already exists",
+  failed_to_create_partner_with_value: "Failed to create partner {0}: {1}",
+  successfully_created_partners: "Successfully created {0} partner(s).",
+  successfully_created_partners_with_errors: "Successfully created {0} partner(s). Some errors occurred: {1}",
   
   // IP blocking
   ip_address_required: "IP address is required.",
@@ -315,13 +305,27 @@ export default {
   exchange_start_time_must_be_earlier_than_end: "exchangeStartTime must be earlier than exchangeEndTime.",
   
   // Login Information
-  login_information_id_required: "Login information ID is required.",
-  login_information_not_found: "Login information not found.",
-  login_information_deleted_successfully: "Login information deleted successfully.",
+  login_information_ids_required: "Login information IDs are required.",
+  no_valid_login_information_ids: "No valid login information IDs provided.",
+  successfully_deleted_login_information_records: "Successfully deleted {0} login information record(s).",
   
   // Charging Transaction
   charging_transaction_deleted_successfully: "Charging transaction deleted successfully.",
+  transaction_ids_required: "Transaction IDs are required.",
+  no_valid_transaction_ids: "No valid transaction IDs provided.",
+  successfully_deleted_charging_transactions: "Successfully deleted {0} charging transaction(s).",
+  successfully_deleted_exchange_transactions: "Successfully deleted {0} exchange transaction(s).",
+  comment_updated_successfully: "Comment updated successfully.",
   
   // Exchange Transaction
   exchange_transaction_deleted_successfully: "Exchange transaction deleted successfully.",
+  
+  invalid_transaction_id: "Invalid transaction ID format.",
+  transaction_deleted_successfully: "Transaction deleted successfully.",
+
+  question_not_found: "Question not found",
+  
+  betting_ids_required: "Betting IDs are required.",
+  no_valid_betting_ids: "No valid betting IDs provided.",
+  successfully_deleted_betting_records: "Successfully deleted {0} betting record(s).",
 };

@@ -246,6 +246,7 @@ const transformPartnerForTree = (node) => {
 
     const transformed = {
         id: node.partner_id,
+        _id: node._id ? node._id.toString() : null,
         nickname: node.nickname || '',
         subs: []
     };
@@ -300,6 +301,56 @@ export const getPartnerList = async (req, res) => {
         return responseSuccess(res, transformedPartner ? [transformedPartner] : []);
     } catch (error) {
         console.error("Error getting partner list:", error);
+        return responseServerError(res);
+    }
+};
+
+export const getPartnerTreeById = async (req, res) => {
+    try {
+        const accessCheck = await checkPartnerAccess(req);
+        if (!accessCheck.allowed) {
+            return accessCheck.error(res);
+        }
+
+        const { id } = req.query;
+
+        if (!id) {
+            return responseBadRequest(res, t("value_required"));
+        }
+
+        const targetPartner = await PartnerModel.findOne({ partner_id: id.trim() });
+        if (!targetPartner) {
+            return responseBadRequest(res, t("partner_not_found"));
+        }
+
+        const results = await PartnerModel.aggregate([
+            {
+                $match: {
+                    _id: targetPartner._id
+                }
+            },
+            {
+                $graphLookup: {
+                    from: 'partners',
+                    startWith: '$_id',
+                    connectFromField: '_id',
+                    connectToField: 'parent_partner_id',
+                    as: 'subs'
+                }
+            },
+        ]);
+
+        if (!results.length) {
+            return responseSuccess(res, null);
+        }
+
+        const root = results[0];
+        const partner = buildTree(root);
+        const transformedPartner = transformPartnerForTree(partner);
+
+        return responseSuccess(res, transformedPartner);
+    } catch (error) {
+        console.error("Error getting partner tree by id:", error);
         return responseServerError(res);
     }
 };
@@ -472,6 +523,25 @@ export const updatePartner = async (req, res) => {
         const payload = req.body;
         const updateData = {};
 
+        if (payload.partnerId !== undefined) {
+            const newPartnerId = payload.partnerId?.trim();
+            if (!newPartnerId) {
+                return responseBadRequest(res, t("partner_id_required"));
+            }
+            const partnerIdRegex = /^[A-Za-z][\w\-@!]{2,9}$/;
+            if (!partnerIdRegex.test(newPartnerId)) {
+                return responseBadRequest(res, t("partner_id_invalid_format"));
+            }
+            const existingPartner = await PartnerModel.findOne({ 
+                partner_id: newPartnerId,
+                _id: { $ne: partner._id }
+            });
+            if (existingPartner) {
+                return responseBadRequest(res, t("partner_id_exists"));
+            }
+            updateData.partner_id = newPartnerId;
+        }
+
         if (payload.nickname !== undefined) {
             const nickname = payload.nickname?.trim();
             if (!nickname) {
@@ -492,13 +562,16 @@ export const updatePartner = async (req, res) => {
         }
 
         if (payload.password && payload.password.trim()) {
+            if (payload.password.trim().length < 6) {
+                return responseBadRequest(res, t("password_min_length_6"));
+            }
             const salt = await bcrypt.genSalt(10);
             updateData.password = await bcrypt.hash(payload.password.trim(), salt);
         }
 
         if (payload.exchangePassword && payload.exchangePassword.trim()) {
             const salt = await bcrypt.genSalt(10);
-            updateData.exchange_password = await bcrypt.hash(payload.exchangePassword.trim(), salt);
+            updateData.exchange_secure_number = await bcrypt.hash(payload.exchangePassword.trim(), salt);
         }
 
         if (payload.phoneNumber !== undefined) {

@@ -34,14 +34,15 @@ export const viewSupportTicket = async (req, res) => {
     }
 
     let userId = null;
-    let userNickname = ticket.user_nickname || t("unknown");
+    let userNickname = t("unknown");
     let userRole = "user";
     let parentPartnerName = null;
+    let answererName = null;
 
-    if (ticket.userId) {
+    if (ticket.writer) {
       try {
-        userId = ticket.userId.toString();
-        const user = await UserModel.findById(ticket.userId).lean();
+        userId = ticket.writer.toString();
+        const user = await UserModel.findById(ticket.writer).lean();
         if (user) {
           userNickname = user.user_nickname || t("unknown");
           const partner = await PartnerModel.findOne({ user_id: user._id }).lean();
@@ -65,6 +66,17 @@ export const viewSupportTicket = async (req, res) => {
       }
     }
 
+    if (ticket.answerer_id) {
+      try {
+        const answerer = await PartnerModel.findById(ticket.answerer_id).lean();
+        if (answerer) {
+          answererName = answerer.nickname || answerer.partner_id || null;
+        }
+      } catch (error) {
+        console.error("Error fetching answerer:", error);
+      }
+    }
+
     const ticketData = {
       id: ticket._id.toString(),
       title: ticket.title || "",
@@ -72,11 +84,12 @@ export const viewSupportTicket = async (req, res) => {
       userNickname: userNickname,
       userRole: userRole,
       parentPartnerName: parentPartnerName,
-      firstMessageDate: ticket.firstMessageDate ? new Date(ticket.firstMessageDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
-      messageSendDate: ticket.sendDate ? new Date(ticket.sendDate).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
-      ipAddress: ticket.ipAddress || "-",
-      answerDate: ticket.answerDate ? new Date(ticket.answerDate).toISOString() : null,
-      status: ticket.status || "pending",
+      firstMessageDate: ticket.first_message_date ? new Date(ticket.first_message_date).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+      messageSendDate: ticket.send_date ? new Date(ticket.send_date).toISOString() : (ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null),
+      ipAddress: ticket.ip_address || "-",
+      answerDate: ticket.answer_date ? new Date(ticket.answer_date).toISOString() : null,
+      answererName: answererName,
+      status: ticket.status || "PENDING",
       question: ticket.question || "",
       answer: ticket.answer || "",
       createdAt: ticket.createdAt ? new Date(ticket.createdAt).toISOString() : null,

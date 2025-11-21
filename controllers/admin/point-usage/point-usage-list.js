@@ -1,6 +1,7 @@
+import mongoose from "mongoose";
 import PointTransactionModel from "../../../models/PointTransaction.js";
 import UserModel from "../../../models/User.js";
-import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
 const normalizeDate = (value, isEnd = false) => {
@@ -17,11 +18,16 @@ const normalizeDate = (value, isEnd = false) => {
 
 export const getPointUsageList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         let {
             startDate,
             endDate,
-            type,
-            member,
+            fund_type,
+            fund_status,
             page = 1,
             pageSize = 10
         } = req.query;
@@ -52,49 +58,30 @@ export const getPointUsageList = async (req, res) => {
         }
 
         let typeFilter = {};
-        if (type && type !== 'all') {
-            if (type === 'earn') {
-                typeFilter.point_type = 'EARN';
-            } else if (type === 'spend') {
-                typeFilter.point_type = 'SPEND';
+        if (fund_type && fund_type !== 'all') {
+            if (fund_type === 'CHARGE') {
+                typeFilter.fund_type = 'CHARGE';
+            } else if (fund_type === 'EXCHANGE') {
+                typeFilter.fund_type = 'EXCHANGE';
+            } else if (fund_type === 'BETTING') {
+                typeFilter.fund_type = 'BETTING';
             }
+        } else {
+            typeFilter.fund_type = { $in: ['CHARGE', 'EXCHANGE', 'BETTING'] };
         }
 
-        let memberFilter = {};
-        if (member) {
-            try {
-                const memberRegex = new RegExp(member, 'i');
-                const users = await UserModel.find({
-                    $or: [
-                        { user_nickname: memberRegex },
-                        { user_email: memberRegex },
-                        { _id: member }
-                    ]
-                }).select('_id').lean();
-                
-                const userIds = users.map(u => u._id);
-                if (userIds.length > 0) {
-                    memberFilter.user_id = { $in: userIds };
-                } else {
-                    return responseSuccess(res, {
-                        list: [],
-                        total: 0,
-                        page: pageNumber,
-                        pageSize: limit
-                    });
-                }
-            } catch (error) {
-                console.error("Error fetching users for member filter:", error);
-                return responseServerError(res);
-            }
+        let statusFilter = {};
+        if (fund_status && fund_status !== 'all') {
+            statusFilter.fund_status = fund_status;
         }
 
         const filter = {
             ...dateFilter,
             ...typeFilter,
-            ...memberFilter
+            ...statusFilter
         };
-        const result = await PointTransactionModel.aggregate([
+
+        const transactions = await PointTransactionModel.aggregate([
             {
                 $match: filter
             },
@@ -107,49 +94,111 @@ export const getPointUsageList = async (req, res) => {
                 }
             },
             {
+                $lookup: {
+                    from: "users",
+                    localField: "action_user_id",
+                    foreignField: "_id",
+                    as: "processor"
+                }
+            },
+            {
                 $addFields: {
-                    user: { $arrayElemAt: ["$user", 0] }
+                    user: { $arrayElemAt: ["$user", 0] },
+                    processor: { $arrayElemAt: ["$processor", 0] }
                 }
             },
             {
                 $project: {
                     _id: { $toString: "$_id" },
-                    id: {
+                    user_id: { $toString: "$user_id" },
+                    transaction_id: {
                         $concat: [
-                            "PT-",
+                            { $switch: {
+                                branches: [
+                                    { case: { $eq: ["$fund_type", "CHARGE"] }, then: "CHG-" },
+                                    { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "EX-" },
+                                    { case: { $eq: ["$fund_type", "BETTING"] }, then: "BET-" }
+                                ],
+                                default: "PT-"
+                            }},
                             { $toString: "$_id" }
-                        ]
-                    },
-                    member: {
-                        $ifNull: [
-                            { $concat: ["user_", { $toString: "$user._id" }] },
-                            "-"
                         ]
                     },
                     member_nickname: { $ifNull: ["$user.user_nickname", "-"] },
                     type: {
                         $switch: {
                             branches: [
-                                { case: { $eq: ["$point_type", "EARN"] }, then: "earn" },
-                                { case: { $eq: ["$point_type", "SPEND"] }, then: "spend" }
+                                { case: { $eq: ["$fund_type", "CHARGE"] }, then: "charge" },
+                                { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "exchange" },
+                                { case: { $eq: ["$fund_type", "BETTING"] }, then: "betting" }
                             ],
-                            default: "earn"
+                            default: "charge"
                         }
                     },
-                    points: {
-                        $cond: {
-                            if: { $eq: ["$point_type", "SPEND"] },
-                            then: { $multiply: ["$point_amount", -1] },
-                            else: "$point_amount"
+                    status: "$fund_status",
+                    amount: {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: ["$fund_type", "CHARGE"] }, then: "$fund_amount" },
+                                { 
+                                    case: { $eq: ["$fund_type", "EXCHANGE"] }, 
+                                    then: {
+                                        $switch: {
+                                            branches: [
+                                                { case: { $eq: ["$fund_status", "COMPLETE"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                                { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                                { case: { $eq: ["$fund_status", "WAIT"] }, then: { $multiply: ["$fund_amount", -1] } }
+                                            ],
+                                            default: { $multiply: ["$fund_amount", -1] }
+                                        }
+                                    }
+                                },
+                                { 
+                                    case: { $eq: ["$fund_type", "BETTING"] }, 
+                                    then: {
+                                        $switch: {
+                                            branches: [
+                                                { case: { $eq: ["$fund_status", "COMPLETE"] }, then: { $subtract: [{ $ifNull: ["$updated_amount", 0] }, "$fund_amount"] } },
+                                                { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                                { case: { $in: ["$fund_status", ["WAIT"]] }, then: { $multiply: ["$fund_amount", -1] } }
+                                            ],
+                                            default: { $multiply: ["$fund_amount", -1] }
+                                        }
+                                    }
+                                }
+                            ],
+                            default: "$fund_amount"
                         }
                     },
-                    balance_after: "$balance_after",
-                    description: { $ifNull: ["$description", ""] },
+                    description: {
+                        $concat: [
+                            { $switch: {
+                                branches: [
+                                    { case: { $eq: ["$fund_type", "CHARGE"] }, then: "Charge" },
+                                    { case: { $eq: ["$fund_type", "EXCHANGE"] }, then: "Exchange" },
+                                    { case: { $eq: ["$fund_type", "BETTING"] }, then: "Betting" }
+                                ],
+                                default: "Transaction"
+                            }},
+                            " - ",
+                            { $ifNull: ["$processor.user_nickname", "System"] }
+                        ]
+                    },
                     processed_at: {
-                        $dateToString: {
-                            format: "%Y-%m-%d %H:%M",
-                            date: "$createdAt"
-                        }
+                        $ifNull: [
+                            {
+                                $dateToString: {
+                                    format: "%Y-%m-%d %H:%M",
+                                    date: "$fund_status_update_date"
+                                }
+                            },
+                            {
+                                $dateToString: {
+                                    format: "%Y-%m-%d %H:%M",
+                                    date: "$createdAt"
+                                }
+                            }
+                        ]
                     },
                     createdAt: "$createdAt",
                     sortDate: "$createdAt"
@@ -157,20 +206,134 @@ export const getPointUsageList = async (req, res) => {
             },
             {
                 $sort: { sortDate: -1 }
-            },
-            {
-                $facet: {
-                    total: [{ $count: "count" }],
-                    data: [
-                        { $skip: skip },
-                        { $limit: limit }
-                    ]
-                }
             }
         ]);
 
-        const total = result[0]?.total[0]?.count || 0;
-        const paginatedData = result[0]?.data || [];
+        const userIds = [...new Set(transactions.map(tx => tx.user_id).filter(id => id && mongoose.Types.ObjectId.isValid(id)))];
+
+        const userBalances = {};
+        const transactionsAfterEnd = {};
+        
+        if (userIds.length > 0) {
+            const userObjectIds = userIds.filter(id => mongoose.Types.ObjectId.isValid(id))
+                .map(id => new mongoose.Types.ObjectId(id));
+            
+            if (userObjectIds.length > 0) {
+                const users = await UserModel.find({
+                    _id: { $in: userObjectIds }
+                }).select('_id point').lean();
+                
+                users.forEach(user => {
+                    userBalances[user._id.toString()] = user.point || 0;
+                    transactionsAfterEnd[user._id.toString()] = 0;
+                });
+                
+                if (end) {
+                    const transactionsAfter = await PointTransactionModel.aggregate([
+                        {
+                            $match: {
+                                user_id: { $in: userObjectIds },
+                                createdAt: { $gt: end }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: "$user_id",
+                                totalAmount: {
+                                    $sum: {
+                                        $switch: {
+                                            branches: [
+                                                { case: { $eq: ["$fund_type", "CHARGE"] }, then: "$fund_amount" },
+                                                { 
+                                                    case: { $eq: ["$fund_type", "EXCHANGE"] },
+                                                    then: {
+                                                        $switch: {
+                                                            branches: [
+                                                                { case: { $eq: ["$fund_status", "COMPLETE"] }, then: { $multiply: ["$fund_amount", -1] } },
+                                                                { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                                                { case: { $eq: ["$fund_status", "WAIT"] }, then: { $multiply: ["$fund_amount", -1] } }
+                                                            ],
+                                                            default: { $multiply: ["$fund_amount", -1] }
+                                                        }
+                                                    }
+                                                },
+                                                { 
+                                                    case: { $eq: ["$fund_type", "BETTING"] },
+                                                    then: {
+                                                        $switch: {
+                                                            branches: [
+                                                                { case: { $eq: ["$fund_status", "COMPLETE"] }, then: { $subtract: [{ $ifNull: ["$updated_amount", 0] }, "$fund_amount"] } },
+                                                                { case: { $eq: ["$fund_status", "CANCEL"] }, then: 0 },
+                                                                { case: { $in: ["$fund_status", ["WAIT"]] }, then: { $multiply: ["$fund_amount", -1] } }
+                                                            ],
+                                                            default: { $multiply: ["$fund_amount", -1] }
+                                                        }
+                                                    }
+                                                }
+                                            ],
+                                            default: 0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]);
+                    
+                    transactionsAfter.forEach(item => {
+                        const userId = item._id.toString();
+                        if (transactionsAfterEnd[userId] !== undefined) {
+                            transactionsAfterEnd[userId] = item.totalAmount || 0;
+                        }
+                    });
+                }
+            }
+        }
+
+        const chronological = [...transactions].sort((a, b) => {
+            const dateA = new Date(a.sortDate);
+            const dateB = new Date(b.sortDate);
+            return dateA - dateB;
+        });
+        
+        const userTransactions = {};
+        chronological.forEach(tx => {
+            const userId = tx.user_id;
+            if (!userId || !mongoose.Types.ObjectId.isValid(userId)) return;
+            
+            if (!userTransactions[userId]) {
+                userTransactions[userId] = [];
+            }
+            userTransactions[userId].push(tx);
+        });
+
+        Object.keys(userTransactions).forEach(userId => {
+            const userTxs = userTransactions[userId];
+            const currentBalance = userBalances[userId] || 0;
+            const afterEndAmount = transactionsAfterEnd[userId] || 0;
+            
+            const balanceAtEnd = currentBalance - afterEndAmount;
+            
+            const totalImpact = userTxs.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+            
+            const balanceAtStart = balanceAtEnd - totalImpact;
+            
+            let runningBalance = balanceAtStart;
+            userTxs.forEach(tx => {
+                runningBalance += (tx.amount || 0);
+                tx.balance_after = Math.round(runningBalance * 100) / 100;
+            });
+        });
+
+        chronological.reverse();
+
+        chronological.forEach(tx => {
+            if (tx.balance_after === undefined || tx.balance_after === null) {
+                tx.balance_after = null;
+            }
+        });
+
+        const total = chronological.length;
+        const paginatedData = chronological.slice(skip, skip + limit);
 
         responseSuccess(res, {
             list: paginatedData,
@@ -179,8 +342,7 @@ export const getPointUsageList = async (req, res) => {
             pageSize: limit
         });
     } catch (error) {
-        console.error("Error fetching point usage list:", error);
+        console.error("Error to get point usage list:", error);
         return responseServerError(res);
     }
 };
-
