@@ -5,6 +5,7 @@ import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import { t } from "../../../helper/translation.js";
 import { partnerType } from "../../../const/type.js";
+import { userStatus } from "../../../const/status.js";
 
 export const registerUser = async (req, res) => {
     try {
@@ -94,6 +95,17 @@ export const registerUser = async (req, res) => {
         }
         const partnerId = partner._id;
 
+        const isSettingSettlementRates = payload.simpleBetRate !== undefined || payload.combinedBetRate !== undefined || payload.matchNumberBetRate !== undefined;
+        let canSetSettlementRates = false;
+        
+        if (isSettingSettlementRates) {
+            const hasSettlementRatePermission = currentPartner.sub_partner_settlement_rate === true;
+
+            if (isHeadquater || hasSettlementRatePermission) {
+                canSetSettlementRates = true;
+            }
+        }
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(payload.password.trim(), salt);
         const hashedExchangePassword = await bcrypt.hash(payload.exchangePassword.trim(), salt);
@@ -149,22 +161,32 @@ export const registerUser = async (req, res) => {
                 }
 
                 try {
-                    await UserModel.create({
+                    const userData = {
                         user_nickname: numberedNickname,
                         user_email: numberedEmail,
                         password: hashedPassword,
                         exchange_secure_number: hashedExchangePassword,
                         user_name: numberedUserName,
                         ownpartner_id: partnerId,
-                        phone_number: payload.phoneNumber || '',
+                        user_status: userStatus.normal,
+                        phone_number: payload.phoneNumber ? {
+                            active_code: payload.phoneNumber.active_code || '',
+                            phone_number_1: payload.phoneNumber.phone_number_1 || '',
+                            phone_number_2: payload.phoneNumber.phone_number_2 || ''
+                        } : undefined,
                         bank_id: payload.bankName.trim(),
                         bank_number: payload.bankNumber.trim(),
                         bank_owner_name: payload.bankOwner.trim(),
                         memo_note: payload.memo || '',
-                        simple_bet_rate: payload.simpleBetRate ? Number(payload.simpleBetRate) : null,
-                        combined_bet_rate: payload.combinedBetRate ? Number(payload.combinedBetRate) : null,
-                        match_num_bet_rate: payload.matchNumberBetRate ? Number(payload.matchNumberBetRate) : null,
-                    });
+                    };
+
+                    if (canSetSettlementRates) {
+                        userData.simple_bet_rate = payload.simpleBetRate ? Number(payload.simpleBetRate) : null;
+                        userData.combined_bet_rate = payload.combinedBetRate ? Number(payload.combinedBetRate) : null;
+                        userData.match_num_bet_rate = payload.matchNumberBetRate ? Number(payload.matchNumberBetRate) : null;
+                    }
+
+                    await UserModel.create(userData);
                     createdUsers.push(i);
                 } catch (error) {
                     console.error(`Error creating user ${i}:`, error);
@@ -200,22 +222,32 @@ export const registerUser = async (req, res) => {
             return responseBadRequest(res, t("user_email_already_exists"));
         }
 
-        await UserModel.create({
+        const userData = {
             user_nickname: payload.nickname.trim(),
             user_email: payload.email.trim(),
             password: hashedPassword,
             exchange_secure_number: hashedExchangePassword,
             user_name: payload.userName.trim(),
             ownpartner_id: partnerId,
-            phone_number: payload.phoneNumber || '',
+            user_status: userStatus.normal,
+            phone_number: payload.phoneNumber ? {
+                active_code: payload.phoneNumber.active_code || '',
+                phone_number_1: payload.phoneNumber.phone_number_1 || '',
+                phone_number_2: payload.phoneNumber.phone_number_2 || ''
+            } : undefined,
             bank_id: payload.bankName.trim(),
             bank_number: payload.bankNumber.trim(),
             bank_owner_name: payload.bankOwner.trim(),
             memo_note: payload.memo || '',
-            simple_bet_rate: payload.simpleBetRate ? Number(payload.simpleBetRate) : null,
-            combined_bet_rate: payload.combinedBetRate ? Number(payload.combinedBetRate) : null,
-            match_num_bet_rate: payload.matchNumberBetRate ? Number(payload.matchNumberBetRate) : null,
-        });
+        };
+
+        if (canSetSettlementRates) {
+            userData.simple_bet_rate = payload.simpleBetRate ? Number(payload.simpleBetRate) : null;
+            userData.combined_bet_rate = payload.combinedBetRate ? Number(payload.combinedBetRate) : null;
+            userData.match_num_bet_rate = payload.matchNumberBetRate ? Number(payload.matchNumberBetRate) : null;
+        }
+
+        await UserModel.create(userData);
 
         return responseSuccess(res);
     } catch (error) {

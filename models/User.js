@@ -12,8 +12,12 @@ const UserSchema = new Schema(
         user_name: { type: String },
         partner_id: { type: mongoose.Types.ObjectId },
         ownpartner_id: { type: mongoose.Types.ObjectId },
-        phone_number: { type: String },
-        bank_id: { type: String, required: true },
+        phone_number: {
+            active_code: { type: String },
+            phone_number_1: { type: String },
+            phone_number_2: { type: String }
+        },
+        bank_id: { type: mongoose.Types.ObjectId, required: true },
         bank_number: { type: String, required: true },
         bank_owner_name: { type: String, required: true },
         memo_note: { type: String },

@@ -2,6 +2,7 @@ import TransactionModel from "../../../models/TransactionHistory.js";
 import PartnerModel from "../../../models/Partner.js";
 import mongoose from "mongoose";
 import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -15,64 +16,6 @@ const normalizeDate = (value, isEnd = false) => {
     return date;
 };
 
-const fetchAccessiblePartners = async (partnerId, includeSubs = false) => {
-    if (!partnerId) return { partnerIds: [], partners: [] };
-
-    try {
-        const partner = await PartnerModel.findOne({ partner_id: partnerId }).lean();
-        if (!partner) {
-            return { partnerIds: [], partners: [] };
-        }
-        
-        const partnerObjectId = partner._id;
-        
-        if (includeSubs) {
-            const roots = await PartnerModel.aggregate([
-                {
-                    $match: {
-                        _id: partnerObjectId
-                    }
-                },
-                {
-                    $graphLookup: {
-                        from: "partners",
-                        startWith: "$_id",
-                        connectFromField: "_id",
-                        connectToField: "parent_partner_id",
-                        as: "subs",
-                    },
-                },
-                {
-                    $project: {
-                        allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-                    },
-                },
-                { $unwind: "$allPartners" },
-                {
-                    $replaceRoot: { newRoot: "$allPartners" },
-                },
-                {
-                    $project: {
-                        _id: 1,
-                    },
-                },
-            ]);
-
-            if (!roots.length) {
-                return { partnerIds: [], partners: [] };
-            }
-
-            const partnerIds = roots.map((doc) => doc._id);
-            return { partnerIds, partners: roots };
-        } else {
-            return { partnerIds: [partnerObjectId], partners: [partner] };
-        }
-    } catch (error) {
-        console.error("Error fetching accessible partners:", error);
-        return { partnerIds: [], partners: [] };
-    }
-};
-
 export const getExchangeList = async (req, res) => {
     try {
         const adminId = req?.session?._id;
@@ -80,10 +23,7 @@ export const getExchangeList = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        const currentPartner = await PartnerModel.findById(adminId).lean();
-        if (!currentPartner) {
-            return responseUnAutherized(res);
-        }
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
 
         let {
             startDate,
@@ -209,26 +149,26 @@ export const getExchangeList = async (req, res) => {
         
         if (partnerId) {
             const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
-            const { partnerIds } = await fetchAccessiblePartners(partnerId, includeSubs);
             
-            const currentPartnerAccessible = await fetchAccessiblePartners(currentPartner.partner_id, true);
-            const isAccessible = currentPartnerAccessible.partnerIds.some(id => 
-                partnerIds.some(pid => pid.toString() === id.toString())
-            );
-            
-            if (!isAccessible) {
-                return responseSuccess(res, {
-                    list: [],
-                    total: 0,
-                    page: pageNumber,
-                    pageSize: limit
-                });
+            const requestedPartner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+            if (!requestedPartner) {
+                filterPartnerIds = [];
+            } else {
+                const isAccessible = accessiblePartnerIds.some(id => id.toString() === requestedPartner._id.toString());
+                
+                if (isAccessible) {
+                    if (includeSubs) {
+                        const subPartnerIds = await fetchAccessiblePartnerIds(requestedPartner._id);
+                        filterPartnerIds = subPartnerIds;
+                    } else {
+                        filterPartnerIds = [requestedPartner._id];
+                    }
+                } else {
+                    filterPartnerIds = [];
+                }
             }
-            
-            filterPartnerIds = partnerIds;
         } else {
-            const { partnerIds } = await fetchAccessiblePartners(currentPartner.partner_id, true);
-            filterPartnerIds = partnerIds;
+            filterPartnerIds = accessiblePartnerIds;
         }
 
         if (filterPartnerIds.length > 0) {

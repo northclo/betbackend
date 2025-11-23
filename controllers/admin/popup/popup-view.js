@@ -9,6 +9,7 @@ import {
   toPopupDto,
 } from "./popup-utils.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const viewPopup = async (req, res) => {
   try {
@@ -16,6 +17,9 @@ export const viewPopup = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessiblePartnerIdsString = accessiblePartnerIds.map(id => id.toString());
 
     const { popupId } = req.params;
     if (!popupId) {
@@ -25,6 +29,10 @@ export const viewPopup = async (req, res) => {
     const popup = await PopupModel.findById(popupId).lean();
 
     if (!popup) {
+      return responseBadRequest(res, t("popup_not_found"));
+    }
+
+    if (!accessiblePartnerIdsString.includes(popup.author)) {
       return responseBadRequest(res, t("popup_not_found"));
     }
 

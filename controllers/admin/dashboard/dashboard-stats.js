@@ -12,6 +12,7 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { userStatus } from "../../../const/status.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const getMonthlyLoggedInUsers = async (req, res) => {
     try {
@@ -19,6 +20,9 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -33,11 +37,23 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
             }
         };
 
-        const userLoginHistory = await UserLoginHistoryModel.find(loginHistoryFilter)
-            .select("user_id createdAt").lean();
+        const userLoginHistoryFilter = accessibleUserIds.length > 0
+            ? { ...loginHistoryFilter, user_id: { $in: accessibleUserIds } }
+            : loginHistoryFilter;
 
-        const partnerLoginHistory = await PartnerLoginHistoryModel.find(loginHistoryFilter)
-            .select("partner_id createdAt").lean();
+        const userLoginHistory = accessibleUserIds.length > 0
+            ? await UserLoginHistoryModel.find(userLoginHistoryFilter)
+                .select("user_id createdAt").lean()
+            : [];
+
+        const partnerLoginHistoryFilter = accessiblePartnerIds.length > 0
+            ? { ...loginHistoryFilter, partner_id: { $in: accessiblePartnerIds } }
+            : loginHistoryFilter;
+
+        const partnerLoginHistory = accessiblePartnerIds.length > 0
+            ? await PartnerLoginHistoryModel.find(partnerLoginHistoryFilter)
+                .select("partner_id createdAt").lean()
+            : [];
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const allLoggedIn = new Array(daysInMonth).fill(0);
@@ -94,6 +110,9 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             return responseUnAutherized(res);
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         startOfMonth.setHours(0, 0, 0, 0);
@@ -109,10 +128,15 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             }
         };
 
+        const userFilter = accessibleUserIds.length > 0
+            ? { user_id: { $in: accessibleUserIds } }
+            : {};
+
         const chargeData = await TransactionModel.aggregate([
             {
                 $match: {
                     ...baseMatchFilter,
+                    ...userFilter,
                     fund_type: 'CHARGE',
                     fund_status: 'COMPLETE'
                 }
@@ -135,6 +159,7 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             {
                 $match: {
                     ...baseMatchFilter,
+                    ...userFilter,
                     fund_type: 'EXCHANGE',
                     fund_status: 'COMPLETE'
                 }
@@ -188,6 +213,9 @@ export const getDashboardSummary = async (req, res) => {
             return responseUnAutherized(res);
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         startOfToday.setHours(0, 0, 0, 0);
@@ -198,7 +226,14 @@ export const getDashboardSummary = async (req, res) => {
         sevenDaysAgo.setDate(now.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
 
-        const allUsers = await UserModel.find({}).select("_id user_status").lean();
+        const userFilter = accessibleUserIds.length > 0
+            ? { _id: { $in: accessibleUserIds } }
+            : {};
+
+        const allUsers = accessibleUserIds.length > 0
+            ? await UserModel.find(userFilter).select("_id user_status").lean()
+            : [];
+
         const totalMembers = allUsers.length;
         const pendingApprovals = allUsers.filter(u => u.user_status === userStatus.wait).length;
         const allUserIds = allUsers.map(u => u._id);
@@ -215,13 +250,30 @@ export const getDashboardSummary = async (req, res) => {
             activeMembers = activeMemberIds.length;
         }
 
-        const totalPartners = await PartnerModel.countDocuments({});
+        const partnerFilter = accessiblePartnerIds.length > 0
+            ? { _id: { $in: accessiblePartnerIds } }
+            : {};
 
-        const newPartners = await PartnerModel.countDocuments({
-            createdAt: {
-                $gte: sevenDaysAgo
+        const totalPartners = accessiblePartnerIds.length > 0
+            ? await PartnerModel.countDocuments(partnerFilter)
+            : 0;
+
+        const newPartnersFilter = accessiblePartnerIds.length > 0
+            ? {
+                _id: { $in: accessiblePartnerIds },
+                createdAt: {
+                    $gte: sevenDaysAgo
+                }
             }
-        });
+            : {
+                createdAt: {
+                    $gte: sevenDaysAgo
+                }
+            };
+
+        const newPartners = accessiblePartnerIds.length > 0
+            ? await PartnerModel.countDocuments(newPartnersFilter)
+            : 0;
 
         let pendingCharges = 0;
         if (allUserIds.length > 0) {
@@ -262,15 +314,23 @@ export const getSidebarSummary = async (req, res) => {
             return responseUnAutherized(res);
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const now = new Date();
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         startOfToday.setHours(0, 0, 0, 0);
         const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         endOfToday.setHours(23, 59, 59, 999);
 
+        const bettingUserFilter = accessibleUserIds.length > 0
+            ? { user_id: { $in: accessibleUserIds } }
+            : {};
+
         const allCompletedBets = await BettingResultModel.aggregate([
             {
                 $match: {
+                    ...bettingUserFilter,
                     betting_status: "COMPLETE"
                 }
             },
@@ -295,98 +355,161 @@ export const getSidebarSummary = async (req, res) => {
             ? (allCompletedBets[0].totalBetAmount - allCompletedBets[0].totalPayout)
             : 0;
 
-        const totalPointsResult = await UserModel.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalPoints: { $sum: "$point" }
+        const userPointsFilter = accessibleUserIds.length > 0
+            ? { _id: { $in: accessibleUserIds } }
+            : {};
+
+        const totalPointsResult = accessibleUserIds.length > 0
+            ? await UserModel.aggregate([
+                {
+                    $match: userPointsFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalPoints: { $sum: "$point" }
+                    }
                 }
-            }
-        ]);
+            ])
+            : [];
+
         const totalUserPoints = totalPointsResult.length > 0 ? totalPointsResult[0].totalPoints : 0;
 
-        const activeUserIds = await UserLoginHistoryModel.distinct("user_id", {
-            createdAt: {
-                $gte: startOfToday,
-                $lte: endOfToday
+        const activeUserIdsFilter = accessibleUserIds.length > 0
+            ? {
+                user_id: { $in: accessibleUserIds },
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
+                }
             }
-        });
+            : {
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
+                }
+            };
+
+        const activeUserIds = accessibleUserIds.length > 0
+            ? await UserLoginHistoryModel.distinct("user_id", activeUserIdsFilter)
+            : [];
+
         const currentSiteUsers = activeUserIds.length;
 
-        const depositResult = await TransactionModel.aggregate([
-            {
-                $match: {
-                    fund_type: 'CHARGE',
-                    fund_status: 'COMPLETE',
-                    createdAt: {
-                        $gte: startOfToday,
-                        $lte: endOfToday
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: "$fund_amount" }
+        const depositFilter = accessibleUserIds.length > 0
+            ? {
+                user_id: { $in: accessibleUserIds },
+                fund_type: 'CHARGE',
+                fund_status: 'COMPLETE',
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
                 }
             }
-        ]);
+            : {
+                fund_type: 'CHARGE',
+                fund_status: 'COMPLETE',
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
+                }
+            };
+
+        const depositResult = accessibleUserIds.length > 0
+            ? await TransactionModel.aggregate([
+                {
+                    $match: depositFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$fund_amount" }
+                    }
+                }
+            ])
+            : [];
+
         const todayDeposit = depositResult.length > 0 ? depositResult[0].total : 0;
 
-        const withdrawalResult = await TransactionModel.aggregate([
-            {
-                $match: {
-                    fund_type: 'EXCHANGE',
-                    fund_status: 'COMPLETE',
-                    createdAt: {
-                        $gte: startOfToday,
-                        $lte: endOfToday
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: "$fund_amount" }
+        const withdrawalFilter = accessibleUserIds.length > 0
+            ? {
+                user_id: { $in: accessibleUserIds },
+                fund_type: 'EXCHANGE',
+                fund_status: 'COMPLETE',
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
                 }
             }
-        ]);
+            : {
+                fund_type: 'EXCHANGE',
+                fund_status: 'COMPLETE',
+                createdAt: {
+                    $gte: startOfToday,
+                    $lte: endOfToday
+                }
+            };
+
+        const withdrawalResult = accessibleUserIds.length > 0
+            ? await TransactionModel.aggregate([
+                {
+                    $match: withdrawalFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$fund_amount" }
+                    }
+                }
+            ])
+            : [];
+
         const todayWithdrawal = withdrawalResult.length > 0 ? withdrawalResult[0].total : 0;
 
-        const entireGameStats = await BettingResultModel.aggregate([
-            {
-                $match: {
-                    betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
-                    betting_type: { $nin: ["number_13", "number_14", "number_16"] }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    battingGan: { $sum: 1 }, 
-                    betting: {
-                        $sum: {
-                            $cond: [{ $eq: ["$betting_status", "COMPLETE"] }, 1, 0]
-                        }
-                    }, 
-                    hit: {
-                        $sum: {
-                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
-                        }
-                    },
-                    bettingP: { $sum: "$bet_amount" }, 
-                    revenue: {
-                        $sum: {
-                            $cond: [
-                                { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
-                                { $subtract: ["$earning_amount", "$bet_amount"] },
-                                0
-                            ]
+        const entireGameFilter = accessibleUserIds.length > 0
+            ? {
+                ...bettingUserFilter,
+                betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
+                betting_type: { $nin: ["number_13", "number_14", "number_16"] }
+            }
+            : {
+                betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
+                betting_type: { $nin: ["number_13", "number_14", "number_16"] }
+            };
+
+        const entireGameStats = accessibleUserIds.length > 0
+            ? await BettingResultModel.aggregate([
+                {
+                    $match: entireGameFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        battingGan: { $sum: 1 }, 
+                        betting: {
+                            $sum: {
+                                $cond: [{ $eq: ["$betting_status", "COMPLETE"] }, 1, 0]
+                            }
+                        }, 
+                        hit: {
+                            $sum: {
+                                $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
+                            }
+                        },
+                        bettingP: { $sum: "$bet_amount" }, 
+                        revenue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
+                                    { $subtract: ["$earning_amount", "$bet_amount"] },
+                                    0
+                                ]
+                            }
                         }
                     }
                 }
-            }
-        ]);
+            ])
+            : [];
 
         const entireGame = entireGameStats.length > 0 ? {
             battingGan: entireGameStats[0].battingGan || 0,
@@ -402,35 +525,45 @@ export const getSidebarSummary = async (req, res) => {
             revenue: 0
         };
 
-        const minigameStats = await BettingResultModel.aggregate([
-            {
-                $match: {
-                    betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
-                    betting_type: { $in: ["number_13", "number_14", "number_16"] }
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    battingGan: { $sum: 1 },
-                    hit: {
-                        $sum: {
-                            $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
-                        }
-                    },
-                    bettingP: { $sum: "$bet_amount" },
-                    revenue: {
-                        $sum: {
-                            $cond: [
-                                { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
-                                { $subtract: ["$earning_amount", "$bet_amount"] },
-                                0
-                            ]
+        const minigameFilter = accessibleUserIds.length > 0
+            ? {
+                ...bettingUserFilter,
+                betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
+                betting_type: { $in: ["number_13", "number_14", "number_16"] }
+            }
+            : {
+                betting_status: { $in: ["WAIT", "PROGRESS", "COMPLETE"] },
+                betting_type: { $in: ["number_13", "number_14", "number_16"] }
+            };
+
+        const minigameStats = accessibleUserIds.length > 0
+            ? await BettingResultModel.aggregate([
+                {
+                    $match: minigameFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        battingGan: { $sum: 1 },
+                        hit: {
+                            $sum: {
+                                $cond: [{ $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] }, 1, 0]
+                            }
+                        },
+                        bettingP: { $sum: "$bet_amount" },
+                        revenue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: ["$win", { $eq: ["$betting_status", "COMPLETE"] }] },
+                                    { $subtract: ["$earning_amount", "$bet_amount"] },
+                                    0
+                                ]
+                            }
                         }
                     }
                 }
-            }
-        ]);
+            ])
+            : [];
 
         const minigames = minigameStats.length > 0 ? {
             battingGan: minigameStats[0].battingGan || 0,

@@ -5,6 +5,7 @@ import {
   responseUnAutherized,
   responseServerError,
 } from "../../../helper/response.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const toAnnouncementDto = async (post) => {
   let author = "-";
@@ -53,6 +54,8 @@ export const listAnnouncements = async (req, res) => {
       return responseUnAutherized(res);
     }
 
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
     const { 
       status, 
       category, 
@@ -64,6 +67,20 @@ export const listAnnouncements = async (req, res) => {
     } = req.query;
 
     const filter = {};
+
+    if (accessiblePartnerIds.length > 0) {
+      filter.author = { $in: accessiblePartnerIds };
+    } else {
+      return responseSuccess(res, {
+        list: [],
+        items: [],
+        page: 1,
+        pageSize: 10,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+      });
+    }
 
     const normalizedStatus = normalizeStatus(status);
     if (normalizedStatus) {

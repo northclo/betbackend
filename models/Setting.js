@@ -16,7 +16,7 @@ const SettingSchema = new Schema(
         title_bar: { type: String },
         copywriter: { type: String },
         top_notify_message: { type: String },
-        deposit_account: { type: String },
+        deposit_account_information: { type: String },
         membership_registration: {
             type: String,
             enum: [membershipType.recommender, membershipType.select_referrer, membershipType.no_referrer, membershipType.no_use],
@@ -48,7 +48,6 @@ const SettingSchema = new Schema(
         charge_restriction_limit: { type: Number },
         exchange_complete_message: { type: String },
         customer_center: { type: Boolean, default: true },
-        deposit_banks: { type: [String], default: [] },
     },
     { timestamps: true }
 );

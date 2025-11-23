@@ -5,6 +5,7 @@ import UserModel from '../../../models/User.js';
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from '../../../helper/response.js';
 import { t } from '../../../helper/translation.js';
 import { partnerType } from '../../../const/type.js';
+import { fetchAccessiblePartnerIds } from '../../../helper/Partner/fetch-accessible-partners.js';
 
 const checkPartnerAccess = async (req) => {
     const currentPartnerId = req.session?._id;
@@ -56,16 +57,14 @@ const cleanData = (node, search) => {
     if (matchesSearch) {
         const owner = node.owner?.[0] || {};
 
-        const ownerBalance = owner.own_money || 0;
-
         data.push({
             role: node.role,
             nickname: node.nickname,
             id: node.partner_id,
             subs: node.subs.length,
             members: node.members.length,
-            money: ownerBalance,
-            point: owner.point || 0,
+            money: node.own_money || 0,
+            point: node.point || 0,
             simpleBetRate: owner.simple_bet_rate || 0,
             combinedBetRate: owner.combined_bet_rate || 0,
             matchNumberBetRate: owner.match_num_bet_rate || 0,
@@ -73,7 +72,6 @@ const cleanData = (node, search) => {
         });
 
         node.members?.forEach(member => {
-            const memberBalance = member.own_money || 0;
             data.push({
                 role: "user",
                 nickname: member.user_nickname,
@@ -81,8 +79,8 @@ const cleanData = (node, search) => {
                 userId: member._id ? member._id.toString() : null,
                 subs: 0,
                 members: 0,
-                money: memberBalance,
-                point: member.point,
+                money: member.own_money || 0,
+                point: member.point || 0,
                 simpleBetRate: member.simple_bet_rate,
                 combinedBetRate: member.combined_bet_rate,
                 matchNumberBetRate: member.match_num_bet_rate,
@@ -100,11 +98,6 @@ const cleanData = (node, search) => {
 
 export const getPartner = async (req, res) => {
     try {
-        const accessCheck = await checkPartnerAccess(req);
-        if (!accessCheck.allowed) {
-            return accessCheck.error(res);
-        }
-
         const { search = '' } = req.query;
         const partnerId = req.session._id;
 
@@ -262,15 +255,10 @@ const transformPartnerForTree = (node) => {
 
 export const getPartnerList = async (req, res) => {
     try {
-        const accessCheck = await checkPartnerAccess(req);
-        if (!accessCheck.allowed) {
-            return accessCheck.error(res);
-        }
-
         const partnerId = req.session._id;
 
         if (!partnerId) {
-            return responseBadRequest(res, t("partner_id_required"));
+            return responseUnAutherized(res);
         }
 
         const results = await PartnerModel.aggregate([
@@ -459,7 +447,7 @@ export const increaseCash = async (req, res) => {
         }
 
         if (numAmount < 0) {
-            const currentBalance = partner.deposit_approved_amount || 0;
+            const currentBalance = partner.own_money || 0;
             if (currentBalance + numAmount < 0) {
                 return responseBadRequest(res, t("insufficient_funds"));
             }
@@ -467,7 +455,7 @@ export const increaseCash = async (req, res) => {
 
         await PartnerModel.updateOne(
             { _id: partner._id },
-            { $inc: { deposit_approved_amount: numAmount } }
+            { $inc: { own_money: numAmount } }
         );
 
         return responseSuccess(res);
@@ -575,7 +563,15 @@ export const updatePartner = async (req, res) => {
         }
 
         if (payload.phoneNumber !== undefined) {
-            updateData.phone_number = payload.phoneNumber || '';
+            if (payload.phoneNumber && typeof payload.phoneNumber === 'object') {
+                updateData.phone_number = {
+                    active_code: payload.phoneNumber.active_code || '',
+                    phone_number_1: payload.phoneNumber.phone_number_1 || '',
+                    phone_number_2: payload.phoneNumber.phone_number_2 || ''
+                };
+            } else {
+                updateData.phone_number = undefined;
+            }
         }
 
         if (payload.bank !== undefined) {
@@ -602,20 +598,47 @@ export const updatePartner = async (req, res) => {
             updateData.bank_owner_name = name;
         }
 
-        if (payload.dapol !== undefined) {
-            updateData.simple_bet_rate = payload.dapol ? Number(payload.dapol) : null;
+        const isUpdatingSettlementRates = payload.dapol !== undefined || payload.danpol !== undefined || payload.numberMatch !== undefined;
+        let canUpdateSettlementRates = false;
+        
+        if (isUpdatingSettlementRates) {
+            const isHeadquater = accessCheck.partner.role === partnerType.headquater;
+            const isUpdatingOwnRates = partner._id.toString() === accessCheck.partner._id.toString();
+
+            if (isUpdatingOwnRates) {
+                canUpdateSettlementRates = true;
+            } else {
+                const hasSettlementRatePermission = accessCheck.partner.sub_partner_settlement_rate === true;
+
+                if (isHeadquater || hasSettlementRatePermission) {
+                    const accessiblePartnerIds = await fetchAccessiblePartnerIds(accessCheck.partner._id);
+                    const isTargetAccessible = accessiblePartnerIds.some(
+                        pid => pid.toString() === partner._id.toString()
+                    );
+
+                    if (isTargetAccessible) {
+                        canUpdateSettlementRates = true;
+                    }
+                }
+            }
         }
-        if (payload.danpol !== undefined) {
-            updateData.combined_bet_rate = payload.danpol ? Number(payload.danpol) : null;
-        }
-        if (payload.numberMatch !== undefined) {
-            updateData.match_num_bet_rate = payload.numberMatch ? Number(payload.numberMatch) : null;
+
+        if (canUpdateSettlementRates) {
+            if (payload.dapol !== undefined) {
+                updateData.simple_bet_rate = payload.dapol ? Number(payload.dapol) : null;
+            }
+            if (payload.danpol !== undefined) {
+                updateData.combined_bet_rate = payload.danpol ? Number(payload.danpol) : null;
+            }
+            if (payload.numberMatch !== undefined) {
+                updateData.match_num_bet_rate = payload.numberMatch ? Number(payload.numberMatch) : null;
+            }
         }
 
         if (payload.currencyRolling !== undefined) {
             updateData.currency_rolling = payload.currencyRolling?.check || false;
             if (payload.currencyRolling?.amount !== undefined) {
-                updateData.deposit_approved_amount = Number(payload.currencyRolling.amount) || 0;
+                updateData.rollover_percentage = Number(payload.currencyRolling.amount) || 0;
             }
         }
 
@@ -646,15 +669,11 @@ export const updatePartner = async (req, res) => {
             }
             if (payload.gameSetting.cancelBet !== undefined) {
                 updateData.cancel_bet = payload.gameSetting.cancelBet || false;
-                if (payload.gameSetting.cancelBet) {
-                    updateData.cancel_bet_range = {
-                        end_time: payload.gameSetting.cancelBetEndTime ? Number(payload.gameSetting.cancelBetEndTime) : 0,
-                        max_time: payload.gameSetting.cancelBetMaxTime ? Number(payload.gameSetting.cancelBetMaxTime) : 0,
-                        perday_time: payload.gameSetting.cancelBetPerday ? Number(payload.gameSetting.cancelBetPerday) : 0,
-                    };
-                } else {
-                    updateData.cancel_bet_range = undefined;
-                }
+                updateData.cancel_bet_range = {
+                    end_time: payload.gameSetting.cancelBetEndTime ? Number(payload.gameSetting.cancelBetEndTime) : 0,
+                    max_time: payload.gameSetting.cancelBetMaxTime ? Number(payload.gameSetting.cancelBetMaxTime) : 0,
+                    perday_time: payload.gameSetting.cancelBetPerday ? Number(payload.gameSetting.cancelBetPerday) : 0,
+                };
             }
             if (payload.gameSetting.betUnit !== undefined) {
                 updateData.bet_money_unit = payload.gameSetting.betUnit || '';

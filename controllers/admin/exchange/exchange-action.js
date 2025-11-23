@@ -3,6 +3,7 @@ import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const updateExchangeStatus = async (req, res) => {
     try {
@@ -10,6 +11,9 @@ export const updateExchangeStatus = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const { transactionId, action } = req.body;
 
@@ -21,6 +25,30 @@ export const updateExchangeStatus = async (req, res) => {
             return responseBadRequest(res, t("invalid_action"));
         }
 
+        const transaction = await TransactionModel.findById(transactionId);
+
+        if (!transaction) {
+            return responseBadRequest(res, t("transaction_not_found_or_not_pending"));
+        }
+
+        if (transaction.fund_type !== 'EXCHANGE') {
+            return responseBadRequest(res, t("only_exchange_transactions"));
+        }
+
+        if (transaction.fund_status !== 'WAIT') {
+            return responseBadRequest(res, t("transaction_not_pending"));
+        }
+
+        const user = await UserModel.findById(transaction.user_id);
+
+        if (!user) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
+
+        if (!accessibleUserIds.some(aid => aid.toString() === user._id.toString())) {
+            return responseBadRequest(res, t("transaction_not_found_or_not_pending"));
+        }
+
         const newStatus = action === 'approve' ? 'COMPLETE' : 'CANCEL';
 
         if (action === 'reject') {
@@ -28,26 +56,20 @@ export const updateExchangeStatus = async (req, res) => {
             session.startTransaction();
 
             try {
-                const transaction = await TransactionModel.findOneAndUpdate(
+                const updatedTransaction = await TransactionModel.findOneAndUpdate(
                     { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'WAIT' },
                     { $set: { fund_status: newStatus, action_user_id: adminId, fund_status_update_date: new Date() } },
                     { new: true, session }
                 );
 
-                if (!transaction) {
+                if (!updatedTransaction) {
                     await session.abortTransaction();
                     return responseBadRequest(res, t("transaction_not_found_or_not_pending"));
                 }
 
-                const user = await UserModel.findById(transaction.user_id).session(session);
-                if (!user) {
-                    await session.abortTransaction();
-                    return responseBadRequest(res, t("user_not_found"));
-                }
-
-                const refundAmount = transaction.original_amount || transaction.fund_amount;
+                const refundAmount = -updatedTransaction.fund_amount;
                 await UserModel.findByIdAndUpdate(
-                    transaction.user_id,
+                    updatedTransaction.user_id,
                     { $inc: { own_money: refundAmount } },
                     { session }
                 );
@@ -57,7 +79,7 @@ export const updateExchangeStatus = async (req, res) => {
                 return responseSuccess(
                     res,
                     {
-                        transactionId: transaction._id,
+                        transactionId: updatedTransaction._id,
                         status: newStatus,
                         action: action
                     },
@@ -70,20 +92,20 @@ export const updateExchangeStatus = async (req, res) => {
                 session.endSession();
             }
         } else {
-            const transaction = await TransactionModel.findOneAndUpdate(
+            const updatedTransaction = await TransactionModel.findOneAndUpdate(
                 { _id: transactionId, fund_type: 'EXCHANGE', fund_status: 'WAIT' },
                 { $set: { fund_status: newStatus, action_user_id: adminId, fund_status_update_date: new Date() } },
                 { new: true }
             );
 
-            if (!transaction) {
+            if (!updatedTransaction) {
                 return responseBadRequest(res, t("transaction_not_found_or_not_pending"));
             }
 
             return responseSuccess(
                 res,
                 {
-                    transactionId: transaction._id,
+                    transactionId: updatedTransaction._id,
                     status: newStatus,
                     action: action
                 },

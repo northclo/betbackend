@@ -7,6 +7,7 @@ import {
   responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const deleteMoneyUsageTransaction = async (req, res) => {
   try {
@@ -14,6 +15,9 @@ export const deleteMoneyUsageTransaction = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const { id } = req.params;
     if (!id) {
@@ -29,6 +33,10 @@ export const deleteMoneyUsageTransaction = async (req, res) => {
     const transaction = await TransactionModel.findById(objectId);
     
     if (!transaction) {
+      return responseBadRequest(res, t("transaction_not_found"));
+    }
+
+    if (!accessibleUserIds.some(aid => aid.toString() === transaction.user_id.toString())) {
       return responseBadRequest(res, t("transaction_not_found"));
     }
 

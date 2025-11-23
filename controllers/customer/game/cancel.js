@@ -1,5 +1,6 @@
 import BettingResultModel from "../../../models/BettingResult.js";
 import GameResultModel from "../../../models/GameResult.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
@@ -29,9 +30,70 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("game_not_available_cancellation"));
         }
 
+        const user = await UserModel.findOne({ _id: userId }).lean();
+        if (!user) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
+
+        const partnerObjectId = user.partner_id || user.ownpartner_id;
+        let partner = null;
+        if (partnerObjectId) {
+            partner = await PartnerModel.findOne({ _id: partnerObjectId }).lean();
+        }
+
+        if (!partner || !partner.cancel_bet) {
+            return responseBadRequest(res, t("bet_cancellation_disabled"));
+        }
+
         const secondsUntilStart = Math.floor((game.start_time_stamp - getCurrentTime()) / 1000);
-        if (secondsUntilStart < 90 || secondsUntilStart > 180) {
-            return responseBadRequest(res, t("cancellation_window_closed"));
+        
+        const cancelBetRange = partner.cancel_bet_range || {};
+        const endTime = cancelBetRange.end_time;
+        
+        if (endTime !== undefined && endTime !== null && endTime > 0) {
+            if (secondsUntilStart < endTime) {
+                return responseBadRequest(res, t("cancellation_window_closed"));
+            }
+            if (secondsUntilStart > 180) {
+                return responseBadRequest(res, t("cancellation_window_closed"));
+            }
+        } else {
+            if (secondsUntilStart < 90 || secondsUntilStart > 180) {
+                return responseBadRequest(res, t("cancellation_window_closed"));
+            }
+        }
+
+        if (cancelBetRange.max_time && cancelBetRange.max_time > 0) {
+            const roundCancellations = await BettingResultModel.countDocuments({
+                user_id: userId,
+                game_id: bettingHistory.game_id,
+                betting_status: "cancel"
+            });
+
+            if (roundCancellations >= cancelBetRange.max_time) {
+                return responseBadRequest(res, t("cancellation_limit_per_round_reached"));
+            }
+        }
+
+        if (cancelBetRange.perday_time && cancelBetRange.perday_time > 0) {
+            const currentTime = getCurrentTime();
+            const startOfDay = new Date(currentTime);
+            startOfDay.setHours(0, 0, 0, 0);
+            const endOfDay = new Date(currentTime);
+            endOfDay.setHours(23, 59, 59, 999);
+
+            const dailyCancellations = await BettingResultModel.countDocuments({
+                user_id: userId,
+                betting_status: "cancel",
+                createdAt: {
+                    $gte: startOfDay,
+                    $lte: endOfDay
+                }
+            });
+
+            if (dailyCancellations >= cancelBetRange.perday_time) {
+                return responseBadRequest(res, t("cancellation_limit_per_day_reached"));
+            }
         }
 
         const session = await mongoose.startSession();

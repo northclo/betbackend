@@ -3,11 +3,12 @@ const { Schema, model } = mongoose;
 
 const BankAccountSchema = new Schema(
     {
-        bank_name: { type: String,
-        required: true,
-        unique: true,
-        index: true
-    }
+        bank_name: {
+            type: String,
+            required: true,
+            unique: true,
+            index: true
+        }
     },
     { timestamps: true }
 );

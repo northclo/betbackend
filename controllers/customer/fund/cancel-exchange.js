@@ -46,7 +46,7 @@ export const cancelExchange = async (req, res) => {
       res,
       {
         transactionId: transaction._id,
-        original_amount: refundAmount,
+        fund_amount: refundAmount,
         balance: updatedUser.own_money,
       },
       t("exchange_request_cancelled")

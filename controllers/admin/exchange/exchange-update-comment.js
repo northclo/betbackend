@@ -7,6 +7,7 @@ import {
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const updateExchangeComment = async (req, res) => {
   try {
@@ -14,6 +15,9 @@ export const updateExchangeComment = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const { transactionId } = req.params;
     const { comment } = req.body;
@@ -32,6 +36,10 @@ export const updateExchangeComment = async (req, res) => {
     });
 
     if (!transaction) {
+      return responseBadRequest(res, t("transaction_not_found"));
+    }
+
+    if (!accessibleUserIds.some(aid => aid.toString() === transaction.user_id.toString())) {
       return responseBadRequest(res, t("transaction_not_found"));
     }
 

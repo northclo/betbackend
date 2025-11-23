@@ -1,6 +1,8 @@
 import UserModel from "../../../models/User.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import SettingModel from "../../../models/Setting.js";
+import PartnerModel from "../../../models/Partner.js";
+import BettingResultModel from "../../../models/BettingResult.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import bcrypt from "bcrypt";
@@ -29,7 +31,7 @@ export const exchangeFund = async (req, res) => {
     const userId = req.session._id;
 
     if (amount === undefined || amount === null || amount === '') {
-        return responseBadRequest(res, t("original_amount_required"));
+        return responseBadRequest(res, t("fund_amount_required"));
     }
 
     const normalizedAmount = Number(amount);
@@ -97,7 +99,7 @@ export const exchangeFund = async (req, res) => {
             }
         }
 
-        const user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number");
+        const user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number partner_id ownpartner_id");
         if (!user) {
             return responseBadRequest(res, t("user_not_found"));
         }
@@ -121,6 +123,48 @@ export const exchangeFund = async (req, res) => {
 
         if (normalizedAmount > (user.own_money || 0)) {
             return responseBadRequest(res, t("insufficient_balance"));
+        }
+
+        const partnerId = user.partner_id || user.ownpartner_id;
+        if (partnerId) {
+            const partner = await PartnerModel.findById(partnerId).select("currency_rolling rollover_percentage").lean();
+            if (partner && partner.currency_rolling && partner.rollover_percentage > 0) {
+                const lastDeposit = await TransactionModel.findOne({
+                    user_id: userId,
+                    fund_type: "CHARGE",
+                    fund_status: "COMPLETE"
+                }).sort({ fund_status_update_date: -1, createdAt: -1 }).lean();
+
+                if (lastDeposit && lastDeposit.fund_amount > 0) {
+                    const depositDate = lastDeposit.fund_status_update_date || lastDeposit.createdAt;
+                    const requiredBettingAmount = (lastDeposit.fund_amount * partner.rollover_percentage) / 100;
+
+                    const totalBettingResult = await BettingResultModel.aggregate([
+                        {
+                            $match: {
+                                user_id: userId,
+                                betting_status: { $ne: "CANCEL" },
+                                createdAt: { $gte: depositDate }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                total_betting: { $sum: "$bet_amount" }
+                            }
+                        }
+                    ]);
+
+                    const totalBettingAmount = totalBettingResult.length > 0 ? totalBettingResult[0].total_betting : 0;
+
+                    if (totalBettingAmount < requiredBettingAmount) {
+                        const percentage = partner.rollover_percentage;
+                        const message = t("withdrawal_not_allowed_insufficient_betting")?.replace("{0}", percentage.toString()) || 
+                            `Withdrawal is not allowed. You must bet at least ${percentage}% of your last deposit (${requiredBettingAmount.toFixed(2)}). Current betting: ${totalBettingAmount.toFixed(2)}`;
+                        return responseBadRequest(res, message);
+                    }
+                }
+            }
         }
 
         const updatedUser = await UserModel.findByIdAndUpdate(

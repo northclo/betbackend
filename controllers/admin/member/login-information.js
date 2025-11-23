@@ -1,5 +1,6 @@
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
-import { responseSuccess, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -70,6 +71,14 @@ const buildSearchStage = (searchField, searchRegex) => {
 
 export const getMemberLoginInformation = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const {
             startDate,
             endDate,
@@ -88,6 +97,17 @@ export const getMemberLoginInformation = async (req, res) => {
             if (start) dateFilter.$gte = start;
             if (end) dateFilter.$lte = end;
             filter.login_date = dateFilter;
+        }
+
+        if (accessibleUserIds.length > 0) {
+            filter.user_id = { $in: accessibleUserIds };
+        } else {
+            return responseSuccess(res, {
+                list: [],
+                total: 0,
+                page: Math.max(parseInt(page, 10) || 1, 1),
+                pageSize: Math.max(parseInt(pageSize, 10) || 10, 1),
+            });
         }
 
         const searchRegex = search && search.trim() ? new RegExp(search.trim(), "i") : null;

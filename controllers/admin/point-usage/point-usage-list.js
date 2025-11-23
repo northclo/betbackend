@@ -3,6 +3,7 @@ import PointTransactionModel from "../../../models/PointTransaction.js";
 import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -22,6 +23,9 @@ export const getPointUsageList = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         let {
             startDate,
@@ -80,6 +84,17 @@ export const getPointUsageList = async (req, res) => {
             ...typeFilter,
             ...statusFilter
         };
+
+        if (accessibleUserIds.length > 0) {
+            filter.user_id = { $in: accessibleUserIds };
+        } else {
+            return responseSuccess(res, {
+                list: [],
+                total: 0,
+                page: pageNumber,
+                pageSize: limit
+            });
+        }
 
         const transactions = await PointTransactionModel.aggregate([
             {
@@ -229,12 +244,18 @@ export const getPointUsageList = async (req, res) => {
                 });
                 
                 if (end) {
+                    const accessibleUserObjectIds = userObjectIds.filter(id => 
+                        accessibleUserIds.some(aid => aid.toString() === id.toString())
+                    );
+
+                    const transactionsAfterFilter = {
+                        user_id: { $in: accessibleUserObjectIds },
+                        createdAt: { $gt: end }
+                    };
+
                     const transactionsAfter = await PointTransactionModel.aggregate([
                         {
-                            $match: {
-                                user_id: { $in: userObjectIds },
-                                createdAt: { $gt: end }
-                            }
+                            $match: transactionsAfterFilter
                         },
                         {
                             $group: {

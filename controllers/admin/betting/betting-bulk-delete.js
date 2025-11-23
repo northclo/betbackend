@@ -2,6 +2,7 @@ import BettingResultModel from "../../../models/BettingResult.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const bulkDeleteBettingList = async (req, res) => {
     try {
@@ -9,6 +10,9 @@ export const bulkDeleteBettingList = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const { ids } = req.body;
 
@@ -29,9 +33,21 @@ export const bulkDeleteBettingList = async (req, res) => {
             return responseBadRequest(res, t("no_valid_betting_ids"));
         }
 
-        const result = await BettingResultModel.deleteMany({
+        const filter = {
             _id: { $in: validIds }
-        });
+        };
+
+        if (accessibleUserIds.length > 0) {
+            filter.user_id = { $in: accessibleUserIds };
+        } else {
+            return responseSuccess(
+                res,
+                { deletedCount: 0 },
+                t("no_records_to_delete")
+            );
+        }
+
+        const result = await BettingResultModel.deleteMany(filter);
 
         const message = t("successfully_deleted_betting_records");
         const formattedMessage = message && message.includes("{0}") 

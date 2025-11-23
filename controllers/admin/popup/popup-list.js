@@ -10,6 +10,7 @@ import {
   normalizeStatus,
 } from "./popup-utils.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const listPopups = async (req, res) => {
   try {
@@ -17,6 +18,9 @@ export const listPopups = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessiblePartnerIdsString = accessiblePartnerIds.map(id => id.toString());
 
     const { 
       status, 
@@ -28,6 +32,19 @@ export const listPopups = async (req, res) => {
     } = req.query;
 
     const filter = {};
+
+    if (accessiblePartnerIdsString.length > 0) {
+      filter.author = { $in: accessiblePartnerIdsString };
+    } else {
+      return responseSuccess(res, {
+        list: [],
+        page: 1,
+        pageSize: 10,
+        limit: 10,
+        total: 0,
+        totalPages: 0,
+      });
+    }
 
     const normalizedStatus = normalizeStatus(status);
     if (normalizedStatus) {

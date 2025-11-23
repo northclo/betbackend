@@ -4,6 +4,7 @@ import {
   responseServerError,
   responseUnAutherized,
 } from "../../../helper/response.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const getSupportSummary = async (req, res) => {
   try {
@@ -12,16 +13,33 @@ export const getSupportSummary = async (req, res) => {
       return responseUnAutherized(res);
     }
 
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
+    const filter = {};
+    if (accessibleUserIds.length > 0) {
+      filter.writer = { $in: accessibleUserIds };
+    } else {
+      return responseSuccess(res, {
+        pending: 0,
+        resolved: 0,
+        rejected: 0,
+        total: 0,
+        average_response_time: 0,
+        average_response_time_formatted: "0m",
+      });
+    }
+
     const [
       pendingTickets,
       resolvedTickets,
       rejectedTickets,
       allTickets,
     ] = await Promise.all([
-      SupportMessage.countDocuments({ status: "PENDING" }),
-      SupportMessage.countDocuments({ status: "RESOLVED" }),
-      SupportMessage.countDocuments({ status: "REJECTED" }),
-      SupportMessage.find({}).lean(),
+      SupportMessage.countDocuments({ ...filter, status: "PENDING" }),
+      SupportMessage.countDocuments({ ...filter, status: "RESOLVED" }),
+      SupportMessage.countDocuments({ ...filter, status: "REJECTED" }),
+      SupportMessage.find(filter).lean(),
     ]);
 
     let totalResponseTime = 0;

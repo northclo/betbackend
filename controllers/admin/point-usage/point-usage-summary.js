@@ -1,6 +1,7 @@
 import PointTransactionModel from "../../../models/PointTransaction.js";
-import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -16,6 +17,14 @@ const normalizeDate = (value, isEnd = false) => {
 
 export const getPointUsageSummary = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         let {
             startDate,
             endDate,
@@ -67,6 +76,17 @@ export const getPointUsageSummary = async (req, res) => {
             ...typeFilter,
             ...statusFilter
         };
+
+        if (accessibleUserIds.length > 0) {
+            filter.user_id = { $in: accessibleUserIds };
+        } else {
+            return responseSuccess(res, {
+                total_transactions: 0,
+                total_inflow: 0,
+                total_outflow: 0,
+                net_change: 0
+            });
+        }
 
         const stats = await PointTransactionModel.aggregate([
             {

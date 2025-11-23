@@ -2,6 +2,7 @@ import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const updateChargingStatus = async (req, res) => {
     try {
@@ -9,6 +10,9 @@ export const updateChargingStatus = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const { transactionId, action } = req.body;
 
@@ -34,12 +38,17 @@ export const updateChargingStatus = async (req, res) => {
             return responseBadRequest(res, t("only_import_transactions"));
         }
 
-        const newStatus = action === 'approve' ? 'COMPLETE' : 'CANCEL';
         const user = await UserModel.findById(transaction.user_id);
 
         if (!user) {
             return responseBadRequest(res, t("user_not_found"));
         }
+
+        if (!accessibleUserIds.some(aid => aid.toString() === user._id.toString())) {
+            return responseBadRequest(res, t("transaction_not_found"));
+        }
+
+        const newStatus = action === 'approve' ? 'COMPLETE' : 'CANCEL';
 
         // Update transaction status
         transaction.fund_status = newStatus;

@@ -8,6 +8,7 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const replyToSupportTicket = async (req, res) => {
   try {
@@ -15,6 +16,9 @@ export const replyToSupportTicket = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const { ticketId } = req.params;
     const { message } = req.body;
@@ -34,6 +38,10 @@ export const replyToSupportTicket = async (req, res) => {
     const ticket = await SupportMessage.findById(ticketId);
 
     if (!ticket) {
+      return responseNotFound(res);
+    }
+
+    if (!accessibleUserIds.some(aid => aid.toString() === ticket.writer.toString())) {
       return responseNotFound(res);
     }
 

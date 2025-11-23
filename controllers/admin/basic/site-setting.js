@@ -1,6 +1,7 @@
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from "../../../helper/response.js";
 import SettingModel from "../../../models/Setting.js";
 import PartnerModel from "../../../models/Partner.js";
+import BankAccountModel from "../../../models/BankAccount.js";
 import { t } from "../../../helper/translation.js";
 import { partnerType } from "../../../const/type.js";
 
@@ -229,7 +230,15 @@ export const getSiteSetting = async (req, res) => {
             }
         );
 
-        responseSuccess(res, result);
+        const bankAccounts = await BankAccountModel.find({})
+            .select('_id bank_name')
+            .sort({ bank_name: 1 })
+            .lean();
+
+        const responseData = result.toObject ? result.toObject() : result;
+        responseData.bankAccounts = bankAccounts || [];
+
+        responseSuccess(res, responseData);
     } catch (error) {
         console.error("Error to get site setting:", error);
         return responseServerError(res);
@@ -260,7 +269,7 @@ export const updateSiteSetting = async (req, res) => {
             charge,
             exchange,
             customerCenter,
-            depositBanks
+            bankAccounts
         } = req.body;
 
         if (charge === undefined || exchange === undefined) {
@@ -287,7 +296,7 @@ export const updateSiteSetting = async (req, res) => {
             title_bar: siteText?.titleBar ?? '',
             copywriter: siteText?.copywriter ?? '',
             top_notify_message: siteText?.topNotifyMessage ?? '',
-            deposit_account: siteText?.depositAccount ?? '',
+            deposit_account_information: siteText?.depositAccount ?? '',
             membership_registration: membership?.membershipRegistration ?? 'recommender',
             membership_approval: membership?.membershipApproval ?? true,
             membership_signup_message: membership?.membershipSignupMessage ?? '',
@@ -311,9 +320,6 @@ export const updateSiteSetting = async (req, res) => {
             charge_restriction_limit: sanitizedExchange.charge_restriction_limit,
             exchange_complete_message: sanitizedExchange.exchange_complete_message,
             customer_center: customerCenter !== undefined ? Boolean(customerCenter) : true,
-            deposit_banks: Array.isArray(depositBanks?.depositBanks) 
-                ? depositBanks.depositBanks.filter(bank => bank && typeof bank === 'string' && bank.trim() !== '')
-                : []
         };
 
         await SettingModel.findOneAndUpdate(
@@ -325,6 +331,62 @@ export const updateSiteSetting = async (req, res) => {
                 setDefaultsOnInsert: true
             }
         );
+
+        if (bankAccounts !== undefined && Array.isArray(bankAccounts)) {
+            const currentBankAccounts = await BankAccountModel.find({}).lean();
+            const currentBankAccountMap = new Map(
+                currentBankAccounts.map(acc => [acc._id.toString(), acc.bank_name])
+            );
+
+            const newBankAccountMap = new Map();
+            const newBankAccountNames = new Set();
+            
+            bankAccounts.forEach(bank => {
+                const bankName = typeof bank === 'string' ? bank.trim() : (bank?.bank_name || '').trim();
+                if (!bankName) return;
+                
+                if (bank._id) {
+                    newBankAccountMap.set(bank._id.toString(), bankName);
+                }
+                newBankAccountNames.add(bankName.toLowerCase());
+            });
+
+            const bankAccountsToDelete = currentBankAccounts.filter(
+                acc => !newBankAccountMap.has(acc._id.toString())
+            );
+            
+            for (const bankAccount of bankAccountsToDelete) {
+                await BankAccountModel.deleteOne({ _id: bankAccount._id });
+            }
+
+            for (const bank of bankAccounts) {
+                const bankName = typeof bank === 'string' ? bank.trim() : (bank?.bank_name || '').trim();
+                if (!bankName) continue;
+
+                if (bank._id) {
+                    const existingBank = currentBankAccountMap.get(bank._id.toString());
+                    if (existingBank && existingBank !== bankName) {
+                        const duplicate = await BankAccountModel.findOne({
+                            bank_name: bankName,
+                            _id: { $ne: bank._id }
+                        });
+                        if (!duplicate) {
+                            await BankAccountModel.findOneAndUpdate(
+                                { _id: bank._id },
+                                { bank_name: bankName }
+                            );
+                        }
+                    }
+                } else {
+                    const existingBank = await BankAccountModel.findOne({
+                        bank_name: bankName
+                    });
+                    if (!existingBank) {
+                        await BankAccountModel.create({ bank_name: bankName });
+                    }
+                }
+            }
+        }
 
         responseSuccess(res);
     } catch (error) {

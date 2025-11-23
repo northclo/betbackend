@@ -7,6 +7,7 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const bulkDeleteSupportTickets = async (req, res) => {
   try {
@@ -14,6 +15,9 @@ export const bulkDeleteSupportTickets = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const { ids } = req.body;
 
@@ -26,8 +30,24 @@ export const bulkDeleteSupportTickets = async (req, res) => {
       return responseBadRequest(res, t("no_valid_ticket_ids"));
     }
 
-    const result = await SupportMessage.deleteMany({
+    const tickets = await SupportMessage.find({
       _id: { $in: validIds }
+    }).select("writer").lean();
+
+    const accessibleTicketIds = tickets
+      .filter(ticket => accessibleUserIds.some(aid => aid.toString() === ticket.writer.toString()))
+      .map(ticket => ticket._id);
+
+    if (accessibleTicketIds.length === 0) {
+      return responseSuccess(
+        res,
+        { deletedCount: 0 },
+        t("successfully_deleted_tickets", 0)
+      );
+    }
+
+    const result = await SupportMessage.deleteMany({
+      _id: { $in: accessibleTicketIds }
     });
 
     return responseSuccess(

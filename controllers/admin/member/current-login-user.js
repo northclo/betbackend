@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
 
 import UserModel from "../../../models/User.js";
-import { responseSuccess, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { onlineUsers } from "../../../server.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -64,6 +65,14 @@ const buildSearchMatch = (field, regex) => {
 
 export const getCurrentLoginUser = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const {
             startDate: startDateParam,
             endDate: endDateParam,
@@ -100,13 +109,24 @@ export const getCurrentLoginUser = async (req, res) => {
             })
             .filter(Boolean);
 
-        let userIdsToQuery = onlineUserIds;
-        if (!onlineUserIds.length) {
-            const dbOnlineUsers = await UserModel.find(
-                { login_status: true },
-                { _id: 1 }
-            ).lean();
-            userIdsToQuery = dbOnlineUsers.map((u) => u._id);
+        let userIdsToQuery = [];
+        if (onlineUserIds.length > 0) {
+            userIdsToQuery = onlineUserIds.filter(id => 
+                accessibleUserIds.some(aid => aid.toString() === id.toString())
+            );
+        }
+
+        if (!userIdsToQuery.length) {
+            if (accessibleUserIds.length > 0) {
+                const dbOnlineUsers = await UserModel.find(
+                    { 
+                        login_status: true,
+                        _id: { $in: accessibleUserIds }
+                    },
+                    { _id: 1 }
+                ).lean();
+                userIdsToQuery = dbOnlineUsers.map((u) => u._id);
+            }
             
             if (!userIdsToQuery.length) {
                 return responseSuccess(res, {

@@ -4,7 +4,7 @@ import { responseSuccess, responseBadRequest, responseServerError, responseUnAut
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
 import { t } from "../../../helper/translation.js";
-import mongoose from "mongoose";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -28,63 +28,6 @@ const normalizeDate = (value, isEnd = false) => {
     return dateMoment.toDate();
 };
 
-const fetchAccessiblePartners = async (partnerId, includeSubs = false) => {
-    if (!partnerId) return { partnerIds: [] };
-
-    try {
-        const partner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
-        if (!partner) {
-            return { partnerIds: [] };
-        }
-        
-        const partnerObjectId = partner._id;
-        
-        if (includeSubs) {
-            const roots = await PartnerModel.aggregate([
-                {
-                    $match: {
-                        _id: partnerObjectId
-                    }
-                },
-                {
-                    $graphLookup: {
-                        from: "partners",
-                        startWith: "$_id",
-                        connectFromField: "_id",
-                        connectToField: "parent_partner_id",
-                        as: "subs",
-                    },
-                },
-                {
-                    $project: {
-                        allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-                    },
-                },
-                { $unwind: "$allPartners" },
-                {
-                    $replaceRoot: { newRoot: "$allPartners" },
-                },
-                {
-                    $project: {
-                        _id: 1,
-                    },
-                },
-            ]);
-
-            if (!roots.length) {
-                return { partnerIds: [] };
-            }
-
-            const partnerIds = roots.map((doc) => doc._id);
-            return { partnerIds };
-        } else {
-            return { partnerIds: [partnerObjectId] };
-        }
-    } catch (error) {
-        console.error("Error fetching accessible partners:", error);
-        return { partnerIds: [] };
-    }
-};
 
 export const getBettingList = async (req, res) => {
     try {
@@ -132,11 +75,31 @@ export const getBettingList = async (req, res) => {
             filter.betting_status = bettingStatus;
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
         let partnerIds = [];
         if (partnerId) {
             const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
-            const result = await fetchAccessiblePartners(partnerId, includeSubs);
-            partnerIds = result.partnerIds;
+            
+            const requestedPartner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+            if (!requestedPartner) {
+                partnerIds = [];
+            } else {
+                const isAccessible = accessiblePartnerIds.some(id => id.toString() === requestedPartner._id.toString());
+                
+                if (isAccessible) {
+                    if (includeSubs) {
+                        const subPartnerIds = await fetchAccessiblePartnerIds(requestedPartner._id);
+                        partnerIds = subPartnerIds;
+                    } else {
+                        partnerIds = [requestedPartner._id];
+                    }
+                } else {
+                    partnerIds = [];
+                }
+            }
+        } else {
+            partnerIds = accessiblePartnerIds;
         }
 
         let searchRegex = null;
@@ -170,10 +133,13 @@ export const getBettingList = async (req, res) => {
         if (partnerIds.length > 0) {
             basePipeline.push({
                 $match: {
-                    "user.partner_id": { $in: partnerIds }
+                    $or: [
+                        { "user.partner_id": { $in: partnerIds } },
+                        { "user.ownpartner_id": { $in: partnerIds } }
+                    ]
                 }
             });
-        } else if (partnerId) {
+        } else {
             basePipeline.push({ $match: { _id: { $exists: false } } });
         }
 

@@ -2,6 +2,7 @@ import { responseBadRequest, responseSuccess, responseServerError, responseUnAut
 import UserModel from "../../../models/User.js";
 import { io, onlineUsers } from "../../../server.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const logoutUser = async (req, res) => {
     try {
@@ -9,6 +10,9 @@ export const logoutUser = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const { user_nickname } = req.body;
 
@@ -19,6 +23,10 @@ export const logoutUser = async (req, res) => {
         const user = await UserModel.findOne({ user_nickname: user_nickname });
 
         if (!user) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
+
+        if (!accessibleUserIds.some(aid => aid.toString() === user._id.toString())) {
             return responseBadRequest(res, t("user_not_found"));
         }
 

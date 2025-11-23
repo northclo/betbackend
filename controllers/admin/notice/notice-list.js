@@ -7,6 +7,7 @@ import {
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import mongoose from "mongoose";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const toNoticeDto = async (notice) => {
   try {
@@ -96,6 +97,8 @@ export const listNotices = async (req, res) => {
       return responseUnAutherized(res);
     }
 
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
     const {
       searchType = "title",
       keyword = "",
@@ -107,6 +110,20 @@ export const listNotices = async (req, res) => {
     } = req.query;
 
     const filter = {};
+
+    if (accessiblePartnerIds.length > 0) {
+      filter.writer = { $in: accessiblePartnerIds };
+    } else {
+      return responseSuccess(res, {
+        list: [],
+        items: [],
+        page: 1,
+        pageSize: limit,
+        limit: limit,
+        total: 0,
+        totalPages: 0,
+      });
+    }
 
     if (startDate && startDate.trim() !== "" || endDate && endDate.trim() !== "") {
       filter.createdAt = {};
@@ -149,13 +166,34 @@ export const listNotices = async (req, res) => {
           return responseServerError(res);
         }
       }
+
+      if (!accessiblePartnerIds.some(pid => pid.toString() === normalizedPartnerId.toString())) {
+        return responseSuccess(res, {
+          list: [],
+          items: [],
+          page: 1,
+          pageSize: limit,
+          limit: limit,
+          total: 0,
+          totalPages: 0,
+        });
+      }
       
-      filter.$or = [
+      const partnerFilter = [
         { partner_ids: { $exists: false } },
         { partner_ids: { $size: 0 } },
         { partner_ids: null },
         { partner_ids: { $in: [normalizedPartnerId] } }
       ];
+
+      if (filter.$or) {
+        filter.$and = filter.$and || [];
+        filter.$and.push({ $or: filter.$or });
+        filter.$and.push({ $or: partnerFilter });
+        delete filter.$or;
+      } else {
+        filter.$or = partnerFilter;
+      }
     }
 
     if (keyword && String(keyword).trim().length > 0) {

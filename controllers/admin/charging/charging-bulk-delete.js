@@ -7,6 +7,7 @@ import {
   responseUnAutherized,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const bulkDeleteChargingTransactions = async (req, res) => {
   try {
@@ -14,6 +15,9 @@ export const bulkDeleteChargingTransactions = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const { ids } = req.body;
 
@@ -35,10 +39,18 @@ export const bulkDeleteChargingTransactions = async (req, res) => {
       return responseBadRequest(res, t("no_valid_transaction_ids"));
     }
 
-    const result = await TransactionModel.deleteMany({
+    const filter = {
       _id: { $in: validIds },
       fund_type: 'CHARGE'
-    });
+    };
+
+    if (accessibleUserIds.length > 0) {
+      filter.user_id = { $in: accessibleUserIds };
+    } else {
+      filter.user_id = { $in: [] };
+    }
+
+    const result = await TransactionModel.deleteMany(filter);
 
     return responseSuccess(
       res,

@@ -1,5 +1,7 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
-import { responseSuccess, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
+import UserModel from "../../../models/User.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -15,6 +17,14 @@ const normalizeDate = (value, isEnd = false) => {
 
 export const getChargingSummary = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         let {
             startDate,
             endDate
@@ -30,6 +40,12 @@ export const getChargingSummary = async (req, res) => {
             dateFilter.createdAt = {};
             if (start) dateFilter.createdAt.$gte = start;
             if (end) dateFilter.createdAt.$lte = end;
+        }
+
+        if (accessibleUserIds.length > 0) {
+            dateFilter.user_id = { $in: accessibleUserIds };
+        } else {
+            dateFilter.user_id = { $in: [] };
         }
 
         const aggregation = await TransactionModel.aggregate([
@@ -80,12 +96,16 @@ export const getChargingSummary = async (req, res) => {
             approved_count: 0
         };
 
-        const approvedTransactions = await TransactionModel.find({
+        const approvedTransactionsFilter = {
             fund_type: 'CHARGE',
             ...dateFilter,
             fund_status: "COMPLETE",
             fund_status_update_date: { $exists: true, $ne: null }
-        }).select("createdAt fund_status_update_date").lean();
+        };
+
+        const approvedTransactions = await TransactionModel.find(approvedTransactionsFilter)
+            .select("createdAt fund_status_update_date")
+            .lean();
 
         let averageProcessingTime = 0;
         if (approvedTransactions.length > 0) {

@@ -32,6 +32,9 @@ export const registerPartner = async (req, res) => {
             return responsePermissionDenied(res);
         }
 
+        const isSettingSettlementRates = payload.dapol !== undefined || payload.danpol !== undefined || payload.numberMatch !== undefined;
+        const canSetSettlementRates = isSettingSettlementRates && (isHeadquater || currentPartner.sub_partner_settlement_rate === true);
+
         if (!payload.partnerId || !payload.partnerId.trim()) {
             return responseBadRequest(res, t("partner_id_required"));
         }
@@ -85,53 +88,64 @@ export const registerPartner = async (req, res) => {
 
         const role = payload.role || partnerType.branchOffice;
 
-        const createPartnerData = (partnerIdValue, nicknameValue) => ({
-            role: role,
-            nickname: nicknameValue,
-            partner_id: partnerIdValue,
-            password: hashedPassword,
-            exchange_secure_number: hashedExchangePassword,
-            parent_partner_id: parentPartnerId,
-            phone_number: payload.phoneNumber || '',
-            bank_id: payload.bank.trim(),
-            bank_number: payload.account.trim(),
-            bank_owner_name: payload.name.trim(),
-            simple_bet_rate: payload.dapol ? Number(payload.dapol) : null,
-            combined_bet_rate: payload.danpol ? Number(payload.danpol) : null,
-            match_num_bet_rate: payload.numberMatch ? Number(payload.numberMatch) : null,
-            currency_rolling: payload.currencyRolling?.check || false,
-            deposit_approved_amount: payload.currencyRolling?.amount ? Number(payload.currencyRolling.amount) : 0,
-            partner_access_permission: payload.permissions?.partnerPageAccess || false,
-            sub_partner_creation_permission: payload.permissions?.subPartnerCreate || false,
-            user_creation_permission: payload.permissions?.memberCreate || false,
-            sub_partner_settlement_rate: payload.permissions?.partnerSettlement || false,
-            sub_partner_money_change: payload.permissions?.moneyChange || false,
-            bet_rate_type: payload.gameSetting?.dividendType || 'A',
-            deadline: payload.gameSetting?.deadline ? Number(payload.gameSetting.deadline) : null,
-            cancel_bet: payload.gameSetting?.cancelBet || false,
-            cancel_bet_range: payload.gameSetting?.cancelBet ? {
-                end_time: payload.gameSetting.cancelBetEndTime ? Number(payload.gameSetting.cancelBetEndTime) : 0,
-                max_time: payload.gameSetting.cancelBetMaxTime ? Number(payload.gameSetting.cancelBetMaxTime) : 0,
-                perday_time: payload.gameSetting.cancelBetPerday ? Number(payload.gameSetting.cancelBetPerday) : 0,
-            } : undefined,
-            bet_money_unit: payload.gameSetting?.betUnit || '',
-            onetime_bet_min: payload.gameSetting?.oneTimeBetMin ? Number(payload.gameSetting.oneTimeBetMin) : null,
-            onetime_bet_max: payload.gameSetting?.oneTimeBetMax ? Number(payload.gameSetting.oneTimeBetMax) : null,
-            onetime_earning_min: payload.gameSetting?.oneTimeEarningMin ? Number(payload.gameSetting.oneTimeEarningMin) : null,
-            onetime_earning_max: payload.gameSetting?.oneTimeEarningMax ? Number(payload.gameSetting.oneTimeEarningMax) : null,
-            oneround_bet_max: payload.gameSetting?.oneRoundBetMax ? Number(payload.gameSetting.oneRoundBetMax) : null,
-            oneround_earning_max: payload.gameSetting?.oneRoundEarningMax ? Number(payload.gameSetting.oneRoundEarningMax) : null,
-            oneround_bet_max_slot: payload.gameSetting?.oneRoundBetMaxPerSlot ? Number(payload.gameSetting.oneRoundBetMaxPerSlot) : null,
-            oneround_earning_max_slot: payload.gameSetting?.oneRoundEarningMaxPerSlot ? Number(payload.gameSetting.oneRoundEarningMaxPerSlot) : null,
-            all_rounds_bet_max: payload.gameSetting?.allRoundsBetMax ? Number(payload.gameSetting.allRoundsBetMax) : null,
-            all_rounds_bet_max_by_slots: payload.gameSetting?.allRoundsBetMaxBySlots && Array.isArray(payload.gameSetting.allRoundsBetMaxBySlots) 
-                ? payload.gameSetting.allRoundsBetMaxBySlots.map(slot => ({
-                    bet_type: slot.bet_type || '',
-                    slot_bet_max: slot.slot_bet_max ? Number(slot.slot_bet_max) : null,
-                    public: slot.public || false
-                }))
-                : [],
-        });
+        const createPartnerData = (partnerIdValue, nicknameValue) => {
+            const partnerData = {
+                role: role,
+                nickname: nicknameValue,
+                partner_id: partnerIdValue,
+                password: hashedPassword,
+                exchange_secure_number: hashedExchangePassword,
+                parent_partner_id: parentPartnerId,
+                phone_number: payload.phoneNumber ? {
+                    active_code: payload.phoneNumber.active_code || '',
+                    phone_number_1: payload.phoneNumber.phone_number_1 || '',
+                    phone_number_2: payload.phoneNumber.phone_number_2 || ''
+                } : undefined,
+                bank_id: payload.bank.trim(),
+                bank_number: payload.account.trim(),
+                bank_owner_name: payload.name.trim(),
+                currency_rolling: payload.currencyRolling?.check || false,
+                rollover_percentage: payload.currencyRolling?.amount ? Number(payload.currencyRolling.amount) : 0,
+                partner_access_permission: payload.permissions?.partnerPageAccess || false,
+                sub_partner_creation_permission: payload.permissions?.subPartnerCreate || false,
+                user_creation_permission: payload.permissions?.memberCreate || false,
+                sub_partner_settlement_rate: payload.permissions?.partnerSettlement || false,
+                sub_partner_money_change: payload.permissions?.moneyChange || false,
+                bet_rate_type: payload.gameSetting?.dividendType || 'A',
+                deadline: payload.gameSetting?.deadline ? Number(payload.gameSetting.deadline) : null,
+                cancel_bet: payload.gameSetting?.cancelBet || false,
+                cancel_bet_range: payload.gameSetting?.cancelBet ? {
+                    end_time: payload.gameSetting.cancelBetEndTime ? Number(payload.gameSetting.cancelBetEndTime) : 0,
+                    max_time: payload.gameSetting.cancelBetMaxTime ? Number(payload.gameSetting.cancelBetMaxTime) : 0,
+                    perday_time: payload.gameSetting.cancelBetPerday ? Number(payload.gameSetting.cancelBetPerday) : 0,
+                } : undefined,
+                bet_money_unit: payload.gameSetting?.betUnit || '',
+                onetime_bet_min: payload.gameSetting?.oneTimeBetMin ? Number(payload.gameSetting.oneTimeBetMin) : null,
+                onetime_bet_max: payload.gameSetting?.oneTimeBetMax ? Number(payload.gameSetting.oneTimeBetMax) : null,
+                onetime_earning_min: payload.gameSetting?.oneTimeEarningMin ? Number(payload.gameSetting.oneTimeEarningMin) : null,
+                onetime_earning_max: payload.gameSetting?.oneTimeEarningMax ? Number(payload.gameSetting.oneTimeEarningMax) : null,
+                oneround_bet_max: payload.gameSetting?.oneRoundBetMax ? Number(payload.gameSetting.oneRoundBetMax) : null,
+                oneround_earning_max: payload.gameSetting?.oneRoundEarningMax ? Number(payload.gameSetting.oneRoundEarningMax) : null,
+                oneround_bet_max_slot: payload.gameSetting?.oneRoundBetMaxPerSlot ? Number(payload.gameSetting.oneRoundBetMaxPerSlot) : null,
+                oneround_earning_max_slot: payload.gameSetting?.oneRoundEarningMaxPerSlot ? Number(payload.gameSetting.oneRoundEarningMaxPerSlot) : null,
+                all_rounds_bet_max: payload.gameSetting?.allRoundsBetMax ? Number(payload.gameSetting.allRoundsBetMax) : null,
+                all_rounds_bet_max_by_slots: payload.gameSetting?.allRoundsBetMaxBySlots && Array.isArray(payload.gameSetting.allRoundsBetMaxBySlots) 
+                    ? payload.gameSetting.allRoundsBetMaxBySlots.map(slot => ({
+                        bet_type: slot.bet_type || '',
+                        slot_bet_max: slot.slot_bet_max ? Number(slot.slot_bet_max) : null,
+                        public: slot.public || false
+                    }))
+                    : [],
+            };
+
+            if (canSetSettlementRates) {
+                partnerData.simple_bet_rate = payload.dapol ? Number(payload.dapol) : null;
+                partnerData.combined_bet_rate = payload.danpol ? Number(payload.danpol) : null;
+                partnerData.match_num_bet_rate = payload.numberMatch ? Number(payload.numberMatch) : null;
+            }
+
+            return partnerData;
+        };
 
         if (payload.checked === true || payload.checked === 'true') {
             if (payload.startTime === null || payload.startTime === undefined) {

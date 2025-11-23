@@ -13,8 +13,12 @@ const PartnerSchema = new Schema(
         partner_id: { type: String, required: true, unique: true, index: true },
         password: { type: String, required: true },
         exchange_secure_number: { type: String, required: true },
-        phone_number: { type: String },
-        bank_id: { type: String, required: true },
+        phone_number: {
+            active_code: { type: String },
+            phone_number_1: { type: String },
+            phone_number_2: { type: String }
+        },
+        bank_id: { type: mongoose.Types.ObjectId },
         bank_number: { type: String, required: true },
         bank_owner_name: { type: String, required: true },
         simple_bet_rate: { type: Number, default: 0 },
@@ -23,7 +27,9 @@ const PartnerSchema = new Schema(
         parent_partner_id: { type: mongoose.Types.ObjectId },
         user_id: { type: mongoose.Types.ObjectId },
         currency_rolling: { type: Boolean, default: true },
-        deposit_approved_amount: { type: Number, default: 0 },
+        rollover_percentage: { type: Number, default: 0 },
+        own_money: { type: Number, default: 0 },
+        point: { type: Number, default: 0 },
         partner_access_permission: { type: Boolean, default: false },
         sub_partner_creation_permission: { type: Boolean, default: false },
         user_creation_permission: { type: Boolean, default: false },
@@ -49,9 +55,13 @@ const PartnerSchema = new Schema(
         all_rounds_bet_max: { type: Number },
         all_rounds_bet_max_by_slots: [
             {
-                bet_type: { type: String },
-                slot_bet_max: { type: Number },
-                public: { type: Boolean }
+                bet_type: { 
+                    type: String, 
+                    enum: ['oedv', 'unov', 'oeuo', 'match_1_3', 'match_1_4', 'match_1_6'],
+                    required: true
+                },
+                slot_bet_max: { type: Number, min: 0, default: 0 },
+                public: { type: Boolean, default: false }
             }
         ]
     },

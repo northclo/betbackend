@@ -6,6 +6,7 @@ import {
   responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const deleteAnnouncement = async (req, res) => {
   try {
@@ -14,9 +15,20 @@ export const deleteAnnouncement = async (req, res) => {
       return responseUnAutherized(res);
     }
 
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
     const { announcementId } = req.params;
     if (!announcementId) {
       return responseBadRequest(res, t("announcement_id_required"));
+    }
+
+    const existing = await AnnouncementModel.findById(announcementId).lean();
+    if (!existing) {
+      return responseBadRequest(res, t("announcement_not_found"));
+    }
+
+    if (!accessiblePartnerIds.some(pid => pid.toString() === existing.author.toString())) {
+      return responseBadRequest(res, t("announcement_not_found"));
     }
 
     const deleted = await AnnouncementModel.findOneAndDelete({ _id: announcementId });

@@ -1,8 +1,9 @@
 import moment from "moment";
 import GameResultModel from "../../../models/GameResult.js";
 import BettingResultModel from "../../../models/BettingResult.js";
-import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const ALLOWED_STATUS = ["", "register", "under", "end", "finish", "cancel"];
 const ALLOWED_SEARCH_FIELDS = ["total_no", "today_no"];
@@ -88,6 +89,14 @@ const buildStatusFilter = (status, now) => {
 
 export const getGameManagement = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+
         const { status = "", searchField, search, page = 1, pageSize = 10 } = req.query;
         const normalizedStatus = (status || "").toString().trim().toLowerCase();
         const now = Date.now();
@@ -127,12 +136,20 @@ export const getGameManagement = async (req, res) => {
 
         const gameIds = gameResult.map(g => g.game_id).filter(Boolean);
 
+        const bettingMatchFilter = {
+            game_id: { $in: gameIds },
+            betting_status: { $ne: "cancel" }
+        };
+
+        if (accessibleUserIds.length > 0) {
+            bettingMatchFilter.user_id = { $in: accessibleUserIds };
+        } else {
+            bettingMatchFilter.user_id = { $in: [] };
+        }
+
         const bettingCounts = gameIds.length > 0 ? await BettingResultModel.aggregate([
             {
-                $match: {
-                    game_id: { $in: gameIds },
-                    betting_status: { $ne: "cancel" }
-                }
+                $match: bettingMatchFilter
             },
             {
                 $group: {

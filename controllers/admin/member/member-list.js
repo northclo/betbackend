@@ -3,11 +3,19 @@ import mongoose from 'mongoose';
 
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
+import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized, responsePermissionDenied } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
+import { partnerType } from "../../../const/type.js";
+import { userStatus } from '../../../const/status.js';
 
 export const getMemberList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         let {
             duration = "import_exchange_betting",
             startDate,
@@ -112,46 +120,66 @@ export const getMemberList = async (req, res) => {
             }
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
+        let targetPartnerIds = [];
+        
         if (partnerId) {
-            try {
-                const partner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
-                if (!partner) {
-                    return responseBadRequest(res, t("partner_not_found"));
-                }
+            const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
+            
+            const requestedPartner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+            if (!requestedPartner) {
+                targetPartnerIds = [];
+            } else {
+                const isAccessible = accessiblePartnerIds.some(id => id.toString() === requestedPartner._id.toString());
                 
-                const partnerObjectId = partner._id;
-                let targetPartnerIds = [partnerObjectId];
-                
-                if (includeSubPartners === 'true') {
-                    const getSubPartnerIds = async (parentId) => {
-                        const subPartners = await PartnerModel.find({ parent_partner_id: parentId }).select("_id").lean();
-                        const subIds = subPartners.map(p => p._id);
-                        let allSubIds = [...subIds];
-                        for (const subId of subIds) {
-                            const nestedSubs = await getSubPartnerIds(subId);
-                            allSubIds = [...allSubIds, ...nestedSubs];
-                        }
-                        return allSubIds;
-                    };
-                    const subPartnerIds = await getSubPartnerIds(partnerObjectId);
-                    targetPartnerIds = [partnerObjectId, ...subPartnerIds];
-                }
-                
-                const partnerFilter = {
-                    partner_id: { $in: targetPartnerIds }
-                };
-                if (filter.$and) {
-                    filter.$and.push(partnerFilter);
-                } else if (filter.$or) {
-                    filter.$and = [filter.$or, partnerFilter];
-                    delete filter.$or;
+                if (isAccessible) {
+                    if (includeSubs) {
+                        const subPartnerIds = await fetchAccessiblePartnerIds(requestedPartner._id);
+                        targetPartnerIds = subPartnerIds;
+                    } else {
+                        targetPartnerIds = [requestedPartner._id];
+                    }
                 } else {
-                    Object.assign(filter, partnerFilter);
+                    targetPartnerIds = [];
                 }
-            } catch (error) {
-                console.error("Error fetching partner:", error);
-                return responseBadRequest(res, t("error_processing_partner_filter"));
             }
+        } else {
+            targetPartnerIds = accessiblePartnerIds;
+        }
+
+        if (targetPartnerIds.length > 0) {
+            const partnerFilter = {
+                $or: [
+                    { partner_id: { $in: targetPartnerIds } },
+                    { ownpartner_id: { $in: targetPartnerIds } }
+                ]
+            };
+            
+            if (filter.$and) {
+                filter.$and.push(partnerFilter);
+            } else if (filter.$or) {
+                filter.$and = [filter.$or, partnerFilter];
+                delete filter.$or;
+            } else {
+                Object.assign(filter, partnerFilter);
+            }
+        } else {
+            return responseSuccess(res, {
+                list: [],
+                total: 0,
+                page: pageNumber,
+                pageSize: limit,
+                statusCounts: {
+                    all: 0,
+                    normal: 0,
+                    wait: 0,
+                    stop: 0,
+                    cancel: 0,
+                    danger: 0,
+                    tester: 0
+                }
+            });
         }
 
         const isCreatedDate = duration === "created_date" && (start || end);
@@ -475,8 +503,88 @@ export const getMemberList = async (req, res) => {
                 ? aggregation[0].total[0].count
                 : 0;
 
-        const statusCountFilter = { ...filter };
-        delete statusCountFilter.user_status;
+        const statusCountFilter = {};
+        
+        if (targetPartnerIds.length > 0) {
+            statusCountFilter.$or = [
+                { partner_id: { $in: targetPartnerIds } },
+                { ownpartner_id: { $in: targetPartnerIds } }
+            ];
+        } else {
+            const counts = {
+                all: 0,
+                normal: 0,
+                wait: 0,
+                stop: 0,
+                cancel: 0,
+                danger: 0,
+                tester: 0
+            };
+            
+            return responseSuccess(res, {
+                list: [],
+                total: 0,
+                page: pageNumber,
+                pageSize: limit,
+                statusCounts: counts
+            });
+        }
+
+        if (search && searchField) {
+            const searchRegex = new RegExp(search, "i");
+            const textFieldMap = {
+                user_nickname: "user_nickname",
+                memo: "memo_note",
+                bank_owner: "bank_owner_name",
+                phone_number: "phone_number",
+                bank_account: "bank_number",
+                recommended_user: "recommend_id"
+            };
+
+            switch (searchField) {
+                case "cash_remained_over":
+                case "cash_remained_under": {
+                    const amount = Number(search);
+                    if (!Number.isNaN(amount)) {
+                        const operator = searchField === "cash_remained_over" ? "$gte" : "$lte";
+                        statusCountFilter.own_money = {
+                            ...(statusCountFilter.own_money || {}),
+                            [operator]: amount
+                        };
+                    }
+                    break;
+                }
+                case "user_id": {
+                    statusCountFilter.$and = statusCountFilter.$and || [];
+                    const idConditions = [
+                        { user_email: searchRegex },
+                        { user_name: searchRegex }
+                    ];
+                    statusCountFilter.$and.push({
+                        $or: [
+                            ...idConditions,
+                            {
+                                $expr: {
+                                    $regexMatch: {
+                                        input: { $toString: "$_id" },
+                                        regex: searchRegex.source,
+                                        options: searchRegex.flags
+                                    }
+                                }
+                            }
+                        ]
+                    });
+                    break;
+                }
+                default: {
+                    const fieldName = textFieldMap[searchField];
+                    if (fieldName) {
+                        statusCountFilter[fieldName] = searchRegex;
+                    }
+                    break;
+                }
+            }
+        }
 
         if (isCreatedDate) {
             if (start) statusCountFilter.createdAt = { ...(statusCountFilter.createdAt || {}), $gte: start };
@@ -530,6 +638,11 @@ export const getMemberList = async (req, res) => {
 
 export const getMemberById = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { id } = req.query;
 
         if (!id) {
@@ -540,8 +653,15 @@ export const getMemberById = async (req, res) => {
             return responseBadRequest(res, t("invalid_user_id_format"));
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        
         const user = await UserModel.findById(id).lean();
         if (!user) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
+
+        const userPartnerId = user.partner_id || user.ownpartner_id;
+        if (!userPartnerId || !accessiblePartnerIds.some(pid => pid.toString() === userPartnerId.toString())) {
             return responseBadRequest(res, t("user_not_found"));
         }
 
@@ -554,6 +674,11 @@ export const getMemberById = async (req, res) => {
 
 export const updateMemberList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { _id, password, exchange_secure_number, ...updateData } = req.body;
 
         if (!_id) {
@@ -564,9 +689,33 @@ export const updateMemberList = async (req, res) => {
             return responseBadRequest(res, t("invalid_user_id_format"));
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
         const user = await UserModel.findById(_id);
         if (!user) {
             return responseBadRequest(res, t("user_not_found"));
+        }
+
+        const userPartnerId = user.partner_id || user.ownpartner_id;
+        if (!userPartnerId || !accessiblePartnerIds.some(pid => pid.toString() === userPartnerId.toString())) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
+
+        const isUpdatingSettlementRates = updateData.simple_bet_rate !== undefined || updateData.combined_bet_rate !== undefined || updateData.match_num_bet_rate !== undefined;
+        if (isUpdatingSettlementRates) {
+            const currentPartner = await PartnerModel.findById(adminId).lean();
+            if (!currentPartner) {
+                return responseBadRequest(res, t("partner_not_found"));
+            }
+
+            const isHeadquater = currentPartner.role === partnerType.headquater;
+            const hasSettlementRatePermission = currentPartner.sub_partner_settlement_rate === true;
+
+            if (!isHeadquater && !hasSettlementRatePermission) {
+                delete updateData.simple_bet_rate;
+                delete updateData.combined_bet_rate;
+                delete updateData.match_num_bet_rate;
+            }
         }
 
         if (updateData.user_nickname !== undefined) {
@@ -643,6 +792,18 @@ export const updateMemberList = async (req, res) => {
             updateData.exchange_secure_number = await bcrypt.hash(exchange_secure_number, salt);
         }
 
+        if (updateData.phone_number !== undefined) {
+            if (updateData.phone_number && typeof updateData.phone_number === 'object') {
+                updateData.phone_number = {
+                    active_code: updateData.phone_number.active_code || '',
+                    phone_number_1: updateData.phone_number.phone_number_1 || '',
+                    phone_number_2: updateData.phone_number.phone_number_2 || ''
+                };
+            } else {
+                updateData.phone_number = undefined;
+            }
+        }
+
         await UserModel.updateOne({ _id }, updateData);
         return responseSuccess(res);
     } catch (error) {
@@ -653,6 +814,11 @@ export const updateMemberList = async (req, res) => {
 
 export const createMemberList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { user_nickname, user_email, password, exchange_secure_number, partner_id, ...otherData } = req.body;
 
         if (!user_nickname || !user_email) {
@@ -672,6 +838,8 @@ export const createMemberList = async (req, res) => {
             return responseBadRequest(res, t("user_email_already_exists"));
         }
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
         if (partner_id && !mongoose.Types.ObjectId.isValid(partner_id)) {
             return responseBadRequest(res, t("invalid_partner_id_format"));
         }
@@ -680,6 +848,27 @@ export const createMemberList = async (req, res) => {
             const partner = await PartnerModel.findById(partner_id);
             if (!partner) {
                 return responseBadRequest(res, t("partner_not_found"));
+            }
+
+            if (!accessiblePartnerIds.some(pid => pid.toString() === partner_id.toString())) {
+                return responseBadRequest(res, t("partner_not_found"));
+            }
+        }
+
+        const isSettingSettlementRates = otherData.simple_bet_rate !== undefined || otherData.combined_bet_rate !== undefined || otherData.match_num_bet_rate !== undefined;
+        if (isSettingSettlementRates) {
+            const currentPartner = await PartnerModel.findById(adminId).lean();
+            if (!currentPartner) {
+                return responseBadRequest(res, t("partner_not_found"));
+            }
+
+            const isHeadquater = currentPartner.role === partnerType.headquater;
+            const hasSettlementRatePermission = currentPartner.sub_partner_settlement_rate === true;
+
+            if (!isHeadquater && !hasSettlementRatePermission) {
+                delete otherData.simple_bet_rate;
+                delete otherData.combined_bet_rate;
+                delete otherData.match_num_bet_rate;
             }
         }
 
@@ -697,6 +886,7 @@ export const createMemberList = async (req, res) => {
             bank_id: otherData.bank_id || '',
             bank_number: otherData.bank_number || '',
             bank_owner_name: otherData.bank_owner_name || '',
+            user_status: userStatus.normal,
             ...otherData
         });
 
@@ -709,6 +899,11 @@ export const createMemberList = async (req, res) => {
 
 export const deleteMemberList = async (req, res) => {
     try {
+        const adminId = req?.session?._id;
+        if (!adminId) {
+            return responseUnAutherized(res);
+        }
+
         const { id } = req.params;
 
         if (!id) {
@@ -726,7 +921,12 @@ export const deleteMemberList = async (req, res) => {
             return responseBadRequest(res, t("invalid_user_id_format_list", invalidIds.join(', ')));
         }
 
-        const users = await UserModel.find({ _id: { $in: ids } }).select('_id').lean();
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
+        const users = await UserModel.find({ _id: { $in: ids } })
+            .select('_id partner_id ownpartner_id')
+            .lean();
+        
         const foundIds = users.map(user => user._id.toString());
         const notFoundIds = ids.filter(id => !foundIds.includes(id));
 
@@ -734,8 +934,19 @@ export const deleteMemberList = async (req, res) => {
             return responseBadRequest(res, `Users not found: ${notFoundIds.join(', ')}`);
         }
 
+        const accessibleUserIds = users
+            .filter(user => {
+                const userPartnerId = user.partner_id || user.ownpartner_id;
+                return userPartnerId && accessiblePartnerIds.some(pid => pid.toString() === userPartnerId.toString());
+            })
+            .map(user => user._id);
+
+        if (accessibleUserIds.length === 0) {
+            return responseBadRequest(res, t("no_users_to_delete"));
+        }
+
         await UserModel.deleteMany({
-            _id: { $in: ids }
+            _id: { $in: accessibleUserIds }
         });
 
         return responseSuccess(res);

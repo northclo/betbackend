@@ -7,6 +7,7 @@ import {
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { normalizePartnerIds } from "./notice-utils.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const updateNotice = async (req, res) => {
   try {
@@ -14,6 +15,8 @@ export const updateNotice = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
 
     const { noticeId } = req.params;
     if (!noticeId) {
@@ -25,6 +28,10 @@ export const updateNotice = async (req, res) => {
     const existingNotice = await NoticeModel.findById(noticeId).lean();
     
     if (!existingNotice) {
+      return responseBadRequest(res, t("notice_not_found"));
+    }
+
+    if (!accessiblePartnerIds.some(pid => pid.toString() === existingNotice.writer.toString())) {
       return responseBadRequest(res, t("notice_not_found"));
     }
 
@@ -51,8 +58,12 @@ export const updateNotice = async (req, res) => {
         if (normalizedIds.length === 0 && partnerIds.length > 0) {
           return responseBadRequest(res, t("invalid_partner_id"));
         }
+
+        const accessibleNormalizedIds = normalizedIds.filter(id => 
+          accessiblePartnerIds.some(pid => pid.toString() === id.toString())
+        );
         
-        updateData.partner_ids = normalizedIds;
+        updateData.partner_ids = accessibleNormalizedIds;
       } else {
         updateData.partner_ids = [];
       }

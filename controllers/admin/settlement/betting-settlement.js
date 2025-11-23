@@ -3,9 +3,9 @@ import TransactionModel from "../../../models/TransactionHistory.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
-import mongoose from "mongoose";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -29,63 +29,6 @@ const normalizeDate = (value, isEnd = false) => {
     return dateMoment.toDate();
 };
 
-const fetchAccessiblePartners = async (partnerId, includeSubs = false) => {
-    if (!partnerId) return { partnerIds: [] };
-
-    try {
-        const partner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
-        if (!partner) {
-            return { partnerIds: [] };
-        }
-        
-        const partnerObjectId = partner._id;
-        
-        if (includeSubs) {
-            const roots = await PartnerModel.aggregate([
-                {
-                    $match: {
-                        _id: partnerObjectId
-                    }
-                },
-                {
-                    $graphLookup: {
-                        from: "partners",
-                        startWith: "$_id",
-                        connectFromField: "_id",
-                        connectToField: "parent_partner_id",
-                        as: "subs",
-                    },
-                },
-                {
-                    $project: {
-                        allPartners: { $concatArrays: [["$$ROOT"], "$subs"] },
-                    },
-                },
-                { $unwind: "$allPartners" },
-                {
-                    $replaceRoot: { newRoot: "$allPartners" },
-                },
-                {
-                    $project: {
-                        _id: 1,
-                    },
-                },
-            ]);
-
-            if (!roots.length) {
-                return { partnerIds: [] };
-            }
-
-            const partnerIds = roots.map((doc) => doc._id);
-            return { partnerIds };
-        } else {
-            return { partnerIds: [partnerObjectId] };
-        }
-    } catch (error) {
-        console.error("Error fetching accessible partners:", error);
-        return { partnerIds: [] };
-    }
-};
 
 export const getBettingSettlementProfit = async (req, res) => {
     try {
@@ -110,20 +53,43 @@ export const getBettingSettlementProfit = async (req, res) => {
         const limit = Math.max(Math.min(parseInt(pageSize, 10) || 20, 100), 1);
         const skip = (pageNumber - 1) * limit;
 
+        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+
         let partnerIds = [];
         let userPartnerIds = [];
         
         if (partnerId) {
             const includeSubs = includeSubPartners === 'true' || includeSubPartners === true;
-            const result = await fetchAccessiblePartners(partnerId, includeSubs);
-            partnerIds = result.partnerIds;
-
-            if (partnerIds.length > 0) {
-                const users = await UserModel.find({
-                    partner_id: { $in: partnerIds }
-                }).select('_id').lean();
-                userPartnerIds = users.map(u => u._id);
+            
+            const requestedPartner = await PartnerModel.findOne({ partner_id: partnerId }).select("_id").lean();
+            if (!requestedPartner) {
+                partnerIds = [];
+            } else {
+                const isAccessible = accessiblePartnerIds.some(id => id.toString() === requestedPartner._id.toString());
+                
+                if (isAccessible) {
+                    if (includeSubs) {
+                        const subPartnerIds = await fetchAccessiblePartnerIds(requestedPartner._id);
+                        partnerIds = subPartnerIds;
+                    } else {
+                        partnerIds = [requestedPartner._id];
+                    }
+                } else {
+                    partnerIds = [];
+                }
             }
+        } else {
+            partnerIds = accessiblePartnerIds;
+        }
+
+        if (partnerIds.length > 0) {
+            const users = await UserModel.find({
+                $or: [
+                    { partner_id: { $in: partnerIds } },
+                    { ownpartner_id: { $in: partnerIds } }
+                ]
+            }).select('_id').lean();
+            userPartnerIds = users.map(u => u._id);
         }
 
         const dateFilter = {};
@@ -133,8 +99,6 @@ export const getBettingSettlementProfit = async (req, res) => {
             if (end) dateFilter.createdAt.$lte = end;
         }
 
-        const userFilter = partnerIds.length > 0 ? { _id: { $in: userPartnerIds } } : {};
-
         const transactionMatch = {
             ...dateFilter,
             fund_status: 'COMPLETE'
@@ -142,6 +106,15 @@ export const getBettingSettlementProfit = async (req, res) => {
 
         if (userPartnerIds.length > 0) {
             transactionMatch.user_id = { $in: userPartnerIds };
+        } else {
+            return responseSuccess(res, {
+                settlements: {
+                    items: [],
+                    total: 0,
+                    page: pageNumber,
+                    pageSize: limit
+                }
+            });
         }
 
         const transactionAggregates = await TransactionModel.aggregate([

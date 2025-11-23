@@ -58,7 +58,7 @@ export default {
   user_not_found: "User not found",
   exchange_transaction_approved_successfully: "Exchange transaction approved successfully",
   exchange_transaction_rejected_successfully: "Exchange transaction rejected successfully",
-  original_amount_required: "Original amount is required",
+  fund_amount_required: "Fund amount is required",
   invalid_amount_positive: "Invalid amount. Please enter a valid positive number",
   system_settings_not_found: "System settings not found",
   minimum_exchange_amount: "Minimum exchange amount is",
@@ -71,6 +71,7 @@ export default {
   exchange_not_available_within_restriction_period: "Exchange is not available within the restriction period after the last exchange",
   same_exchange_amount_not_allowed_within_restriction_period: "Same exchange amount is not allowed within the restriction period",
   exchange_not_available_after_recent_charge: "Exchange is not available after a recent charge",
+  withdrawal_not_allowed_insufficient_betting: "Withdrawal is not allowed. You must bet at least {0}% of your last deposit amount before withdrawing",
   
   // Charging
   transaction_not_found: "Transaction not found",
@@ -94,12 +95,25 @@ export default {
   betting_window_closed: "Betting window is closed",
   not_enough_balance: "Not enough balance",
   failed_update_balance: "Failed to update balance",
+  bet_amount_must_be_multiple_of_unit: "Bet amount must be a multiple of {0}",
+  bet_amount_below_minimum: "Bet amount is below the minimum of {0}",
+  bet_amount_exceeds_maximum: "Bet amount exceeds the maximum of {0}",
+  potential_earning_exceeds_maximum: "Potential earning exceeds the maximum of {0}",
+  round_bet_total_exceeds_maximum: "Round bet total exceeds the maximum of {0} (current: {1})",
+  round_earning_total_exceeds_maximum: "Round earning total exceeds the maximum of {0} (current: {1})",
+  slot_bet_total_exceeds_maximum: "Slot bet total exceeds the maximum of {0} (current: {1})",
+  slot_earning_total_exceeds_maximum: "Slot earning total exceeds the maximum of {0} (current: {1})",
+  all_rounds_bet_total_exceeds_maximum: "All rounds bet total exceeds the maximum of {0} (current: {1})",
+  all_rounds_slot_bet_total_exceeds_maximum: "All rounds bet total for this bet type exceeds the maximum of {0} (current: {1})",
   invalid_bet_id: "Invalid bet id",
   bet_not_found: "Bet not found",
   bet_cannot_cancelled: "Bet cannot be cancelled",
   game_not_available_cancellation: "Game not available for cancellation",
   cancellation_window_closed: "Cancellation window is closed",
   bet_cancellation_failed: "Bet cancellation failed",
+  bet_cancellation_disabled: "Bet cancellation is disabled for your account",
+  cancellation_limit_per_round_reached: "You have reached the maximum number of cancellations allowed for this round",
+  cancellation_limit_per_day_reached: "You have reached the maximum number of cancellations allowed per day",
   game_is_currently_disabled: "Game is currently disabled",
   duplicate_betting_not_allowed: "Duplicate betting is not allowed within the specified time limit",
   
@@ -319,6 +333,7 @@ export default {
   
   // Exchange Transaction
   exchange_transaction_deleted_successfully: "Exchange transaction deleted successfully.",
+  only_exchange_transactions: "Only exchange transactions can be processed in Exchange Management",
   
   invalid_transaction_id: "Invalid transaction ID format.",
   transaction_deleted_successfully: "Transaction deleted successfully.",
@@ -328,4 +343,6 @@ export default {
   betting_ids_required: "Betting IDs are required.",
   no_valid_betting_ids: "No valid betting IDs provided.",
   successfully_deleted_betting_records: "Successfully deleted {0} betting record(s).",
+  no_users_to_delete: "No users to delete",
+  no_records_to_delete: "No records to delete",
 };

@@ -7,6 +7,7 @@ import {
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { normalizePartnerIds } from "./notice-utils.js";
+import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const createNotice = async (req, res) => {
   try {
@@ -14,6 +15,8 @@ export const createNotice = async (req, res) => {
     if (!adminId) {
       return responseUnAutherized(res);
     }
+
+    const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
 
     const { title, content, partnerIds } = req.body;
 
@@ -32,8 +35,12 @@ export const createNotice = async (req, res) => {
       if (normalizedIds.length === 0 && partnerIds.length > 0) {
         return responseBadRequest(res, t("invalid_partner_id"));
       }
+
+      const accessibleNormalizedIds = normalizedIds.filter(id => 
+        accessiblePartnerIds.some(pid => pid.toString() === id.toString())
+      );
       
-      partner_ids = normalizedIds;
+      partner_ids = accessibleNormalizedIds;
     }
 
     const notice = await NoticeModel.create({
