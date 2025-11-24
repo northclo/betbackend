@@ -437,7 +437,7 @@ export const increaseCash = async (req, res) => {
                 { $inc: { own_money: numAmount } }
             );
 
-            const fundType = numAmount > 0 ? 'CHARGE' : 'EXCHANGE';
+            const fundType = numAmount > 0 ? 'PARTNER_INCREASE' : 'PARTNER_DECREASE';
             const fundAmount = Math.abs(numAmount);
             
             await TransactionModel.create({
@@ -470,7 +470,7 @@ export const increaseCash = async (req, res) => {
             { $inc: { own_money: numAmount } }
         );
 
-        const fundType = numAmount > 0 ? 'CHARGE' : 'EXCHANGE';
+        const fundType = numAmount > 0 ? 'PARTNER_INCREASE' : 'PARTNER_DECREASE';
         const fundAmount = Math.abs(numAmount);
         
         await TransactionModel.create({

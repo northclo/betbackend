@@ -4,7 +4,7 @@ const { Schema } = mongoose;
 const TransactionSchema = new Schema(
     {
         user_id: { type: mongoose.Types.ObjectId },
-        fund_type: { type: String, enum: ['CHARGE', 'EXCHANGE', 'BETTING'] },
+        fund_type: { type: String, enum: ['CHARGE', 'EXCHANGE', 'BETTING', 'PARTNER_INCREASE', 'PARTNER_DECREASE'] },
         fund_status: { type: String, enum: ['WAIT', 'COMPLETE', 'CANCEL'], default: 'WAIT' },
         fund_amount: { type: Number, default: 0 },
         action_user_id: { type: mongoose.Types.ObjectId, default: null },

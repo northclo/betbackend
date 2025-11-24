@@ -99,14 +99,15 @@ export const getBettingSettlementProfit = async (req, res) => {
             if (end) dateFilter.createdAt.$lte = end;
         }
 
-        const transactionMatch = {
-            ...dateFilter,
-            fund_status: 'COMPLETE'
-        };
-
+        const allTransactionUserIds = [];
         if (userPartnerIds.length > 0) {
-            transactionMatch.user_id = { $in: userPartnerIds };
-        } else {
+            allTransactionUserIds.push(...userPartnerIds);
+        }
+        if (partnerIds.length > 0) {
+            allTransactionUserIds.push(...partnerIds);
+        }
+
+        if (allTransactionUserIds.length === 0) {
             return responseSuccess(res, {
                 settlements: {
                     items: [],
@@ -117,25 +118,34 @@ export const getBettingSettlementProfit = async (req, res) => {
             });
         }
 
+        const transactionMatch = {
+            ...dateFilter,
+            fund_status: 'COMPLETE',
+            user_id: { $in: allTransactionUserIds }
+        };
+
         const transactionAggregates = await TransactionModel.aggregate([
             { $match: transactionMatch },
             {
                 $lookup: {
                     from: "partners",
-                    localField: "action_user_id",
+                    localField: "user_id",
                     foreignField: "_id",
-                    as: "actionPartner"
+                    as: "userAsPartner"
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "userAsUser"
                 }
             },
             {
                 $addFields: {
-                    isPartnerAction: {
-                        $cond: [
-                            { $gt: [{ $size: "$actionPartner" }, 0] },
-                            true,
-                            false
-                        ]
-                    }
+                    isUser: { $gt: [{ $size: "$userAsUser" }, 0] },
+                    isPartner: { $gt: [{ $size: "$userAsPartner" }, 0] }
                 }
             },
             {
@@ -144,9 +154,7 @@ export const getBettingSettlementProfit = async (req, res) => {
                         date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: config.TIME_ZONE } },
                         fund_type: "$fund_type"
                     },
-                    total_amount: { $sum: "$fund_amount" },
-                    count: { $sum: 1 },
-                    charge_amount: {
+                    charge_total_amount: {
                         $sum: {
                             $cond: [
                                 { $eq: ["$fund_type", "CHARGE"] },
@@ -155,7 +163,53 @@ export const getBettingSettlementProfit = async (req, res) => {
                             ]
                         }
                     },
-                    exchange_amount: {
+                    charge_total_count: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "CHARGE"] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    charge_amount: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$fund_type", "CHARGE"] },
+                                        "$isUser"
+                                    ]
+                                },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
+                    },
+                    charge_count: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$fund_type", "CHARGE"] },
+                                        "$isUser"
+                                    ]
+                                },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    partner_increase: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "PARTNER_INCREASE"] },
+                                "$fund_amount",
+                                0
+                            ]
+                        }
+                    },
+                    exchange_total_amount: {
                         $sum: {
                             $cond: [
                                 { $eq: ["$fund_type", "EXCHANGE"] },
@@ -164,13 +218,22 @@ export const getBettingSettlementProfit = async (req, res) => {
                             ]
                         }
                     },
-                    partner_charge: {
+                    exchange_total_count: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "EXCHANGE"] },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    withdraw: {
                         $sum: {
                             $cond: [
                                 {
                                     $and: [
-                                        { $eq: ["$fund_type", "CHARGE"] },
-                                        "$isPartnerAction"
+                                        { $eq: ["$fund_type", "EXCHANGE"] },
+                                        "$isUser"
                                     ]
                                 },
                                 "$fund_amount",
@@ -178,15 +241,24 @@ export const getBettingSettlementProfit = async (req, res) => {
                             ]
                         }
                     },
-                    partner_exchange: {
+                    withdraw_count: {
                         $sum: {
                             $cond: [
                                 {
                                     $and: [
                                         { $eq: ["$fund_type", "EXCHANGE"] },
-                                        "$isPartnerAction"
+                                        "$isUser"
                                     ]
                                 },
+                                1,
+                                0
+                            ]
+                        }
+                    },
+                    partner_decrease: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$fund_type", "PARTNER_DECREASE"] },
                                 "$fund_amount",
                                 0
                             ]
@@ -197,28 +269,16 @@ export const getBettingSettlementProfit = async (req, res) => {
             {
                 $group: {
                     _id: "$_id.date",
-                    charge_total: { $sum: "$charge_amount" },
-                    charge_count: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ["$_id.fund_type", "CHARGE"] },
-                                "$count",
-                                0
-                            ]
-                        }
-                    },
-                    exchange_total: { $sum: "$exchange_amount" },
-                    exchange_count: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ["$_id.fund_type", "EXCHANGE"] },
-                                "$count",
-                                0
-                            ]
-                        }
-                    },
-                    partner_increase: { $sum: "$partner_charge" },
-                    partner_decrease: { $sum: "$partner_exchange" }
+                    chargeTotalAmount: { $sum: "$charge_total_amount" },
+                    chargeTotalAmount_count: { $sum: "$charge_total_count" },
+                    chargeAmount: { $sum: "$charge_amount" },
+                    chargeAmount_count: { $sum: "$charge_count" },
+                    partnerIncrease: { $sum: "$partner_increase" },
+                    exchangeTotalAmount: { $sum: "$exchange_total_amount" },
+                    exchangeTotalAmount_count: { $sum: "$exchange_total_count" },
+                    withdraw: { $sum: "$withdraw" },
+                    withdraw_count: { $sum: "$withdraw_count" },
+                    partnerDecrease: { $sum: "$partner_decrease" }
                 }
             }
         ]);
@@ -322,19 +382,19 @@ export const getBettingSettlementProfit = async (req, res) => {
             const betIncrease = betting.bet_increase || 0;
             const betDecrease = betting.bet_decrease || 0;
             const bettingProfit = totalBettingAmount - betIncrease;
-            const bettingP = betting.betting_p || 0;
+            const bettingP = 0;
             
             const partnerRate = 3.5;
             
             const companyProfit = totalBettingAmount - betIncrease - (totalBettingAmount * partnerRate / 100);
             
-            const chargeTotalAmount = transaction.charge_total || 0;
-            const chargeAmount = transaction.charge_total || 0;
-            const partnerIncrease = transaction.partner_increase || 0;
+            const chargeTotalAmount = transaction.chargeTotalAmount || 0;
+            const chargeAmount = transaction.chargeAmount || 0;
+            const partnerIncrease = transaction.partnerIncrease || 0;
             
-            const exchangeTotalAmount = transaction.exchange_total || 0;
-            const withdraw = transaction.exchange_total || 0;
-            const partnerDecrease = transaction.partner_decrease || 0;
+            const exchangeTotalAmount = transaction.exchangeTotalAmount || 0;
+            const withdraw = transaction.withdraw || 0;
+            const partnerDecrease = transaction.partnerDecrease || 0;
 
             return {
                 date: date,
@@ -348,12 +408,14 @@ export const getBettingSettlementProfit = async (req, res) => {
                 partnerRate: partnerRate,
                 companyProfit: companyProfit,
                 chargeTotalAmount: chargeTotalAmount,
+                chargeTotalAmount_count: transaction.chargeTotalAmount_count || 0,
                 chargeAmount: chargeAmount,
-                chargeAmount_count: transaction.charge_count || 0,
+                chargeAmount_count: transaction.chargeAmount_count || 0,
                 partnerIncrease: partnerIncrease,
                 exchangeTotalAmount: exchangeTotalAmount,
+                exchangeTotalAmount_count: transaction.exchangeTotalAmount_count || 0,
                 withdraw: withdraw,
-                withdraw_count: transaction.exchange_count || 0,
+                withdraw_count: transaction.withdraw_count || 0,
                 partnerDecrease: partnerDecrease
             };
         });
@@ -373,15 +435,17 @@ export const getBettingSettlementProfit = async (req, res) => {
                 bettingP: sum.bettingP + (item.bettingP || 0),
                 companyProfit: sum.companyProfit + (item.companyProfit || 0),
                 chargeTotalAmount: sum.chargeTotalAmount + (item.chargeTotalAmount || 0),
+                chargeTotalAmount_count: sum.chargeTotalAmount_count + (item.chargeTotalAmount_count || 0),
                 chargeAmount: sum.chargeAmount + (item.chargeAmount || 0),
+                chargeAmount_count: sum.chargeAmount_count + (item.chargeAmount_count || 0),
                 partnerIncrease: sum.partnerIncrease + (item.partnerIncrease || 0),
                 exchangeTotalAmount: sum.exchangeTotalAmount + (item.exchangeTotalAmount || 0),
+                exchangeTotalAmount_count: sum.exchangeTotalAmount_count + (item.exchangeTotalAmount_count || 0),
                 withdraw: sum.withdraw + (item.withdraw || 0),
+                withdraw_count: sum.withdraw_count + (item.withdraw_count || 0),
                 partnerDecrease: sum.partnerDecrease + (item.partnerDecrease || 0),
                 totalBettingAmount_count: sum.totalBettingAmount_count + (item.totalBettingAmount_count || 0),
-                losingAmount_count: sum.losingAmount_count + (item.losingAmount_count || 0),
-                chargeAmount_count: sum.chargeAmount_count + (item.chargeAmount_count || 0),
-                withdraw_count: sum.withdraw_count + (item.withdraw_count || 0)
+                losingAmount_count: sum.losingAmount_count + (item.losingAmount_count || 0)
             };
         }, {
             totalBettingAmount: 0,
@@ -392,15 +456,16 @@ export const getBettingSettlementProfit = async (req, res) => {
             bettingP: 0,
             companyProfit: 0,
             chargeTotalAmount: 0,
+            chargeTotalAmount_count: 0,
             chargeAmount: 0,
+            chargeAmount_count: 0,
             partnerIncrease: 0,
             exchangeTotalAmount: 0,
+            exchangeTotalAmount_count: 0,
             withdraw: 0,
+            withdraw_count: 0,
             partnerDecrease: 0,
-            totalBettingAmount_count: 0,
-            losingAmount_count: 0,
-            chargeAmount_count: 0,
-            withdraw_count: 0
+            totalBettingAmount_count: 0
         });
 
         const avgPartnerRate = dailyData.length > 0 

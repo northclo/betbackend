@@ -4,6 +4,7 @@ import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
+import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import mongoose from "mongoose";
 import { t } from "../../../helper/translation.js";
 
@@ -96,6 +97,14 @@ export const cancelGame = async (req, res) => {
             }
         }
 
+        const lastGame = await getLastGame();
+        const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
+        const lastTotalNo = Number.isFinite(lastGame?.total_no) ? lastGame.total_no : 0;
+
+        const hasResult = Array.isArray(game.list) && game.list.length > 0;
+        const todayNo = hasResult ? (game.today_no ?? lastTodayNo) : lastTodayNo + 1;
+        const totalNo = hasResult ? (game.total_no ?? lastTotalNo) : lastTotalNo + 1;
+
         const session = await mongoose.startSession();
         session.startTransaction();
 
@@ -106,6 +115,8 @@ export const cancelGame = async (req, res) => {
                 $set: {
                     betting_status: "CANCEL",
                     history_view: true,
+                    total_no: totalNo,
+                    today_no: todayNo,
                 },
             },
             { session }
