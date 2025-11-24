@@ -12,7 +12,8 @@ export const startGame = async (req, res) => {
 
         const { game_id, device_id, time_stamp } = req.body;
 
-        const gameResult = await GameResultModel.findOne({ game_id: game_id });
+        let gameResult = await GameResultModel.findOne({ game_id: game_id });
+        let finalGameId = game_id;
 
         if (gameResult) {
             await GameResultModel.updateOne({ game_id: game_id },
@@ -20,21 +21,44 @@ export const startGame = async (req, res) => {
                     device_id: device_id,
                     start_time_stamp: time_stamp
                 }
-            )
+            );
         } else {
-            await GameResultModel.create({
-                game_id: game_id,
-                device_id: device_id,
-                start_time_stamp: time_stamp
-            })
+            const existingGameByTime = await GameResultModel.findOne({
+                start_time_stamp: time_stamp,
+                game_id: { $ne: game_id }
+            });
+
+            if (existingGameByTime) {
+                await BettingResultModel.updateMany(
+                    { game_id: game_id, betting_status: "WAIT" },
+                    { $set: { game_id: existingGameByTime.game_id } }
+                );
+                
+                await GameResultModel.updateOne(
+                    { game_id: existingGameByTime.game_id },
+                    {
+                        device_id: device_id,
+                        start_time_stamp: time_stamp
+                    }
+                );
+
+                finalGameId = existingGameByTime.game_id;
+                gameResult = existingGameByTime;
+            } else {
+                await GameResultModel.create({
+                    game_id: game_id,
+                    device_id: device_id,
+                    start_time_stamp: time_stamp
+                });
+            }
         }
 
         await BettingResultModel.updateMany(
-            { game_id: game_id, betting_status: "WAIT" },
+            { game_id: finalGameId, betting_status: "WAIT" },
             { $set: { betting_status: "PROGRESS" } }
         );
 
-        io.emit('start_game', { game_id: game_id, time_stamp: time_stamp });
+        io.emit('start_game', { game_id: finalGameId, time_stamp: time_stamp });
 
         return res.status(200).json({ result: 0 });
     } catch (error) {
@@ -66,14 +90,23 @@ export const endGame = async (req, res) => {
 
         let finalGameId = game_id;
 
-        const existingGameWithRound = await GameResultModel.findOne({
+        let existingGame = await GameResultModel.findOne({
             total_no: total_no,
             today_no: new_today_no,
             game_id: { $ne: game_id }
         });
 
-        if (existingGameWithRound) {
-            finalGameId = existingGameWithRound.game_id;
+        if (!existingGame && gameResult.start_time_stamp) {
+            existingGame = await GameResultModel.findOne({
+                start_time_stamp: gameResult.start_time_stamp,
+                game_id: { $ne: game_id },
+                total_no: { $exists: true, $ne: null },
+                today_no: { $exists: true, $ne: null }
+            });
+        }
+
+        if (existingGame) {
+            finalGameId = existingGame.game_id;
             await updateBetting(finalGameId, odd, under, list, new_today_no, total_no);
             
             await GameResultModel.updateOne({ game_id: finalGameId }, {

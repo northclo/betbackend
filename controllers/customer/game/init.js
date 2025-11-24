@@ -81,7 +81,6 @@ export const getGameInitInfo = async (req, res) => {
                     gameId = testGame.game_id;
                     remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
                 } catch (error) {
-                    // If duplicate key error (race condition), find the existing game
                     if (error.code === 11000) {
                         const duplicateGame = await GameResultModel.findOne({
                             total_no: nextTotalNo,

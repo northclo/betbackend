@@ -105,7 +105,24 @@ export const getGameManagement = async (req, res) => {
             return responseBadRequest(res, t("invalid_status_filter"));
         }
 
-        const filter = buildStatusFilter(normalizedStatus, now);
+        let filter = buildStatusFilter(normalizedStatus, now);
+
+        if (normalizedStatus !== "register") {
+            const roundNumberFilter = {
+                $and: [
+                    { total_no: { $exists: true, $ne: null } },
+                    { today_no: { $exists: true, $ne: null } }
+                ]
+            };
+            
+            if (filter.$and) {
+                filter.$and.push(roundNumberFilter);
+            } else if (Object.keys(filter).length > 0) {
+                filter = { $and: [filter, roundNumberFilter] };
+            } else {
+                filter = roundNumberFilter;
+            }
+        }
 
         if (searchField || search) {
             if (!searchField || !search) {
@@ -119,20 +136,53 @@ export const getGameManagement = async (req, res) => {
             if (!Number.isFinite(numericSearch)) {
                 return responseBadRequest(res, t("search_value_must_number"));
             }
-            filter[searchField] = numericSearch;
+            
+            const searchFilter = { [searchField]: numericSearch };
+            if (filter.$and) {
+                filter.$and.push(searchFilter);
+            } else if (Object.keys(filter).length > 0) {
+                filter = { $and: [filter, searchFilter] };
+            } else {
+                filter = searchFilter;
+            }
         }
 
         const pageNumber = Math.max(1, parseInt(page, 10) || 1);
         const pageSizeNumber = Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
         const skip = (pageNumber - 1) * pageSizeNumber;
 
-        const [total, gameResult] = await Promise.all([
-            GameResultModel.countDocuments(filter),
-            GameResultModel.find(filter)
-                .sort({ start_time_stamp: -1 })
-                .skip(skip)
-                .limit(pageSizeNumber)
-        ]);
+        let allGames = await GameResultModel.find(filter)
+            .sort({ start_time_stamp: -1 });
+
+        const gamesByStartTime = new Map();
+        allGames.forEach(game => {
+            const startTime = game.start_time_stamp;
+            const existingGame = gamesByStartTime.get(startTime);
+            
+            if (!existingGame) {
+                gamesByStartTime.set(startTime, game);
+            } else {
+                const hasRoundNumbers = game.total_no != null && game.today_no != null;
+                const existingHasRoundNumbers = existingGame.total_no != null && existingGame.today_no != null;
+                
+                if (hasRoundNumbers && !existingHasRoundNumbers) {
+                    gamesByStartTime.set(startTime, game);
+                } else if (hasRoundNumbers && existingHasRoundNumbers) {
+                    const hasResults = game.list && Array.isArray(game.list) && game.list.length > 0;
+                    const existingHasResults = existingGame.list && Array.isArray(existingGame.list) && existingGame.list.length > 0;
+                    
+                    if (hasResults && !existingHasResults) {
+                        gamesByStartTime.set(startTime, game);
+                    }
+                }
+            }
+        });
+
+        const deduplicatedGames = Array.from(gamesByStartTime.values());
+        const total = deduplicatedGames.length;
+        const gameResult = deduplicatedGames
+            .slice(skip)
+            .slice(0, pageSizeNumber);
 
         const gameIds = gameResult.map(g => g.game_id).filter(Boolean);
 
