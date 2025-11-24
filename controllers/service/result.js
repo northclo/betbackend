@@ -7,7 +7,7 @@ import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 import moment from "moment-timezone";
 
 const checkIp = (req) => {
-    const allowIp = config.ALLOW_IP;
+    const allowIp = config.ALLOWED_IPS;
     if (!allowIp) return true;
 
     const allowIps = allowIp.split(",")

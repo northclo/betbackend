@@ -3,7 +3,7 @@ import { config } from "../../config/index.js";
 import { responseBadRequest } from "../../helper/response.js";
 
 const checkIp = (req) => {
-    const allowIp = config.ALLOW_IP;
+    const allowIp = config.ALLOWED_IPS;
     if(allowIp.length == 0 ) {
         return true;
     }
