@@ -14,9 +14,11 @@ export const getAroundBettingHistory = async (gameId, userId) => {
         return { previousGameId: null, nextGameId: null };
     }
 
+    const gameIdsToSearch = [...new Set([...userBettingGames, gameId])];
+
     const gamesWithTimestamps = await GameResultModel
         .find({
-            game_id: { $in: userBettingGames },
+            game_id: { $in: gameIdsToSearch },
             start_time_stamp: { $lt: getCurrentTime() + 180000 }
         })
         .sort({ start_time_stamp: -1 })
@@ -27,10 +29,16 @@ export const getAroundBettingHistory = async (gameId, userId) => {
 
     if (currentIndex !== -1) {
         if (currentIndex < gamesWithTimestamps.length - 1) {
-            previousGameId = gamesWithTimestamps[currentIndex + 1].game_id;
+            const previousGame = gamesWithTimestamps[currentIndex + 1];
+            if (userBettingGames.includes(previousGame.game_id)) {
+                previousGameId = previousGame.game_id;
+            }
         }
         if (currentIndex > 0) {
-            nextGameId = gamesWithTimestamps[currentIndex - 1].game_id;
+            const nextGame = gamesWithTimestamps[currentIndex - 1];
+            if (userBettingGames.includes(nextGame.game_id)) {
+                nextGameId = nextGame.game_id;
+            }
         }
     }
 

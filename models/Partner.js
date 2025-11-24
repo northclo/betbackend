@@ -37,7 +37,7 @@ const PartnerSchema = new Schema(
         sub_partner_money_change: { type: Boolean, default: false },
         bet_rate_type: { type: String, enum: ['A', 'B'], default: 'A' },
         deadline: { type: Number },
-        cancel_bet: { type: Boolean, default: false },
+        cancel_bet: { type: Boolean, default: true },
         cancel_bet_range: {
             end_time: { type: Number },
             max_time: { type: Number },
