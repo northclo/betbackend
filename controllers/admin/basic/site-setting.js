@@ -121,8 +121,8 @@ const buildChargeData = (charge) => {
             charge_min: minResult.value,
             charge_max: maxResult.value,
             charge_timezone: timezone,
-            charge_start_time: timezone ? startResult.value : null,
-            charge_end_time: timezone ? endResult.value : null,
+            charge_start_time: startResult.value,
+            charge_end_time: endResult.value,
             charge_impossible_timezone_message: charge.chargeImpossibleTimezoneMessage ?? "",
             charge_complete_message: charge.chargeCompleteMessage ?? ""
         }
@@ -191,8 +191,8 @@ const buildExchangeData = (exchange) => {
             exchange_min: minResult.value,
             exchange_max: maxResult.value,
             exchange_timezone: timezone,
-            exchange_start_time: timezone ? startResult.value : null,
-            exchange_end_time: timezone ? endResult.value : null,
+            exchange_start_time: startResult.value,
+            exchange_end_time: endResult.value,
             exchange_impossible_timezone_message: exchange.exchangeImpossibleTimezoneMessage ?? "",
             exchange_restriction: exchange.exchangeRestriction ?? "",
             exchange_restriction_use: restrictionUse,
