@@ -69,31 +69,31 @@ export const getGameInitInfo = async (req, res) => {
             if (existingTestGame) {
                 gameId = existingTestGame.game_id;
                 targetTimestamp = existingTestGame.start_time_stamp;
-            } else {
-                try {
-                    const testGame = await GameResultModel.create({
-                        game_id: uuidv4(),
-                        device_id: "test-device",
-                        start_time_stamp: testGameStartTime,
-                        total_no: nextTotalNo,
-                        today_no: nextTodayNo,
-                    });
-                    gameId = testGame.game_id;
-                    targetTimestamp = testGameStartTime;
-                } catch (error) {
-                    if (error.code === 11000) {
-                        const duplicateGame = await GameResultModel.findOne({
-                            total_no: nextTotalNo,
-                            today_no: nextTodayNo
-                        });
-                        if (duplicateGame) {
-                            gameId = duplicateGame.game_id;
-                            targetTimestamp = duplicateGame.start_time_stamp;
-                        }
-                    } else {
-                        throw error;
-                    }
-                }
+            // } else {
+            //     try {
+            //         const testGame = await GameResultModel.create({
+            //             game_id: uuidv4(),
+            //             device_id: "test-device",
+            //             start_time_stamp: testGameStartTime,
+            //             total_no: nextTotalNo,
+            //             today_no: nextTodayNo,
+            //         });
+            //         gameId = testGame.game_id;
+            //         targetTimestamp = testGameStartTime;
+            //     } catch (error) {
+            //         if (error.code === 11000) {
+            //             const duplicateGame = await GameResultModel.findOne({
+            //                 total_no: nextTotalNo,
+            //                 today_no: nextTodayNo
+            //             });
+            //             if (duplicateGame) {
+            //                 gameId = duplicateGame.game_id;
+            //                 targetTimestamp = duplicateGame.start_time_stamp;
+            //             }
+            //         } else {
+            //             throw error;
+            //         }
+            //     }
             }
             
             const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
@@ -140,54 +140,54 @@ export const getGameInitInfo = async (req, res) => {
             targetTimestamp = pendingGames[0].start_time_stamp;
         }
 
-        if (targetTimestamp === 0 && !gameId) {
-            const GameResultModel = (await import("../../../models/GameResult.js")).default;
-            const { v4: uuidv4 } = await import("uuid");
-            const currentTime = getCurrentTime();
-            const testGameStartTime = currentTime + 180000;
-            const nextTodayNo = lastTodayNo + 1;
-            const nextTotalNo = lastTotalNo + 1;
+        // if (targetTimestamp === 0 && !gameId) {
+        //     const GameResultModel = (await import("../../../models/GameResult.js")).default;
+        //     const { v4: uuidv4 } = await import("uuid");
+        //     const currentTime = getCurrentTime();
+        //     const testGameStartTime = currentTime + 180000;
+        //     const nextTodayNo = lastTodayNo + 1;
+        //     const nextTotalNo = lastTotalNo + 1;
 
-            const existingTestGame = await GameResultModel.findOne({
-                $or: [
-                    {
-                        start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
-                        end_time_stamp: { $exists: false }
-                    },
-                    {
-                        total_no: nextTotalNo,
-                        today_no: nextTodayNo
-                    }
-                ]
-            });
+        //     const existingTestGame = await GameResultModel.findOne({
+        //         $or: [
+        //             {
+        //                 start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
+        //                 end_time_stamp: { $exists: false }
+        //             },
+        //             {
+        //                 total_no: nextTotalNo,
+        //                 today_no: nextTodayNo
+        //             }
+        //         ]
+        //     });
 
-            if (existingTestGame) {
-                targetTimestamp = existingTestGame.start_time_stamp;
-            } else {
-                try {
-                    await GameResultModel.create({
-                        game_id: uuidv4(),
-                        device_id: "test-device",
-                        start_time_stamp: testGameStartTime,
-                        total_no: nextTotalNo,
-                        today_no: nextTodayNo,
-                    });
-                    targetTimestamp = testGameStartTime;
-                } catch (error) {
-                    if (error.code === 11000) {
-                        const duplicateGame = await GameResultModel.findOne({
-                            total_no: nextTotalNo,
-                            today_no: nextTodayNo
-                        });
-                        if (duplicateGame) {
-                            targetTimestamp = duplicateGame.start_time_stamp;
-                        }
-                    } else {
-                        throw error;
-                    }
-                }
-            }
-        }
+        //     if (existingTestGame) {
+        //         targetTimestamp = existingTestGame.start_time_stamp;
+        //     } else {
+        //         try {
+        //             await GameResultModel.create({
+        //                 game_id: uuidv4(),
+        //                 device_id: "test-device",
+        //                 start_time_stamp: testGameStartTime,
+        //                 total_no: nextTotalNo,
+        //                 today_no: nextTodayNo,
+        //             });
+        //             targetTimestamp = testGameStartTime;
+        //         } catch (error) {
+        //             if (error.code === 11000) {
+        //                 const duplicateGame = await GameResultModel.findOne({
+        //                     total_no: nextTotalNo,
+        //                     today_no: nextTodayNo
+        //                 });
+        //                 if (duplicateGame) {
+        //                     targetTimestamp = duplicateGame.start_time_stamp;
+        //                 }
+        //             } else {
+        //                 throw error;
+        //             }
+        //         }
+        //     }
+        // }
 
         const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
         const isGameActivated = gameSetting?.activate !== false;
