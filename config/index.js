@@ -13,7 +13,7 @@ export const config = {
   HOTMAIL_USER: process.env.HOTMAIL_USER,
   HOTMAIL_PASS: process.env.HOTMAIL_PASS,
   AUTH_KEY: process.env.AUTH_KEY,
-  ALLOWED_IPS: process.env.ALLOWED_IPS,
+  ALLOWED_IPS: process.env.ALLOWED_IPS || [],
   ALLOW_GAME_IP: process.env.ALLOW_GAME_IP,
   TIME_ZONE: process.env.TIME_ZONE || "Asia/Tokyo",
   AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || "AKIA3FXPRCROJRWMWM7J",

@@ -83,8 +83,8 @@ export const endGame = async (req, res) => {
     });
 
     setTimeout(() => {
-        io.emit('end_game', { time_stamp: time_stamp });
-    }, 2000)
+        io.emit('end_game', { time_stamp: time_stamp, game_id });
+    }, 2000);
 
     return res.status(200).json({ result: 0 });
 }
