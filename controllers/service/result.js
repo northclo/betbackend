@@ -30,8 +30,8 @@ export const startGame = async (req, res) => {
         }
 
         await BettingResultModel.updateMany(
-            { game_id: game_id, betting_status: "wait" },
-            { $set: { betting_status: "progress" } }
+            { game_id: game_id, betting_status: "WAIT" },
+            { $set: { betting_status: "PROGRESS" } }
         );
 
         io.emit('start_game', { game_id: game_id, time_stamp: time_stamp });

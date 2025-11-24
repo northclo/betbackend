@@ -138,7 +138,7 @@ export const getGameManagement = async (req, res) => {
 
         const bettingMatchFilter = {
             game_id: { $in: gameIds },
-            betting_status: { $ne: "cancel" }
+            betting_status: { $ne: "CANCEL" }
         };
 
         if (accessibleUserIds.length > 0) {

@@ -21,7 +21,7 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("bet_not_found"));
         }
 
-        if (bettingHistory.betting_status !== "wait") {
+        if (bettingHistory.betting_status !== "WAIT") {
             return responseBadRequest(res, t("bet_cannot_cancelled"));
         }
 
@@ -67,7 +67,7 @@ export const cancelGame = async (req, res) => {
             const roundCancellations = await BettingResultModel.countDocuments({
                 user_id: userId,
                 game_id: bettingHistory.game_id,
-                betting_status: "cancel"
+                betting_status: "CANCEL"
             });
 
             if (roundCancellations >= cancelBetRange.max_time) {
@@ -84,7 +84,7 @@ export const cancelGame = async (req, res) => {
 
             const dailyCancellations = await BettingResultModel.countDocuments({
                 user_id: userId,
-                betting_status: "cancel",
+                betting_status: "CANCEL",
                 createdAt: {
                     $gte: startOfDay,
                     $lte: endOfDay
@@ -101,10 +101,10 @@ export const cancelGame = async (req, res) => {
 
         try {
         const result = await BettingResultModel.updateOne(
-            { _id: id, user_id: userId, betting_status: "wait" },
+            { _id: id, user_id: userId, betting_status: "WAIT" },
             {
                 $set: {
-                    betting_status: "cancel",
+                    betting_status: "CANCEL",
                     history_view: true,
                 },
             },

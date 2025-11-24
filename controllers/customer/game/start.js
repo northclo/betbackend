@@ -132,7 +132,7 @@ export const StartGame = async (req, res) => {
     const existingRoundBets = await BettingResultModel.find({
         user_id: userId,
         game_id: game_id,
-        betting_status: { $ne: 'cancel' }
+        betting_status: { $ne: 'CANCEL' }
     }).lean();
 
     const roundBetTotal = existingRoundBets.reduce((sum, bet) => sum + (bet.bet_amount || 0), 0);
@@ -179,7 +179,7 @@ export const StartGame = async (req, res) => {
             {
                 $match: {
                     user_id: new mongoose.Types.ObjectId(userId),
-                    betting_status: { $ne: 'cancel' }
+                    betting_status: { $ne: 'CANCEL' }
                 }
             },
             {
@@ -228,7 +228,7 @@ export const StartGame = async (req, res) => {
             if (slotLimit && slotLimit.slot_bet_max !== null && slotLimit.slot_bet_max !== undefined && slotLimit.slot_bet_max > 0) {
                 const allBets = await BettingResultModel.find({
                     user_id: new mongoose.Types.ObjectId(userId),
-                    betting_status: { $ne: 'cancel' }
+                    betting_status: { $ne: 'CANCEL' }
                 }).lean();
 
                 let currentSlotTotal = 0;
@@ -254,7 +254,7 @@ export const StartGame = async (req, res) => {
             game_id: game_id,
             betting_type: bettingType,
             bet_amount: amount,
-            betting_status: { $ne: 'cancel' },
+            betting_status: { $ne: 'CANCEL' },
             createdAt: {
                 $gte: new Date(timeLimit)
             }
@@ -271,7 +271,7 @@ export const StartGame = async (req, res) => {
                 betting_type: bettingType,
                 bet_amount: amount,
                 number_sort: sanitizedNumberSort,
-                betting_status: { $ne: 'cancel' },
+                betting_status: { $ne: 'CANCEL' },
                 createdAt: {
                     $gte: new Date(timeLimit)
                 }
@@ -294,7 +294,7 @@ export const StartGame = async (req, res) => {
             betting_rate: rate,
             bet_amount: amount,
             number_sort: sanitizedNumberSort,
-            betting_status: "wait",
+            betting_status: "WAIT",
             win: false,
             earning_amount: 0,
             history_view: true,

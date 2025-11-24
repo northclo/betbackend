@@ -9,7 +9,7 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
     const userEarnings = new Map();
 
     const bulkOps = bettingHistory.reduce((ops, element) => {
-        if (element.betting_status === "cancel") {
+        if (element.betting_status === "CANCEL") {
             return ops;
         }
 
@@ -44,7 +44,7 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
                         total_no: totalNo,
                         win,
                         earning_amount: earningAmount,
-                        betting_status: "complete"
+                        betting_status: "COMPLETE"
                     },
                     $currentDate: {
                         updatedAt: true
