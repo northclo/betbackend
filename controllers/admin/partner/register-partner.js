@@ -139,9 +139,9 @@ export const registerPartner = async (req, res) => {
             };
 
             if (canSetSettlementRates) {
-                partnerData.simple_bet_rate = payload.dapol ? Number(payload.dapol) : null;
-                partnerData.combined_bet_rate = payload.danpol ? Number(payload.danpol) : null;
-                partnerData.match_num_bet_rate = payload.numberMatch ? Number(payload.numberMatch) : null;
+                partnerData.simple_bet_rate = payload.dapol !== undefined && payload.dapol !== null && payload.dapol !== '' ? Number(payload.dapol) : 0;
+                partnerData.combined_bet_rate = payload.danpol !== undefined && payload.danpol !== null && payload.danpol !== '' ? Number(payload.danpol) : 0;
+                partnerData.match_num_bet_rate = payload.numberMatch !== undefined && payload.numberMatch !== null && payload.numberMatch !== '' ? Number(payload.numberMatch) : 0;
             }
 
             return partnerData;

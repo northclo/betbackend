@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
 import PartnerModel from '../../../models/Partner.js';
 import UserModel from '../../../models/User.js';
+import TransactionModel from '../../../models/TransactionHistory.js';
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from '../../../helper/response.js';
 import { t } from '../../../helper/translation.js';
 import { partnerType } from '../../../const/type.js';
@@ -55,8 +56,6 @@ const cleanData = (node, search) => {
     let data = [];
 
     if (matchesSearch) {
-        const owner = node.owner?.[0] || {};
-
         data.push({
             role: node.role,
             nickname: node.nickname,
@@ -65,9 +64,9 @@ const cleanData = (node, search) => {
             members: node.members.length,
             money: node.own_money || 0,
             point: node.point || 0,
-            simpleBetRate: owner.simple_bet_rate || 0,
-            combinedBetRate: owner.combined_bet_rate || 0,
-            matchNumberBetRate: owner.match_num_bet_rate || 0,
+            simpleBetRate: node.simple_bet_rate !== undefined && node.simple_bet_rate !== null ? node.simple_bet_rate : 0,
+            combinedBetRate: node.combined_bet_rate !== undefined && node.combined_bet_rate !== null ? node.combined_bet_rate : 0,
+            matchNumberBetRate: node.match_num_bet_rate !== undefined && node.match_num_bet_rate !== null ? node.match_num_bet_rate : 0,
             onetimeEarningMin: node.onetime_earning_min || null,
         });
 
@@ -438,6 +437,19 @@ export const increaseCash = async (req, res) => {
                 { $inc: { own_money: numAmount } }
             );
 
+            const fundType = numAmount > 0 ? 'CHARGE' : 'EXCHANGE';
+            const fundAmount = Math.abs(numAmount);
+            
+            await TransactionModel.create({
+                user_id: user._id,
+                fund_type: fundType,
+                fund_status: 'COMPLETE',
+                fund_amount: fundAmount,
+                action_user_id: currentPartnerId,
+                request_send_date: new Date(),
+                fund_status_update_date: new Date()
+            });
+
             return responseSuccess(res);
         }
 
@@ -457,6 +469,19 @@ export const increaseCash = async (req, res) => {
             { _id: partner._id },
             { $inc: { own_money: numAmount } }
         );
+
+        const fundType = numAmount > 0 ? 'CHARGE' : 'EXCHANGE';
+        const fundAmount = Math.abs(numAmount);
+        
+        await TransactionModel.create({
+            user_id: partner._id,
+            fund_type: fundType,
+            fund_status: 'COMPLETE',
+            fund_amount: fundAmount,
+            action_user_id: currentPartnerId,
+            request_send_date: new Date(),
+            fund_status_update_date: new Date()
+        });
 
         return responseSuccess(res);
     } catch (error) {
@@ -625,13 +650,13 @@ export const updatePartner = async (req, res) => {
 
         if (canUpdateSettlementRates) {
             if (payload.dapol !== undefined) {
-                updateData.simple_bet_rate = payload.dapol ? Number(payload.dapol) : null;
+                updateData.simple_bet_rate = payload.dapol !== null && payload.dapol !== '' ? Number(payload.dapol) : 0;
             }
             if (payload.danpol !== undefined) {
-                updateData.combined_bet_rate = payload.danpol ? Number(payload.danpol) : null;
+                updateData.combined_bet_rate = payload.danpol !== null && payload.danpol !== '' ? Number(payload.danpol) : 0;
             }
             if (payload.numberMatch !== undefined) {
-                updateData.match_num_bet_rate = payload.numberMatch ? Number(payload.numberMatch) : null;
+                updateData.match_num_bet_rate = payload.numberMatch !== null && payload.numberMatch !== '' ? Number(payload.numberMatch) : 0;
             }
         }
 
