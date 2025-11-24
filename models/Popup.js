@@ -10,7 +10,6 @@ const PopupSchema = new Schema(
       type: String,
       enum: ["ACTIVE", "INACTIVE"],
       default: "INACTIVE",
-      index: true,
       trim: true,
     },
   },

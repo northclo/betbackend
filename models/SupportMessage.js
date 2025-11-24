@@ -45,13 +45,11 @@ const SupportMessageSchema = new mongoose.Schema(
       type: mongoose.Types.ObjectId,
       ref: "partner",
       default: null,
-      index: true,
     },
     status: {
       type: String,
       enum: ["PENDING", "RESOLVED", "REJECTED"],
       default: "PENDING",
-      index: true,
       trim: true,
     },
   },

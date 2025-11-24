@@ -72,8 +72,7 @@ const GameSettingSchema = new Schema(
         name: { 
             type: String, 
             required: true,
-            trim: true,
-            index: true
+            trim: true
         },
         activate: { 
             type: Boolean, 

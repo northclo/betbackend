@@ -16,7 +16,6 @@ const AnnouncementSchema = new Schema(
       type: String,
       enum: ["draft", "published", "archived", "hidden"],
       default: "draft",
-      index: true,
       lowercase: true,
       trim: true,
     },

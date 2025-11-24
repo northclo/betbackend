@@ -23,7 +23,7 @@ const BettingResultSchema = new Schema(
             enum: ["WAIT", "PROGRESS", "COMPLETE", "CANCEL"],
             default: "WAIT",
         },
-        history_view: { type: Boolean, default: false }
+        history_view: { type: Boolean, default: true }
     },
     { timestamps: true }
 );
