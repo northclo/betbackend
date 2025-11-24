@@ -63,12 +63,12 @@ export const getGameInitInfo = async (req, res) => {
                 ]
             });
             
-            let remainTime = 0;
+            let targetTimestamp = 0;
             let gameId = '';
             
             if (existingTestGame) {
                 gameId = existingTestGame.game_id;
-                remainTime = Math.floor((existingTestGame.start_time_stamp - currentTime) / 1000);
+                targetTimestamp = existingTestGame.start_time_stamp;
             } else {
                 try {
                     const testGame = await GameResultModel.create({
@@ -79,7 +79,7 @@ export const getGameInitInfo = async (req, res) => {
                         today_no: nextTodayNo,
                     });
                     gameId = testGame.game_id;
-                    remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                    targetTimestamp = testGameStartTime;
                 } catch (error) {
                     if (error.code === 11000) {
                         const duplicateGame = await GameResultModel.findOne({
@@ -88,7 +88,7 @@ export const getGameInitInfo = async (req, res) => {
                         });
                         if (duplicateGame) {
                             gameId = duplicateGame.game_id;
-                            remainTime = Math.floor((duplicateGame.start_time_stamp - currentTime) / 1000);
+                            targetTimestamp = duplicateGame.start_time_stamp;
                         }
                     } else {
                         throw error;
@@ -108,7 +108,8 @@ export const getGameInitInfo = async (req, res) => {
                     under: false,
                     today_no: lastTodayNo,
                     total_no: lastTotalNo,
-                    remain_time: remainTime,
+                    target_timestamp: targetTimestamp,
+                    remain_time: Math.floor((targetTimestamp - currentTime) / 1000),
                 },
                 aroundGameId: { previousGameId: null, nextGameId: null },
                 pendingBet: [],
@@ -134,15 +135,12 @@ export const getGameInitInfo = async (req, res) => {
         const totalNo = hasResult ? (game.total_no ?? lastTotalNo) : lastTotalNo + 1;
 
         const pendingGames = await getAvailableGame();
-        let remainTime = 0;
+        let targetTimestamp = 0;
         if (pendingGames.length > 0) {
-            remainTime = Math.max(
-                0,
-                Math.floor((pendingGames[0].start_time_stamp - getCurrentTime()) / 1000)
-            );
+            targetTimestamp = pendingGames[0].start_time_stamp;
         }
 
-        if (remainTime === 0 && !gameId) {
+        if (targetTimestamp === 0 && !gameId) {
             const GameResultModel = (await import("../../../models/GameResult.js")).default;
             const { v4: uuidv4 } = await import("uuid");
             const currentTime = getCurrentTime();
@@ -163,7 +161,9 @@ export const getGameInitInfo = async (req, res) => {
                 ]
             });
 
-            if (!existingTestGame) {
+            if (existingTestGame) {
+                targetTimestamp = existingTestGame.start_time_stamp;
+            } else {
                 try {
                     await GameResultModel.create({
                         game_id: uuidv4(),
@@ -172,9 +172,17 @@ export const getGameInitInfo = async (req, res) => {
                         total_no: nextTotalNo,
                         today_no: nextTodayNo,
                     });
-                    remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                    targetTimestamp = testGameStartTime;
                 } catch (error) {
-                    if (error.code !== 11000) {
+                    if (error.code === 11000) {
+                        const duplicateGame = await GameResultModel.findOne({
+                            total_no: nextTotalNo,
+                            today_no: nextTodayNo
+                        });
+                        if (duplicateGame) {
+                            targetTimestamp = duplicateGame.start_time_stamp;
+                        }
+                    } else {
                         throw error;
                     }
                 }
@@ -184,6 +192,7 @@ export const getGameInitInfo = async (req, res) => {
         const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
         const isGameActivated = gameSetting?.activate !== false;
         const inactiveMessage = gameSetting?.inactive_message || '';
+        const currentTime = getCurrentTime();
 
         return responseSuccess(res, {
             game: {
@@ -193,7 +202,8 @@ export const getGameInitInfo = async (req, res) => {
                 under: game.under ?? false,
                 today_no: todayNo,
                 total_no: totalNo,
-                remain_time: remainTime,
+                target_timestamp: targetTimestamp,
+                remain_time: targetTimestamp > 0 ? Math.floor((targetTimestamp - currentTime) / 1000) : 0,
             },
             aroundGameId,
             pendingBet: bettingHistory,

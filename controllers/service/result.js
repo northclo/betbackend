@@ -1,191 +1,92 @@
 import GameResultModel from "../../models/GameResult.js"
-import BettingResultModel from "../../models/BettingResult.js"
-import { responseBadRequest, responseServerError } from "../../helper/response.js";
+import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
+import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 import moment from "moment-timezone";
 
+const checkIp = (req) => {
+    const allowIp = config.ALLOW_IP;
+    if (!allowIp) return true;
+
+    const allowIps = allowIp.split(",")
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+
+    return allowIps.includes(ip);
+}
+
 export const startGame = async (req, res) => {
-    try {
-        if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
+    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
+    if (!checkIp(req)) return responseBadRequest(res);
 
-        const { game_id, device_id, time_stamp } = req.body;
+    const { game_id, device_id, time_stamp } = req.body;
 
-        let gameResult = await GameResultModel.findOne({ game_id: game_id });
-        let finalGameId = game_id;
+    const gameResult = await GameResultModel.findOne({ game_id: game_id });
 
-        if (gameResult) {
-            await GameResultModel.updateOne({ game_id: game_id },
-                {
-                    device_id: device_id,
-                    start_time_stamp: time_stamp
-                }
-            );
-        } else {
-            const existingGameByTime = await GameResultModel.findOne({
-                start_time_stamp: time_stamp,
-                game_id: { $ne: game_id }
-            });
-
-            if (existingGameByTime) {
-                await BettingResultModel.updateMany(
-                    { game_id: game_id, betting_status: "WAIT" },
-                    { $set: { game_id: existingGameByTime.game_id } }
-                );
-                
-                await GameResultModel.updateOne(
-                    { game_id: existingGameByTime.game_id },
-                    {
-                        device_id: device_id,
-                        start_time_stamp: time_stamp
-                    }
-                );
-
-                finalGameId = existingGameByTime.game_id;
-                gameResult = existingGameByTime;
-            } else {
-                await GameResultModel.create({
-                    game_id: game_id,
-                    device_id: device_id,
-                    start_time_stamp: time_stamp
-                });
+    if (gameResult) {
+        await GameResultModel.updateOne({ game_id: game_id },
+            {
+                device_id: device_id,
+                start_time_stamp: time_stamp
             }
-        }
-
-        await BettingResultModel.updateMany(
-            { game_id: finalGameId, betting_status: "WAIT" },
-            { $set: { betting_status: "PROGRESS" } }
-        );
-
-        io.emit('start_game', { game_id: finalGameId, time_stamp: time_stamp });
-
-        return res.status(200).json({ result: 0 });
-    } catch (error) {
-        console.error("Error to start game:", error);
-        return responseServerError(res);
+        )
+    } else {
+        await GameResultModel.create({
+            game_id: game_id,
+            device_id: device_id,
+            start_time_stamp: time_stamp
+        })
     }
+
+    setTimeout(() => {
+        io.emit('start_game', { game_id: game_id })
+    }, 2000);
+    // }, time_stamp - getCurrentTime())
+
+    return res.status(200).json({ result: 0 });
 }
 
 export const endGame = async (req, res) => {
-    try {
-        if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
+    if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
+    if (!checkIp(req)) return responseBadRequest(res);
 
-        const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
+    const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
 
-        const updated_TokyoTime = moment.tz(time_stamp, "Asia/Tokyo");
-        var new_today_no = today_no;
+    const updated_TokyoTime = moment.tz(time_stamp, "Asia/Tokyo");
+    var new_today_no = today_no;
 
-        if (updated_TokyoTime) {
-          const hours = updated_TokyoTime.hours();
-          const minutes = updated_TokyoTime.minutes();
-          new_today_no = Math.floor((hours * 60 + minutes) / 3) + 1; // every 3 min = 1 slot
-        }
-        const gameResult = await GameResultModel.findOne({ game_id: game_id });
-
-        if (!gameResult) return responseBadRequest(res);
-
-        const odd = list[0] % 2 !== 0;
-        const under = (Number(list[0]) + Number(list[1]) + Number(list[2])) <= 10.5;
-
-        let finalGameId = game_id;
-
-        let existingGame = await GameResultModel.findOne({
-            total_no: total_no,
-            today_no: new_today_no,
-            game_id: { $ne: game_id }
-        });
-
-        if (!existingGame && gameResult.start_time_stamp) {
-            existingGame = await GameResultModel.findOne({
-                start_time_stamp: gameResult.start_time_stamp,
-                game_id: { $ne: game_id },
-                total_no: { $exists: true, $ne: null },
-                today_no: { $exists: true, $ne: null }
-            });
-        }
-
-        if (existingGame) {
-            finalGameId = existingGame.game_id;
-            await updateBetting(finalGameId, odd, under, list, new_today_no, total_no);
-            
-            await GameResultModel.updateOne({ game_id: finalGameId }, {
-                list: list,
-                total_no: total_no,
-                today_no: new_today_no,
-                end_time_stamp: time_stamp,
-                current_no: current_no,
-                device_id: device_id,
-                manual_valid: manual_valid,
-                odd: odd,
-                under: under
-            });
-
-            await BettingResultModel.updateMany(
-                { game_id: game_id },
-                { $set: { game_id: finalGameId } }
-            );
-        } else {
-            await updateBetting(game_id, odd, under, list, new_today_no, total_no);
-
-            try {
-                await GameResultModel.updateOne({ game_id: game_id }, {
-                    list: list,
-                    total_no: total_no,
-                    today_no: new_today_no,
-                    end_time_stamp: time_stamp,
-                    current_no: current_no,
-                    device_id: device_id,
-                    manual_valid: manual_valid,
-                    odd: odd,
-                    under: under
-                });
-            } catch (error) {
-                if (error.code === 11000) {
-                    const duplicateGame = await GameResultModel.findOne({
-                        total_no: total_no,
-                        today_no: new_today_no
-                    });
-                    if (duplicateGame && duplicateGame.game_id !== game_id) {
-                        finalGameId = duplicateGame.game_id;
-                        await BettingResultModel.updateMany(
-                            { game_id: game_id },
-                            { $set: { game_id: finalGameId } }
-                        );
-                        await GameResultModel.updateOne({ game_id: finalGameId }, {
-                            list: list,
-                            total_no: total_no,
-                            today_no: new_today_no,
-                            end_time_stamp: time_stamp,
-                            current_no: current_no,
-                            device_id: device_id,
-                            manual_valid: manual_valid,
-                            odd: odd,
-                            under: under
-                        });
-                        await updateBetting(finalGameId, odd, under, list, new_today_no, total_no);
-                    } else {
-                        throw error;
-                    }
-                } else {
-                    throw error;
-                }
-            }
-        }
-
-        io.emit('end_game', { 
-            game_id: finalGameId, 
-            time_stamp: time_stamp,
-            total_no: total_no,
-            today_no: new_today_no,
-            list: list
-        });
-
-        return res.status(200).json({ result: 0 });
-    } catch (error) {
-        console.error("Error to end game:", error);
-        return responseServerError(res);
+    if (updated_TokyoTime) {
+      const hours = updated_TokyoTime.hours();
+      const minutes = updated_TokyoTime.minutes();
+      new_today_no = Math.floor((hours * 60 + minutes) / 3) + 1; // every 3 min = 1 slot
     }
+    const gameResult = await GameResultModel.findOne({ game_id: game_id });
+
+    if (!gameResult) return responseBadRequest(res);
+
+    const odd = list[0] % 2 !== 0;
+    const under = (Number(list[0]) + Number(list[1]) + Number(list[2])) <= 10.5;
+
+    updateBetting(game_id, odd, under, list, today_no, total_no)
+
+    await GameResultModel.updateOne({ game_id: game_id }, {
+        list: list,
+        total_no: total_no,
+        today_no: new_today_no,
+        end_time_stamp: time_stamp,
+        current_no: current_no,
+        device_id: device_id,
+        manual_valid: manual_valid,
+        odd: odd,
+        under: under
+    });
+
+    setTimeout(() => {
+        io.emit('end_game', { time_stamp: time_stamp });
+    }, 2000)
+
+    return res.status(200).json({ result: 0 });
 }
 
 // const updateAllTodayNo = async () => {
