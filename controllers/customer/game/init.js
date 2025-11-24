@@ -46,10 +46,21 @@ export const getGameInitInfo = async (req, res) => {
             const { v4: uuidv4 } = await import("uuid");
             const currentTime = getCurrentTime();
             const testGameStartTime = currentTime + 180000;
+            const nextTodayNo = lastTodayNo + 1;
+            const nextTotalNo = lastTotalNo + 1;
             
+            // Check for existing game by time window OR by round numbers to prevent duplicates
             const existingTestGame = await GameResultModel.findOne({
-                start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
-                end_time_stamp: { $exists: false }
+                $or: [
+                    {
+                        start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
+                        end_time_stamp: { $exists: false }
+                    },
+                    {
+                        total_no: nextTotalNo,
+                        today_no: nextTodayNo
+                    }
+                ]
             });
             
             let remainTime = 0;
@@ -59,15 +70,31 @@ export const getGameInitInfo = async (req, res) => {
                 gameId = existingTestGame.game_id;
                 remainTime = Math.floor((existingTestGame.start_time_stamp - currentTime) / 1000);
             } else {
-                const testGame = await GameResultModel.create({
-                    game_id: uuidv4(),
-                    device_id: "test-device",
-                    start_time_stamp: testGameStartTime,
-                    total_no: lastTotalNo + 1,
-                    today_no: lastTodayNo + 1,
-                });
-                gameId = testGame.game_id;
-                remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                try {
+                    const testGame = await GameResultModel.create({
+                        game_id: uuidv4(),
+                        device_id: "test-device",
+                        start_time_stamp: testGameStartTime,
+                        total_no: nextTotalNo,
+                        today_no: nextTodayNo,
+                    });
+                    gameId = testGame.game_id;
+                    remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                } catch (error) {
+                    // If duplicate key error (race condition), find the existing game
+                    if (error.code === 11000) {
+                        const duplicateGame = await GameResultModel.findOne({
+                            total_no: nextTotalNo,
+                            today_no: nextTodayNo
+                        });
+                        if (duplicateGame) {
+                            gameId = duplicateGame.game_id;
+                            remainTime = Math.floor((duplicateGame.start_time_stamp - currentTime) / 1000);
+                        }
+                    } else {
+                        throw error;
+                    }
+                }
             }
             
             const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
@@ -121,21 +148,37 @@ export const getGameInitInfo = async (req, res) => {
             const { v4: uuidv4 } = await import("uuid");
             const currentTime = getCurrentTime();
             const testGameStartTime = currentTime + 180000;
+            const nextTodayNo = lastTodayNo + 1;
+            const nextTotalNo = lastTotalNo + 1;
 
             const existingTestGame = await GameResultModel.findOne({
-                start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
-                end_time_stamp: { $exists: false }
+                $or: [
+                    {
+                        start_time_stamp: { $gte: currentTime, $lte: currentTime + 180000 },
+                        end_time_stamp: { $exists: false }
+                    },
+                    {
+                        total_no: nextTotalNo,
+                        today_no: nextTodayNo
+                    }
+                ]
             });
 
             if (!existingTestGame) {
-                await GameResultModel.create({
-                    game_id: uuidv4(),
-                    device_id: "test-device",
-                    start_time_stamp: testGameStartTime,
-                    total_no: lastTotalNo + 1,
-                    today_no: lastTodayNo + 1,
-                });
-                remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                try {
+                    await GameResultModel.create({
+                        game_id: uuidv4(),
+                        device_id: "test-device",
+                        start_time_stamp: testGameStartTime,
+                        total_no: nextTotalNo,
+                        today_no: nextTodayNo,
+                    });
+                    remainTime = Math.floor((testGameStartTime - currentTime) / 1000);
+                } catch (error) {
+                    if (error.code !== 11000) {
+                        throw error;
+                    }
+                }
             }
         }
 

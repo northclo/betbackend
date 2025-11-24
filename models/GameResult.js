@@ -26,6 +26,7 @@ GameResultSchema.index({ cancel_time_stamp: -1 });
 GameResultSchema.index({ start_time_stamp: -1, end_time_stamp: -1 });
 GameResultSchema.index({ end_time_stamp: -1, cancel_time_stamp: -1 });
 GameResultSchema.index({ game_id: 1 });
+GameResultSchema.index({ total_no: 1, today_no: 1 }, { unique: true, sparse: true });
 
 const GameResultModel = model('game_results', GameResultSchema);
 

@@ -64,22 +64,84 @@ export const endGame = async (req, res) => {
         const odd = list[0] % 2 !== 0;
         const under = (Number(list[0]) + Number(list[1]) + Number(list[2])) <= 10.5;
 
-        await updateBetting(game_id, odd, under, list, new_today_no, total_no);
+        let finalGameId = game_id;
 
-        await GameResultModel.updateOne({ game_id: game_id }, {
-            list: list,
+        const existingGameWithRound = await GameResultModel.findOne({
             total_no: total_no,
             today_no: new_today_no,
-            end_time_stamp: time_stamp,
-            current_no: current_no,
-            device_id: device_id,
-            manual_valid: manual_valid,
-            odd: odd,
-            under: under
+            game_id: { $ne: game_id }
         });
 
+        if (existingGameWithRound) {
+            finalGameId = existingGameWithRound.game_id;
+            await updateBetting(finalGameId, odd, under, list, new_today_no, total_no);
+            
+            await GameResultModel.updateOne({ game_id: finalGameId }, {
+                list: list,
+                total_no: total_no,
+                today_no: new_today_no,
+                end_time_stamp: time_stamp,
+                current_no: current_no,
+                device_id: device_id,
+                manual_valid: manual_valid,
+                odd: odd,
+                under: under
+            });
+
+            await BettingResultModel.updateMany(
+                { game_id: game_id },
+                { $set: { game_id: finalGameId } }
+            );
+        } else {
+            await updateBetting(game_id, odd, under, list, new_today_no, total_no);
+
+            try {
+                await GameResultModel.updateOne({ game_id: game_id }, {
+                    list: list,
+                    total_no: total_no,
+                    today_no: new_today_no,
+                    end_time_stamp: time_stamp,
+                    current_no: current_no,
+                    device_id: device_id,
+                    manual_valid: manual_valid,
+                    odd: odd,
+                    under: under
+                });
+            } catch (error) {
+                if (error.code === 11000) {
+                    const duplicateGame = await GameResultModel.findOne({
+                        total_no: total_no,
+                        today_no: new_today_no
+                    });
+                    if (duplicateGame && duplicateGame.game_id !== game_id) {
+                        finalGameId = duplicateGame.game_id;
+                        await BettingResultModel.updateMany(
+                            { game_id: game_id },
+                            { $set: { game_id: finalGameId } }
+                        );
+                        await GameResultModel.updateOne({ game_id: finalGameId }, {
+                            list: list,
+                            total_no: total_no,
+                            today_no: new_today_no,
+                            end_time_stamp: time_stamp,
+                            current_no: current_no,
+                            device_id: device_id,
+                            manual_valid: manual_valid,
+                            odd: odd,
+                            under: under
+                        });
+                        await updateBetting(finalGameId, odd, under, list, new_today_no, total_no);
+                    } else {
+                        throw error;
+                    }
+                } else {
+                    throw error;
+                }
+            }
+        }
+
         io.emit('end_game', { 
-            game_id: game_id, 
+            game_id: finalGameId, 
             time_stamp: time_stamp,
             total_no: total_no,
             today_no: new_today_no,
