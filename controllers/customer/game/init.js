@@ -5,6 +5,7 @@ import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
 import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
+import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { t } from "../../../helper/translation.js";
 
 export const getGameInitInfo = async (req, res) => {
@@ -45,6 +46,7 @@ export const getGameInitInfo = async (req, res) => {
     }
 
     if (!game || !game.game_id) {
+        const serverCurrentTime = getCurrentTime();
         return responseSuccess(res, {
             game: {
                 id: '',
@@ -53,9 +55,9 @@ export const getGameInitInfo = async (req, res) => {
                 under: null,
                 today_no: 0,
                 total_no: 0,
-                remain_time: 0,
                 target_timestamp: 0,
             },
+            server_current_time: serverCurrentTime,
             aroundGameId: { previousGameId: null, nextGameId: null },
             pendingBet: [],
             user: {
@@ -77,6 +79,7 @@ export const getGameInitInfo = async (req, res) => {
     const totalNo = (game.list?.length === 0) ? lastGame.total_no + 1 : game.total_no;
 
     const targetTimestamp = game.start_time_stamp;
+    const serverCurrentTime = getCurrentTime();
 
     const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
     const isGameActivated = gameSetting?.activate !== false;
@@ -92,6 +95,7 @@ export const getGameInitInfo = async (req, res) => {
             total_no: totalNo,
             target_timestamp: targetTimestamp,
         },
+        server_current_time: serverCurrentTime,
         aroundGameId,
         pendingBet: bettingHistory,
         user: {

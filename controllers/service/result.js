@@ -4,6 +4,7 @@ import { config } from "../../config/index.js";
 import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
 import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
+import { getAvailableGame } from "../../helper/Game/Get-Available-Game.js";
 import moment from "moment-timezone";
 
 const checkIp = (req) => {
@@ -22,7 +23,7 @@ export const startGame = async (req, res) => {
 
     const { game_id, device_id, time_stamp } = req.body;
 
-    let gameResult = await GameResultModel.findOne({ game_id: game_id });
+    const gameResult = await GameResultModel.findOne({ game_id: game_id });
 
     if (gameResult) {
         await GameResultModel.updateOne({ game_id: game_id },
@@ -32,7 +33,7 @@ export const startGame = async (req, res) => {
             }
         )
     } else {
-        gameResult = await GameResultModel.create({
+        await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
             start_time_stamp: time_stamp
@@ -40,7 +41,12 @@ export const startGame = async (req, res) => {
     }
 
     setTimeout(() => {
-        io.emit('start_game', { game_id: gameResult.total_no + "/" + gameResult.today_no })
+        const serverCurrentTime = getCurrentTime();
+        io.emit('start_game', { 
+            game_id: game_id,
+            start_time_stamp: time_stamp,
+            server_current_time: serverCurrentTime
+        })
     }, 0);
     // }, time_stamp - getCurrentTime())
 
@@ -82,8 +88,17 @@ export const endGame = async (req, res) => {
         under: under
     });
 
+    const availableGames = await getAvailableGame();
+    const nextGameTimestamp = availableGames.length > 0 ? availableGames[0].start_time_stamp : null;
+
     setTimeout(() => {
-        io.emit('end_game', { time_stamp: time_stamp, game_id: gameResult.total_no + "/" + gameResult.today_no });
+        const serverCurrentTime = getCurrentTime();
+        io.emit('end_game', { 
+            time_stamp: time_stamp, 
+            game_id,
+            next_start_time_stamp: nextGameTimestamp,
+            server_current_time: serverCurrentTime
+        });
     }, 0);
 
     return res.status(200).json({ result: 0 });
