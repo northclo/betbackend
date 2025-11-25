@@ -1,6 +1,6 @@
 import UserModel from "../../../models/User.js";
 import GameSettingModel from "../../../models/GameSetting.js";
-import { responseSuccess } from "../../../helper/response.js";
+import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
 import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";

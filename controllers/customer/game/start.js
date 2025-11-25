@@ -87,7 +87,9 @@ export const StartGame = async (req, res) => {
             return responseBadRequest(res, t("game_not_available_betting"));
         }
 
-        const secondsUntilStart = Math.floor((game.start_time_stamp - getCurrentTime()) / 1000);
+        const currentTime = getCurrentTime();
+        const secondsUntilStart = Math.floor((game.start_time_stamp - currentTime) / 1000);
+        
         if (secondsUntilStart < 90 || secondsUntilStart > 180) {
             return responseBadRequest(res, t("betting_window_closed"));
         }

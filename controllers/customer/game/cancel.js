@@ -51,17 +51,10 @@ export const cancelGame = async (req, res) => {
         const cancelBetRange = partner.cancel_bet_range || {};
         const endTime = cancelBetRange.end_time;
         
-        if (endTime !== undefined && endTime !== null && endTime > 0) {
-            if (secondsUntilStart < endTime) {
-                return responseBadRequest(res, t("cancellation_window_closed"));
-            }
-            if (secondsUntilStart > 180) {
-                return responseBadRequest(res, t("cancellation_window_closed"));
-            }
-        } else {
-            if (secondsUntilStart < 90 || secondsUntilStart > 180) {
-                return responseBadRequest(res, t("cancellation_window_closed"));
-            }
+        const cancellationEndTime = (endTime !== undefined && endTime !== null && endTime > 0) ? endTime : 90;
+        
+        if (secondsUntilStart < cancellationEndTime || secondsUntilStart > 180) {
+            return responseBadRequest(res, t("cancellation_window_closed"));
         }
 
         if (cancelBetRange.max_time && cancelBetRange.max_time > 0) {
