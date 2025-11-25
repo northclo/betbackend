@@ -1,28 +1,38 @@
 import UserModel from "../../../models/User.js";
 import GameSettingModel from "../../../models/GameSetting.js";
 import { responseSuccess } from "../../../helper/response.js";
-import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
 import { getAroundGameId } from "../../../helper/Game/Get-Around-GameId.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import { getGameWithBettingHistory } from "../../../helper/Game/Get-Game.js";
+import { t } from "../../../helper/translation.js";
 
 export const getGameInitInfo = async (req, res) => {
     const { gameId } = req.query;
     const userId = req.session._id;
 
     const user = await UserModel.findOne({ _id: userId });
+    if (!user) {
+        return responseBadRequest(res, t("user_not_found"));
+    }
 
     let game;
+    let bettingHistory = [];
+
     if (gameId) {
-        const result = await getGameWithBettingHistory(gameId);
+        const result = await getGameWithBettingHistory(gameId, userId);
         game = result.game;
+        bettingHistory = result.bettingHistory;
         if (!game) {
             const availableGame = await getAvailableGame();
             if (availableGame.length > 0) {
                 game = availableGame[0];
             } else {
                 game = await getLastGame();
+            }
+            if (game && game.game_id) {
+                const result = await getGameWithBettingHistory(game.game_id, userId);
+                bettingHistory = result.bettingHistory;
             }
         }
     } else {
@@ -60,8 +70,7 @@ export const getGameInitInfo = async (req, res) => {
 
     const _gameId = game.game_id;
 
-    const { bettingHistory } = await getGameWithBettingHistory(_gameId, userId);
-    const aroundGameId = await getAroundGameId(_gameId);
+    const aroundGameId = await getAroundGameId(_gameId, userId);
     const lastGame = await getLastGame();
 
     const todayNo = (game.list?.length === 0) ? lastGame.today_no + 1 : game.today_no;

@@ -22,7 +22,7 @@ export const startGame = async (req, res) => {
 
     const { game_id, device_id, time_stamp } = req.body;
 
-    const gameResult = await GameResultModel.findOne({ game_id: game_id });
+    let gameResult = await GameResultModel.findOne({ game_id: game_id });
 
     if (gameResult) {
         await GameResultModel.updateOne({ game_id: game_id },
@@ -32,7 +32,7 @@ export const startGame = async (req, res) => {
             }
         )
     } else {
-        await GameResultModel.create({
+        gameResult = await GameResultModel.create({
             game_id: game_id,
             device_id: device_id,
             start_time_stamp: time_stamp
@@ -40,8 +40,8 @@ export const startGame = async (req, res) => {
     }
 
     setTimeout(() => {
-        io.emit('start_game', { game_id: game_id })
-    }, 2000);
+        io.emit('start_game', { game_id: gameResult.total_no + "/" + gameResult.today_no })
+    }, 0);
     // }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
@@ -83,8 +83,8 @@ export const endGame = async (req, res) => {
     });
 
     setTimeout(() => {
-        io.emit('end_game', { time_stamp: time_stamp, game_id });
-    }, 2000);
+        io.emit('end_game', { time_stamp: time_stamp, game_id: gameResult.total_no + "/" + gameResult.today_no });
+    }, 0);
 
     return res.status(200).json({ result: 0 });
 }
