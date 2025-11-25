@@ -1,73 +1,45 @@
 import gameResultService from "../../services/gameResultService.js";
-import { config } from "../../config/index.js";
-import { responseBadRequest } from "../../helper/response.js";
-
-const checkIp = (req) => {
-    const allowIp = config.ALLOWED_IPS;
-    if(allowIp.length == 0 ) {
-        return true;
-    }
-    const allowIps = allowIp.split(",")
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    if (allowIps.includes(ip)) {
-        return true;
-    } else {
-        return false;
-    }
-}
+import { t } from "../../helper/translation.js";
 
 export const getResultsByDate = async (req, res) => {
     try {
-        if (!checkIp(req)) {
-            return responseBadRequest(res);
-        }
-
         const { date, mode } = req.query;
         if (!date) {
-            return res.status(400).json({ error: "Date query parameter is required" });
+            return res.status(400).json({ error: t("date_parameter_required") });
         }
 
         const results = await gameResultService.getResultsByDate(date, mode);
         res.status(200).json(results);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Failed to get results" });
+        res.status(500).json({ error: t("failed_get_results") });
     }
 };
 
 export const getLatestResults = async (req, res) => {
     try {
-        if (!checkIp(req)) {
-            return responseBadRequest(res);
-        }
-
         const results = await gameResultService.getLatestResults();
         res.status(200).json(results);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Failed to get results" });
+        res.status(500).json({ error: t("failed_get_results") });
     }
 };
 
 export const getResultsbyIndex = async (req, res) => {
     try {
-        if (!checkIp(req)) {
-            return responseBadRequest(res);
-        }
-
         const { index, days } = req.query;
         if (!index) {
-            return res.status(400).json({ error: "index query parameter is required" });
+            return res.status(400).json({ error: t("index_parameter_required") });
         }
         if (!days) {
-            return res.status(400).json({ error: "days query parameter is required" });
+            return res.status(400).json({ error: t("days_parameter_required") });
         }
 
         const results = await gameResultService.getResultsbyIndex(index, days);
         res.status(200).json(results);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Failed to get results" });
+        res.status(500).json({ error: t("failed_get_results") });
     }
 };

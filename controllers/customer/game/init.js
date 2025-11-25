@@ -78,7 +78,7 @@ export const getGameInitInfo = async (req, res) => {
     const todayNo = (game.list?.length === 0) ? lastGame.today_no + 1 : game.today_no;
     const totalNo = (game.list?.length === 0) ? lastGame.total_no + 1 : game.total_no;
 
-    const targetTimestamp = game.start_time_stamp;
+    const targetTimestamp = game.start_time_stamp || 0;
     const serverCurrentTime = getCurrentTime();
 
     const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();

@@ -5,21 +5,11 @@ import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
 import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../helper/Game/Get-Available-Game.js";
+import { getLastGame } from "../../helper/Game/Get-Last-Game.js";
 import moment from "moment-timezone";
-
-const checkIp = (req) => {
-    const allowIp = config.ALLOWED_IPS;
-    if (!allowIp) return true;
-
-    const allowIps = allowIp.split(",")
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-
-    return allowIps.includes(ip);
-}
 
 export const startGame = async (req, res) => {
     if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
-    if (!checkIp(req)) return responseBadRequest(res);
 
     const { game_id, device_id, time_stamp } = req.body;
 
@@ -40,12 +30,27 @@ export const startGame = async (req, res) => {
         })
     }
 
+    const updatedGameResult = await GameResultModel.findOne({ game_id: game_id });
+    const lastGame = await getLastGame();
+    
+    let total_no, today_no;
+    if (updatedGameResult && updatedGameResult.list && updatedGameResult.list.length > 0) {
+        total_no = updatedGameResult.total_no || 0;
+        today_no = updatedGameResult.today_no || 0;
+    } else {
+        const lastTodayNo = Number.isFinite(lastGame?.today_no) ? lastGame.today_no : 0;
+        const lastTotalNo = Number.isFinite(lastGame?.total_no) ? lastGame.total_no : 0;
+        today_no = lastTodayNo + 1;
+        total_no = lastTotalNo + 1;
+    }
+
     setTimeout(() => {
         const serverCurrentTime = getCurrentTime();
         io.emit('start_game', { 
             game_id: game_id,
             start_time_stamp: time_stamp,
-            server_current_time: serverCurrentTime
+            total_no: total_no,
+            today_no: today_no
         })
     }, 0);
     // }, time_stamp - getCurrentTime())
@@ -55,7 +60,6 @@ export const startGame = async (req, res) => {
 
 export const endGame = async (req, res) => {
     if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
-    if (!checkIp(req)) return responseBadRequest(res);
 
     const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
 
@@ -96,8 +100,8 @@ export const endGame = async (req, res) => {
         io.emit('end_game', { 
             time_stamp: time_stamp, 
             game_id,
-            next_start_time_stamp: nextGameTimestamp,
-            server_current_time: serverCurrentTime
+            total_no: total_no,
+            today_no: new_today_no
         });
     }, 0);
 
