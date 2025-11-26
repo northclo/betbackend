@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import PointTransactionModel from "../../../models/PointTransaction.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
@@ -85,8 +86,9 @@ export const getPointUsageList = async (req, res) => {
             ...statusFilter
         };
 
-        if (accessibleUserIds.length > 0) {
-            filter.user_id = { $in: accessibleUserIds };
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (allAccessibleIds.length > 0) {
+            filter.user_id = { $in: allAccessibleIds };
         } else {
             return responseSuccess(res, {
                 list: [],
@@ -110,6 +112,14 @@ export const getPointUsageList = async (req, res) => {
             },
             {
                 $lookup: {
+                    from: "partners",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "partner"
+                }
+            },
+            {
+                $lookup: {
                     from: "users",
                     localField: "action_user_id",
                     foreignField: "_id",
@@ -119,7 +129,29 @@ export const getPointUsageList = async (req, res) => {
             {
                 $addFields: {
                     user: { $arrayElemAt: ["$user", 0] },
+                    partner: { $arrayElemAt: ["$partner", 0] },
                     processor: { $arrayElemAt: ["$processor", 0] }
+                }
+            },
+            {
+                $addFields: {
+                    hasPartner: {
+                        $and: [
+                            { $ne: ["$partner", null] },
+                            { $ne: [{ $type: "$partner" }, "missing"] }
+                        ]
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    userNickname: {
+                        $cond: {
+                            if: "$hasPartner",
+                            then: { $ifNull: ["$partner.nickname", "-"] },
+                            else: { $ifNull: ["$user.user_nickname", "-"] }
+                        }
+                    }
                 }
             },
             {
@@ -139,7 +171,7 @@ export const getPointUsageList = async (req, res) => {
                             { $toString: "$_id" }
                         ]
                     },
-                    member_nickname: { $ifNull: ["$user.user_nickname", "-"] },
+                    member_nickname: "$userNickname",
                     type: {
                         $switch: {
                             branches: [
@@ -234,22 +266,28 @@ export const getPointUsageList = async (req, res) => {
                 .map(id => new mongoose.Types.ObjectId(id));
             
             if (userObjectIds.length > 0) {
-                const users = await UserModel.find({
-                    _id: { $in: userObjectIds }
-                }).select('_id point').lean();
+                const [users, partners] = await Promise.all([
+                    UserModel.find({
+                        _id: { $in: userObjectIds }
+                    }).select('_id point').lean(),
+                    PartnerModel.find({
+                        _id: { $in: userObjectIds }
+                    }).select('_id point').lean()
+                ]);
                 
                 users.forEach(user => {
                     userBalances[user._id.toString()] = user.point || 0;
                     transactionsAfterEnd[user._id.toString()] = 0;
                 });
                 
+                partners.forEach(partner => {
+                    userBalances[partner._id.toString()] = partner.point || 0;
+                    transactionsAfterEnd[partner._id.toString()] = 0;
+                });
+                
                 if (end) {
-                    const accessibleUserObjectIds = userObjectIds.filter(id => 
-                        accessibleUserIds.some(aid => aid.toString() === id.toString())
-                    );
-
                     const transactionsAfterFilter = {
-                        user_id: { $in: accessibleUserObjectIds },
+                        user_id: { $in: userObjectIds },
                         createdAt: { $gt: end }
                     };
 

@@ -1,10 +1,11 @@
 import BettingResultModel from "../../../models/BettingResult.js";
 import PartnerModel from "../../../models/Partner.js";
+import UserModel from "../../../models/User.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
 import { t } from "../../../helper/translation.js";
-import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -76,6 +77,7 @@ export const getBettingList = async (req, res) => {
         }
 
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         let partnerIds = [];
         if (partnerId) {
@@ -123,9 +125,23 @@ export const getBettingList = async (req, res) => {
                 }
             },
             {
-                $unwind: {
-                    path: "$user",
-                    preserveNullAndEmptyArrays: true
+                $lookup: {
+                    from: "partners",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "bettingPartner"
+                }
+            },
+            {
+                $addFields: {
+                    user: { $arrayElemAt: ["$user", 0] },
+                    bettingPartner: { $arrayElemAt: ["$bettingPartner", 0] },
+                    isPartnerBet: {
+                        $and: [
+                            { $ne: ["$bettingPartner", null] },
+                            { $ne: [{ $type: "$bettingPartner" }, "missing"] }
+                        ]
+                    }
                 }
             }
         ];
@@ -135,7 +151,8 @@ export const getBettingList = async (req, res) => {
                 $match: {
                     $or: [
                         { "user.partner_id": { $in: partnerIds } },
-                        { "user.ownpartner_id": { $in: partnerIds } }
+                        { "user.ownpartner_id": { $in: partnerIds } },
+                        { "bettingPartner._id": { $in: partnerIds } }
                     ]
                 }
             });
@@ -150,13 +167,26 @@ export const getBettingList = async (req, res) => {
                     searchMatch.$or = [
                         { "user.user_name": searchRegex },
                         { "user.user_nickname": searchRegex },
+                        { "bettingPartner.nickname": searchRegex },
+                        { "bettingPartner.partner_id": searchRegex },
                         {
                             $expr: {
-                                $regexMatch: {
-                                    input: { $toString: "$user._id" },
-                                    regex: searchRegex.source,
-                                    options: searchRegex.flags
-                                }
+                                $or: [
+                                    {
+                                        $regexMatch: {
+                                            input: { $toString: "$user._id" },
+                                            regex: searchRegex.source,
+                                            options: searchRegex.flags
+                                        }
+                                    },
+                                    {
+                                        $regexMatch: {
+                                            input: { $toString: "$bettingPartner._id" },
+                                            regex: searchRegex.source,
+                                            options: searchRegex.flags
+                                        }
+                                    }
+                                ]
                             }
                         }
                     ];
@@ -177,6 +207,8 @@ export const getBettingList = async (req, res) => {
                     searchMatch.$or = [
                         { "user.user_nickname": searchRegex },
                         { "user.user_name": searchRegex },
+                        { "bettingPartner.nickname": searchRegex },
+                        { "bettingPartner.partner_id": searchRegex },
                         { game_id: searchRegex }
                     ];
             }
@@ -194,6 +226,14 @@ export const getBettingList = async (req, res) => {
             },
             {
                 $lookup: {
+                    from: "partners",
+                    localField: "bettingPartner.parent_partner_id",
+                    foreignField: "_id",
+                    as: "bettingPartnerParent"
+                }
+            },
+            {
+                $lookup: {
                     from: "game_results",
                     localField: "game_id",
                     foreignField: "game_id",
@@ -202,9 +242,35 @@ export const getBettingList = async (req, res) => {
             },
             {
                 $addFields: {
-                    partner: { $arrayElemAt: ["$partners", 0] },
+                    partner: {
+                        $cond: {
+                            if: "$isPartnerBet",
+                            then: { $arrayElemAt: ["$bettingPartnerParent", 0] },
+                            else: { $arrayElemAt: ["$partners", 0] }
+                        }
+                    },
                     game: { $arrayElemAt: ["$game_result", 0] },
-                    user_id_text: { $ifNull: [{ $toString: "$user._id" }, ""] }
+                    user_id_text: {
+                        $cond: {
+                            if: "$isPartnerBet",
+                            then: { $ifNull: [{ $toString: "$bettingPartner._id" }, ""] },
+                            else: { $ifNull: [{ $toString: "$user._id" }, ""] }
+                        }
+                    },
+                    user_nickname_value: {
+                        $cond: {
+                            if: "$isPartnerBet",
+                            then: { $ifNull: ["$bettingPartner.nickname", ""] },
+                            else: { $ifNull: ["$user.user_nickname", ""] }
+                        }
+                    },
+                    user_name_value: {
+                        $cond: {
+                            if: "$isPartnerBet",
+                            then: { $ifNull: ["$bettingPartner.partner_id", ""] },
+                            else: { $ifNull: ["$user.user_name", ""] }
+                        }
+                    }
                 }
             },
             {
@@ -213,6 +279,14 @@ export const getBettingList = async (req, res) => {
                     $or: [
                         { "game.total_no": { $exists: true, $ne: null, $type: "number" } },
                         { "game.today_no": { $exists: true, $ne: null, $type: "number" } }
+                    ]
+                }
+            },
+            {
+                $match: {
+                    $and: [
+                        { total_no: { $exists: true, $ne: null, $type: "number" } },
+                        { today_no: { $exists: true, $ne: null, $type: "number" } }
                     ]
                 }
             }
@@ -253,8 +327,15 @@ export const getBettingList = async (req, res) => {
                                 _id: 1,
                                 betting_id: { $toString: "$_id" },
                                 user_id: "$user_id_text",
-                                user_nickname: { $ifNull: ["$user.user_nickname", ""] },
-                                user_name: { $ifNull: ["$user.user_name", ""] },
+                                user_nickname: "$user_nickname_value",
+                                user_name: "$user_name_value",
+                                user_role: {
+                                    $cond: {
+                                        if: "$isPartnerBet",
+                                        then: "partner",
+                                        else: "user"
+                                    }
+                                },
                                 game_id: 1,
                                 total_no: 1,
                                 today_no: 1,

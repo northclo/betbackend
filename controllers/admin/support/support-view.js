@@ -37,7 +37,8 @@ export const viewSupportTicket = async (req, res) => {
       return responseNotFound(res);
     }
 
-    if (!accessibleUserIds.some(aid => aid.toString() === ticket.writer.toString())) {
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (!allAccessibleIds.some(aid => aid.toString() === ticket.writer.toString())) {
       return responseNotFound(res);
     }
 
@@ -58,19 +59,29 @@ export const viewSupportTicket = async (req, res) => {
             userRole = "partner";
           }
 
-          const userPartnerId = user.partner_id;
+          const userPartnerId = user.ownpartner_id;
           if (userPartnerId) {
             const userPartner = await PartnerModel.findById(userPartnerId).lean();
-            if (userPartner && userPartner.parent_partner_id) {
-              const parentPartner = await PartnerModel.findById(userPartner.parent_partner_id).lean();
+            if (userPartner) {
+              parentPartnerName = userPartner.nickname || null;
+            }
+          }
+        } else {
+          const partner = await PartnerModel.findById(ticket.writer).lean();
+          if (partner) {
+            userNickname = partner.nickname || t("unknown");
+            userRole = "partner";
+            
+            if (partner.parent_partner_id) {
+              const parentPartner = await PartnerModel.findById(partner.parent_partner_id).lean();
               if (parentPartner) {
-                parentPartnerName = parentPartner.nickname || parentPartner.partner_id || null;
+                parentPartnerName = parentPartner.nickname || null;
               }
             }
           }
         }
       } catch (error) {
-        console.error("Error fetching user:", error);
+        console.error("Error fetching user/partner:", error);
       }
     }
 
@@ -78,7 +89,7 @@ export const viewSupportTicket = async (req, res) => {
       try {
         const answerer = await PartnerModel.findById(ticket.answerer_id).lean();
         if (answerer) {
-          answererName = answerer.nickname || answerer.partner_id || null;
+          answererName = answerer.nickname || null;
         }
       } catch (error) {
         console.error("Error fetching answerer:", error);

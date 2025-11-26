@@ -39,7 +39,8 @@ export const updateExchangeComment = async (req, res) => {
       return responseBadRequest(res, t("transaction_not_found"));
     }
 
-    if (!accessibleUserIds.some(aid => aid.toString() === transaction.user_id.toString())) {
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (!allAccessibleIds.some(aid => aid.toString() === transaction.user_id.toString())) {
       return responseBadRequest(res, t("transaction_not_found"));
     }
 

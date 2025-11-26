@@ -41,7 +41,8 @@ export const replyToSupportTicket = async (req, res) => {
       return responseNotFound(res);
     }
 
-    if (!accessibleUserIds.some(aid => aid.toString() === ticket.writer.toString())) {
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (!allAccessibleIds.some(aid => aid.toString() === ticket.writer.toString())) {
       return responseNotFound(res);
     }
 

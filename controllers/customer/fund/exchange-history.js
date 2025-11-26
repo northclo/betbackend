@@ -32,11 +32,13 @@ export const getExchangeHistory = async (req, res) => {
         let userNickname = null;
         if (transaction.user_id) {
           try {
-            const user = await UserModel.findById(transaction.user_id).select('user_nickname').lean();
+            let user = await UserModel.findById(transaction.user_id).select('user_nickname').lean();
             if (!user) {
               user = await PartnerModel.findById(transaction.user_id).select('nickname').lean();
             }
-            userNickname = user.user_nickname || user.nickname || null;
+            if (user) {
+              userNickname = user.user_nickname || user.nickname || null;
+            }
           } catch (error) {
             console.error("Error fetching user nickname:", error);
           }

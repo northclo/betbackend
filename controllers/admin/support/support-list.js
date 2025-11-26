@@ -46,9 +46,22 @@ const toSupportTicketDto = async (ticket) => {
           const userPartner = await PartnerModel.findById(userPartnerId).lean();
           parentPartnerName = userPartner.nickname || "-";
         }
+      } else {
+        const partner = await PartnerModel.findById(ticket.writer).lean();
+        if (partner) {
+          userNickname = partner.nickname || t("unknown");
+          userRole = "partner";
+          
+          if (partner.parent_partner_id) {
+            const parentPartner = await PartnerModel.findById(partner.parent_partner_id).lean();
+            if (parentPartner) {
+              parentPartnerName = parentPartner.nickname || "-";
+            }
+          }
+        }
       }
     } catch (error) {
-      console.error("Error fetching user:", error);
+      console.error("Error fetching user/partner:", error);
     }
   }
 
@@ -105,8 +118,8 @@ export const listSupportTickets = async (req, res) => {
 
     const filter = {};
 
-    if (accessibleUserIds.length > 0) {
-      filter.writer = { $in: accessibleUserIds };
+    if (accessibleUserIds.length > 0 || accessiblePartnerIds.length > 0) {
+      filter.writer = { $in: accessibleUserIds.concat(accessiblePartnerIds) };
     } else {
       return responseSuccess(res, {
         list: [],
@@ -177,8 +190,18 @@ export const listSupportTickets = async (req, res) => {
             const userIds = users.map(u => u._id).filter(id => 
               accessibleUserIds.some(aid => aid.toString() === id.toString())
             );
-            if (userIds.length > 0) {
-              filter.writer = { $in: userIds };
+            
+            const partners = await PartnerModel.find({
+              nickname: keywordRegex,
+              _id: { $in: accessiblePartnerIds }
+            }).select("_id").lean();
+            const partnerIds = partners.map(p => p._id).filter(id =>
+              accessiblePartnerIds.some(aid => aid.toString() === id.toString())
+            );
+            
+            const allWriterIds = [...userIds, ...partnerIds];
+            if (allWriterIds.length > 0) {
+              filter.writer = { $in: allWriterIds };
             } else {
               filter._id = { $in: [] };
             }
@@ -189,16 +212,24 @@ export const listSupportTickets = async (req, res) => {
         } else if (searchTypeLower === "user_id") {
           try {
             const userConditions = [];
+            const partnerConditions = [];
             
             if (mongoose.Types.ObjectId.isValid(keywordTrimmed) && keywordTrimmed.match(/^[0-9a-fA-F]{24}$/)) {
               const objectId = new mongoose.Types.ObjectId(keywordTrimmed);
               if (accessibleUserIds.some(aid => aid.toString() === objectId.toString())) {
                 userConditions.push({ _id: objectId });
               }
+              if (accessiblePartnerIds.some(aid => aid.toString() === objectId.toString())) {
+                partnerConditions.push({ _id: objectId });
+              }
             }
             
             userConditions.push(
               { user_name: keywordRegex }
+            );
+            
+            partnerConditions.push(
+              { partner_id: keywordRegex }
             );
             
             const users = await UserModel.find({
@@ -217,8 +248,20 @@ export const listSupportTickets = async (req, res) => {
               .map(u => u._id)
               .filter(id => accessibleUserIds.some(aid => aid.toString() === id.toString()));
             
-            if (userIds.length > 0) {
-              filter.writer = { $in: userIds };
+            const partners = await PartnerModel.find({
+              $and: [
+                { $or: partnerConditions },
+                { _id: { $in: accessiblePartnerIds } }
+              ]
+            }).select("_id").lean();
+            
+            const partnerIds = partners
+              .map(p => p._id)
+              .filter(id => accessiblePartnerIds.some(aid => aid.toString() === id.toString()));
+            
+            const allWriterIds = [...userIds, ...partnerIds];
+            if (allWriterIds.length > 0) {
+              filter.writer = { $in: allWriterIds };
             } else {
               filter._id = { $in: [] };
             }

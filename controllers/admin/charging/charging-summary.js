@@ -42,8 +42,9 @@ export const getChargingSummary = async (req, res) => {
             if (end) dateFilter.createdAt.$lte = end;
         }
 
-        if (accessibleUserIds.length > 0) {
-            dateFilter.user_id = { $in: accessibleUserIds };
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (allAccessibleIds.length > 0) {
+            dateFilter.user_id = { $in: allAccessibleIds };
         } else {
             dateFilter.user_id = { $in: [] };
         }

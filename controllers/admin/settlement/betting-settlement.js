@@ -295,8 +295,16 @@ export const getBettingSettlementProfit = async (req, res) => {
             ...bettingDateFilter
         };
 
+        const allBettingUserIds = [];
         if (userPartnerIds.length > 0) {
-            bettingMatch.user_id = { $in: userPartnerIds };
+            allBettingUserIds.push(...userPartnerIds);
+        }
+        if (partnerIds.length > 0) {
+            allBettingUserIds.push(...partnerIds);
+        }
+
+        if (allBettingUserIds.length > 0) {
+            bettingMatch.user_id = { $in: allBettingUserIds };
         }
 
         const bettingAggregates = await BettingResultModel.aggregate([

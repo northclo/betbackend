@@ -44,8 +44,9 @@ export const bulkDeleteExchangeTransactions = async (req, res) => {
       fund_type: 'EXCHANGE'
     };
 
-    if (accessibleUserIds.length > 0) {
-      filter.user_id = { $in: accessibleUserIds };
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (allAccessibleIds.length > 0) {
+      filter.user_id = { $in: allAccessibleIds };
     } else {
       filter.user_id = { $in: [] };
     }

@@ -17,8 +17,8 @@ export const getSupportSummary = async (req, res) => {
     const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
     const filter = {};
-    if (accessibleUserIds.length > 0) {
-      filter.writer = { $in: accessibleUserIds };
+    if (accessibleUserIds.length > 0 || accessiblePartnerIds.length > 0) {
+      filter.writer = { $in: accessibleUserIds.concat(accessiblePartnerIds) };
     } else {
       return responseSuccess(res, {
         pending: 0,

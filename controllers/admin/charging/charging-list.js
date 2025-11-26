@@ -1,8 +1,9 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import PartnerModel from "../../../models/Partner.js";
+import UserModel from "../../../models/User.js";
 import mongoose from "mongoose";
 import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
-import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -24,6 +25,7 @@ export const getChargingList = async (req, res) => {
         }
 
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         let {
             startDate,
@@ -65,6 +67,13 @@ export const getChargingList = async (req, res) => {
             }
         }
 
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (allAccessibleIds.length > 0) {
+            filter.user_id = { $in: allAccessibleIds };
+        } else {
+            filter.user_id = { $in: [] };
+        }
+
         const pipeline = [
             {
                 $match: filter
@@ -79,6 +88,14 @@ export const getChargingList = async (req, res) => {
             },
             {
                 $lookup: {
+                    from: "partners",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "partner"
+                }
+            },
+            {
+                $lookup: {
                     from: "users",
                     localField: "action_user_id",
                     foreignField: "_id",
@@ -88,7 +105,75 @@ export const getChargingList = async (req, res) => {
             {
                 $addFields: {
                     user: { $arrayElemAt: ["$user", 0] },
+                    partner: { $arrayElemAt: ["$partner", 0] },
                     processor: { $arrayElemAt: ["$processor", 0] }
+                }
+            },
+            {
+                $addFields: {
+                    hasPartner: {
+                        $and: [
+                            { $ne: ["$partner", null] },
+                            { $ne: [{ $type: "$partner" }, "missing"] }
+                        ]
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    userRole: {
+                        $cond: {
+                            if: "$hasPartner",
+                            then: "partner",
+                            else: "user"
+                        }
+                    },
+                    userNickname: {
+                        $cond: {
+                            if: "$hasPartner",
+                            then: { $ifNull: ["$partner.nickname", "-"] },
+                            else: { $ifNull: ["$user.user_nickname", "-"] }
+                        }
+                    },
+                    userIdField: {
+                        $cond: {
+                            if: "$hasPartner",
+                            then: {
+                                $cond: {
+                                    if: { $and: [
+                                        { $ne: ["$partner._id", null] },
+                                        { $ne: [{ $type: "$partner._id" }, "missing"] }
+                                    ]},
+                                    then: {
+                                        $convert: {
+                                            input: "$partner._id",
+                                            to: "string",
+                                            onError: "-",
+                                            onNull: "-"
+                                        }
+                                    },
+                                    else: "-"
+                                }
+                            },
+                            else: {
+                                $cond: {
+                                    if: { $and: [
+                                        { $ne: ["$user._id", null] },
+                                        { $ne: [{ $type: "$user._id" }, "missing"] }
+                                    ]},
+                                    then: {
+                                        $convert: {
+                                            input: "$user._id",
+                                            to: "string",
+                                            onError: "-",
+                                            onNull: "-"
+                                        }
+                                    },
+                                    else: "-"
+                                }
+                            }
+                        }
+                    }
                 }
             },
         ];
@@ -98,7 +183,10 @@ export const getChargingList = async (req, res) => {
             if (keywordType === 'user_nickname') {
                 pipeline.push({
                     $match: {
-                        'user.user_nickname': keywordRegex
+                        $or: [
+                            { 'user.user_nickname': keywordRegex },
+                            { 'partner.nickname': keywordRegex }
+                        ]
                     }
                 });
             } else if (keywordType === 'user_id') {
@@ -108,14 +196,20 @@ export const getChargingList = async (req, res) => {
                         $match: {
                             $or: [
                                 { user_id: userIdObjectId },
-                                { 'user.user_nickname': keywordRegex }
+                                { 'user.user_nickname': keywordRegex },
+                                { 'partner.nickname': keywordRegex },
+                                { 'partner.partner_id': keywordRegex }
                             ]
                         }
                     });
                 } catch (error) {
                     pipeline.push({
                         $match: {
-                            'user.user_nickname': keywordRegex
+                            $or: [
+                                { 'user.user_nickname': keywordRegex },
+                                { 'partner.nickname': keywordRegex },
+                                { 'partner.partner_id': keywordRegex }
+                            ]
                         }
                     });
                 }
@@ -139,9 +233,36 @@ export const getChargingList = async (req, res) => {
             }
         });
         pipeline.push({
+            $lookup: {
+                from: "partners",
+                localField: "partner.parent_partner_id",
+                foreignField: "_id",
+                as: "partnerParentPartner"
+            }
+        });
+        pipeline.push({
             $addFields: {
-                userPartner: { $arrayElemAt: ["$userPartner", 0] },
-                userOwnPartner: { $arrayElemAt: ["$userOwnPartner", 0] }
+                userPartner: { 
+                    $cond: {
+                        if: { $gt: [{ $size: { $ifNull: ["$userPartner", []] }}, 0] },
+                        then: { $arrayElemAt: ["$userPartner", 0] },
+                        else: null
+                    }
+                },
+                userOwnPartner: { 
+                    $cond: {
+                        if: { $gt: [{ $size: { $ifNull: ["$userOwnPartner", []] }}, 0] },
+                        then: { $arrayElemAt: ["$userOwnPartner", 0] },
+                        else: null
+                    }
+                },
+                partnerParentPartner: { 
+                    $cond: {
+                        if: { $gt: [{ $size: { $ifNull: ["$partnerParentPartner", []] }}, 0] },
+                        then: { $arrayElemAt: ["$partnerParentPartner", 0] },
+                        else: null
+                    }
+                }
             }
         });
 
@@ -174,7 +295,10 @@ export const getChargingList = async (req, res) => {
         if (filterPartnerIds.length > 0) {
             pipeline.push({
                 $match: {
-                    'userPartner._id': { $in: filterPartnerIds }
+                    $or: [
+                        { 'userPartner._id': { $in: filterPartnerIds } },
+                        { 'partner._id': { $in: filterPartnerIds } }
+                    ]
                 }
             });
         } else {
@@ -197,29 +321,84 @@ export const getChargingList = async (req, res) => {
                             $project: {
                                 _id: { $toString: "$_id" },
                                 id: { $concat: ["REQ-", { $toString: "$_id" }] },
-                                user_id: {
-                                    $ifNull: [
-                                        { $toString: "$user._id" },
-                                        "-"
-                                    ]
-                                },
-                                user_nickname: { $ifNull: ["$user.user_nickname", "-"] },
+                                user_id: "$userIdField",
+                                user_nickname: "$userNickname",
                                 user_role: "$userRole",
                                 partner_id: {
                                     $ifNull: [
-                                        "$userOwnPartner.partner_id",
+                                        {
+                                            $ifNull: [
+                                                "$userOwnPartner.partner_id",
+                                                "$partnerParentPartner.partner_id"
+                                            ]
+                                        },
                                         "-"
                                     ]
                                 },
-                                member: { 
-                                    $ifNull: [
-                                        { $concat: ["user_", { $toString: "$user._id" }] },
-                                        "-"
-                                    ]
+                                member: {
+                                    $cond: {
+                                        if: { $eq: ["$userRole", "partner"] },
+                                        then: {
+                                            $cond: {
+                                                if: { $and: [
+                                                    { $ne: ["$partner._id", null] },
+                                                    { $ne: [{ $type: "$partner._id" }, "missing"] }
+                                                ]},
+                                                then: {
+                                                    $concat: [
+                                                        "partner_",
+                                                        {
+                                                            $convert: {
+                                                                input: "$partner._id",
+                                                                to: "string",
+                                                                onError: "-",
+                                                                onNull: "-"
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                else: "-"
+                                            }
+                                        },
+                                        else: {
+                                            $cond: {
+                                                if: { $and: [
+                                                    { $ne: ["$user._id", null] },
+                                                    { $ne: [{ $type: "$user._id" }, "missing"] }
+                                                ]},
+                                                then: {
+                                                    $concat: [
+                                                        "user_",
+                                                        {
+                                                            $convert: {
+                                                                input: "$user._id",
+                                                                to: "string",
+                                                                onError: "-",
+                                                                onNull: "-"
+                                                            }
+                                                        }
+                                                    ]
+                                                },
+                                                else: "-"
+                                            }
+                                        }
+                                    }
                                 },
-                                member_nickname: { $ifNull: ["$user.user_name", "-"] },
+                                member_nickname: {
+                                    $cond: {
+                                        if: { $eq: ["$userRole", "partner"] },
+                                        then: { $ifNull: ["$partner.partner_id", "-"] },
+                                        else: { $ifNull: ["$user.user_name", "-"] }
+                                    }
+                                },
                                 amount: "$fund_amount",
-                                account_amount: { $ifNull: ["$user.own_money", "-"] },
+                                account_amount: {
+                                    $cond: {
+                                        if: { $eq: ["$userRole", "partner"] },
+                                        then: { $ifNull: ["$partner.own_money", "-"] },
+                                        else: { $ifNull: ["$user.own_money", "-"] }
+                                    }
+                                },
                                 status: {
                                     $switch: {
                                         branches: [

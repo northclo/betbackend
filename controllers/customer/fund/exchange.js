@@ -99,7 +99,7 @@ export const exchangeFund = async (req, res) => {
             }
         }
         let partnerId = null;
-        const user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number partner_id ownpartner_id");
+        let user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number partner_id ownpartner_id");
         if (!user) {
             user = await PartnerModel.findById(userId).select("own_money exchange_secure_number bank_number parent_partner_id");
             if (!user) {

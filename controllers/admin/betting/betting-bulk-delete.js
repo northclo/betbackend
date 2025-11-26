@@ -37,8 +37,9 @@ export const bulkDeleteBettingList = async (req, res) => {
             _id: { $in: validIds }
         };
 
-        if (accessibleUserIds.length > 0) {
-            filter.user_id = { $in: accessibleUserIds };
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (allAccessibleIds.length > 0) {
+            filter.user_id = { $in: allAccessibleIds };
         } else {
             return responseSuccess(
                 res,

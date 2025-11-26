@@ -11,7 +11,11 @@ export const getBettingHistory = async (req, res) => {
         const pageSizeRaw = parseInt(req.query.pageSize, 10) || 10;
         const pageSize = Math.min(Math.max(1, pageSizeRaw), MAX_PAGE_SIZE);
 
-        const filter = { user_id: userId };
+        const filter = { 
+            user_id: userId,
+            total_no: { $exists: true, $ne: null, $type: "number" },
+            today_no: { $exists: true, $ne: null, $type: "number" }
+        };
 
         const [total, bettingResults] = await Promise.all([
             BettingResultModel.countDocuments(filter),

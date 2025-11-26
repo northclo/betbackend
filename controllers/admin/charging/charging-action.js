@@ -1,5 +1,6 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess, responseBadRequest, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
@@ -38,13 +39,8 @@ export const updateChargingStatus = async (req, res) => {
             return responseBadRequest(res, t("only_import_transactions"));
         }
 
-        const user = await UserModel.findById(transaction.user_id);
-
-        if (!user) {
-            return responseBadRequest(res, t("user_not_found"));
-        }
-
-        if (!accessibleUserIds.some(aid => aid.toString() === user._id.toString())) {
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (!allAccessibleIds.some(aid => aid.toString() === transaction.user_id.toString())) {
             return responseBadRequest(res, t("transaction_not_found"));
         }
 
@@ -57,14 +53,26 @@ export const updateChargingStatus = async (req, res) => {
         await transaction.save();
 
         if (action === 'approve') {
-            await UserModel.findByIdAndUpdate(
+            let updatedUser = await UserModel.findByIdAndUpdate(
                 transaction.user_id,
                 {
                     $inc: {
                         own_money: transaction.fund_amount
                     }
-                }
+                },
+                { new: true }
             );
+            
+            if (!updatedUser) {
+                await PartnerModel.findByIdAndUpdate(
+                    transaction.user_id,
+                    {
+                        $inc: {
+                            own_money: transaction.fund_amount
+                        }
+                    }
+                );
+            }
         }
 
         return responseSuccess(

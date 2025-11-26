@@ -12,15 +12,13 @@ export const getGameOption = async (req, res) => {
         }
 
         let user = await UserModel.findOne({ _id: userId }).lean();
-        
+        let partnerObjectId = null;
         if (!user) {
             user = await PartnerModel.findById(userId).lean();
-            if (!user) {
-                return responseUnAutherized(res);
-            }
-        }
+            if (!user) return responseUnAutherized(res);
+            partnerObjectId = user._id;
+        } else partnerObjectId = user.partner_id || user.ownpartner_id;
 
-        const partnerObjectId = user.partner_id || user.ownpartner_id;
         let partner = null;
         if (partnerObjectId) {
             partner = await PartnerModel.findOne({ _id: partnerObjectId }).lean();

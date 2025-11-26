@@ -34,8 +34,9 @@ export const bulkDeleteSupportTickets = async (req, res) => {
       _id: { $in: validIds }
     }).select("writer").lean();
 
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
     const accessibleTicketIds = tickets
-      .filter(ticket => accessibleUserIds.some(aid => aid.toString() === ticket.writer.toString()))
+      .filter(ticket => allAccessibleIds.some(aid => aid.toString() === ticket.writer.toString()))
       .map(ticket => ticket._id);
 
     if (accessibleTicketIds.length === 0) {

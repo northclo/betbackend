@@ -44,8 +44,9 @@ export const bulkDeleteChargingTransactions = async (req, res) => {
       fund_type: 'CHARGE'
     };
 
-    if (accessibleUserIds.length > 0) {
-      filter.user_id = { $in: accessibleUserIds };
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (allAccessibleIds.length > 0) {
+      filter.user_id = { $in: allAccessibleIds };
     } else {
       filter.user_id = { $in: [] };
     }
