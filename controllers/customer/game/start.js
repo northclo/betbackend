@@ -301,11 +301,19 @@ export const StartGame = async (req, res) => {
                 history_view: true,
             }], { session });
 
-            const updateBalance = await UserModel.updateOne(
+            let updateBalance = await UserModel.updateOne(
                 { _id: userId },
                 { $inc: { own_money: -amount } },
                 { session }
             );
+
+            if (!updateBalance.modifiedCount) {
+                updateBalance = await PartnerModel.updateOne(
+                    { _id: userId },
+                    { $inc: { own_money: -amount } },
+                    { session }
+                );
+            }
 
             if (!updateBalance.modifiedCount) {
                 await session.abortTransaction();
