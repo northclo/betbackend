@@ -508,7 +508,22 @@ export const getPartnerById = async (req, res) => {
             return responseBadRequest(res, t("partner_not_found"));
         }
 
-        return responseSuccess(res, partner);
+        let parentRates = null;
+        if (partner.parent_partner_id) {
+            const parentPartner = await PartnerModel.findById(partner.parent_partner_id).lean();
+            if (parentPartner) {
+                parentRates = {
+                    simple_bet_rate: parentPartner.simple_bet_rate || 0,
+                    combined_bet_rate: parentPartner.combined_bet_rate || 0,
+                    match_num_bet_rate: parentPartner.match_num_bet_rate || 0,
+                };
+            }
+        }
+
+        return responseSuccess(res, {
+            ...partner,
+            parentRates: parentRates
+        });
     } catch (error) {
         console.error("Error getting partner by id:", error);
         return responseServerError(res);
@@ -550,6 +565,10 @@ export const updatePartner = async (req, res) => {
                 _id: { $ne: partner._id }
             });
             if (existingPartner) {
+                return responseBadRequest(res, t("partner_id_exists"));
+            }
+            const existingUserByUserName = await UserModel.findOne({ user_name: newPartnerId });
+            if (existingUserByUserName) {
                 return responseBadRequest(res, t("partner_id_exists"));
             }
             updateData.partner_id = newPartnerId;
@@ -649,6 +668,34 @@ export const updatePartner = async (req, res) => {
         }
 
         if (canUpdateSettlementRates) {
+            if (partner.parent_partner_id) {
+                const parentPartner = await PartnerModel.findById(partner.parent_partner_id).lean();
+                if (parentPartner) {
+                    const parentSimpleRate = parentPartner.simple_bet_rate || 0;
+                    const parentCombinedRate = parentPartner.combined_bet_rate || 0;
+                    const parentMatchNumRate = parentPartner.match_num_bet_rate || 0;
+
+                    if (payload.dapol !== undefined) {
+                        const simpleBetRate = payload.dapol !== null && payload.dapol !== '' ? Number(payload.dapol) : 0;
+                        if (simpleBetRate > parentSimpleRate) {
+                            return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "OEUO", simpleBetRate, parentSimpleRate));
+                        }
+                    }
+                    if (payload.danpol !== undefined) {
+                        const combinedBetRate = payload.danpol !== null && payload.danpol !== '' ? Number(payload.danpol) : 0;
+                        if (combinedBetRate > parentCombinedRate) {
+                            return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Combined", combinedBetRate, parentCombinedRate));
+                        }
+                    }
+                    if (payload.numberMatch !== undefined) {
+                        const matchNumBetRate = payload.numberMatch !== null && payload.numberMatch !== '' ? Number(payload.numberMatch) : 0;
+                        if (matchNumBetRate > parentMatchNumRate) {
+                            return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Number", matchNumBetRate, parentMatchNumRate));
+                        }
+                    }
+                }
+            }
+
             if (payload.dapol !== undefined) {
                 updateData.simple_bet_rate = payload.dapol !== null && payload.dapol !== '' ? Number(payload.dapol) : 0;
             }

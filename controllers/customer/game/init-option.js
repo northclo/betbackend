@@ -11,10 +11,13 @@ export const getGameOption = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        const user = await UserModel.findOne({ _id: userId }).lean();
+        let user = await UserModel.findOne({ _id: userId }).lean();
         
         if (!user) {
-            return responseUnAutherized(res);
+            user = await PartnerModel.findById(userId).lean();
+            if (!user) {
+                return responseUnAutherized(res);
+            }
         }
 
         const partnerObjectId = user.partner_id || user.ownpartner_id;

@@ -1,4 +1,5 @@
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import SettingModel from "../../../models/Setting.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
@@ -77,10 +78,14 @@ export const addFund = async (req, res) => {
         return responseBadRequest(res, `${t("maximum_amount")} 10,000,000`);
       }
     }
-    const user = await UserModel.findById(userId).select("own_money bank_number");
+    let user = await UserModel.findById(userId).select("own_money bank_number");
 
     if (!user) {
-      return responseBadRequest(res, t("user_not_found"));
+      user = await PartnerModel.findById(userId).select("own_money bank_number");
+      
+      if (!user) {
+        return responseBadRequest(res, t("user_not_found"));
+      }
     }
 
     if (!user.bank_number || user.bank_number.trim() !== bank_number.trim()) {

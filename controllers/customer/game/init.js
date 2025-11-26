@@ -1,4 +1,5 @@
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import GameSettingModel from "../../../models/GameSetting.js";
 import { responseBadRequest, responseSuccess } from "../../../helper/response.js";
 import { getAvailableGame } from "../../../helper/Game/Get-Available-Game.js";
@@ -12,9 +13,12 @@ export const getGameInitInfo = async (req, res) => {
     const { gameId } = req.query;
     const userId = req.session._id;
 
-    const user = await UserModel.findOne({ _id: userId });
+    let user = await UserModel.findOne({ _id: userId });
     if (!user) {
-        return responseBadRequest(res, t("user_not_found"));
+        user = await PartnerModel.findById(userId).lean();
+        if (!user) {
+            return responseBadRequest(res, t("user_not_found"));
+        }
     }
 
     let game;

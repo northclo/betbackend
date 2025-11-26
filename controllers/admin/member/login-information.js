@@ -26,7 +26,6 @@ const buildSearchStage = (searchField, searchRegex) => {
                     $match: {
                         $or: [
                             { "user.user_name": searchRegex },
-                            { "user.user_email": searchRegex },
                             { user_id_text: searchRegex },
                         ],
                     },
@@ -56,7 +55,6 @@ const buildSearchStage = (searchField, searchRegex) => {
                         $or: [
                             { "user.user_nickname": searchRegex },
                             { "user.user_name": searchRegex },
-                            { "user.user_email": searchRegex },
                             { user_id_text: searchRegex },
                             { ip_address: searchRegex },
                             { location: searchRegex },

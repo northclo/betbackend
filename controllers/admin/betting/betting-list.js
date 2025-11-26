@@ -148,7 +148,6 @@ export const getBettingList = async (req, res) => {
             switch (searchField) {
                 case "user_id":
                     searchMatch.$or = [
-                        { "user.user_email": searchRegex },
                         { "user.user_name": searchRegex },
                         { "user.user_nickname": searchRegex },
                         {
@@ -177,7 +176,6 @@ export const getBettingList = async (req, res) => {
                 default:
                     searchMatch.$or = [
                         { "user.user_nickname": searchRegex },
-                        { "user.user_email": searchRegex },
                         { "user.user_name": searchRegex },
                         { game_id: searchRegex }
                     ];
@@ -207,6 +205,15 @@ export const getBettingList = async (req, res) => {
                     partner: { $arrayElemAt: ["$partners", 0] },
                     game: { $arrayElemAt: ["$game_result", 0] },
                     user_id_text: { $ifNull: [{ $toString: "$user._id" }, ""] }
+                }
+            },
+            {
+                $match: {
+                    game: { $ne: null },
+                    $or: [
+                        { "game.total_no": { $exists: true, $ne: null, $type: "number" } },
+                        { "game.today_no": { $exists: true, $ne: null, $type: "number" } }
+                    ]
                 }
             }
         );
@@ -247,7 +254,6 @@ export const getBettingList = async (req, res) => {
                                 betting_id: { $toString: "$_id" },
                                 user_id: "$user_id_text",
                                 user_nickname: { $ifNull: ["$user.user_nickname", ""] },
-                                user_email: { $ifNull: ["$user.user_email", ""] },
                                 user_name: { $ifNull: ["$user.user_name", ""] },
                                 game_id: 1,
                                 total_no: 1,

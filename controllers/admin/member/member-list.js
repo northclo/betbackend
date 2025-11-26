@@ -91,7 +91,6 @@ export const getMemberList = async (req, res) => {
                 case "user_id": {
                     filter.$and = filter.$and || [];
                     const idConditions = [
-                        { user_email: searchRegex },
                         { user_name: searchRegex }
                     ];
                     filter.$and.push({
@@ -557,7 +556,6 @@ export const getMemberList = async (req, res) => {
                 case "user_id": {
                     statusCountFilter.$and = statusCountFilter.$and || [];
                     const idConditions = [
-                        { user_email: searchRegex },
                         { user_name: searchRegex }
                     ];
                     statusCountFilter.$and.push({
@@ -715,6 +713,35 @@ export const updateMemberList = async (req, res) => {
                 delete updateData.simple_bet_rate;
                 delete updateData.combined_bet_rate;
                 delete updateData.match_num_bet_rate;
+            } else {
+                const userPartnerId = user.ownpartner_id;
+                if (userPartnerId) {
+                    const userPartner = await PartnerModel.findById(userPartnerId).lean();
+                    if (userPartner) {
+                        const partnerSimpleRate = userPartner.simple_bet_rate || 0;
+                        const partnerCombinedRate = userPartner.combined_bet_rate || 0;
+                        const partnerMatchNumRate = userPartner.match_num_bet_rate || 0;
+
+                        if (updateData.simple_bet_rate !== undefined) {
+                            const userSimpleRate = updateData.simple_bet_rate || 0;
+                            if (userSimpleRate > partnerSimpleRate) {
+                                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "OEUO", userSimpleRate, partnerSimpleRate));
+                            }
+                        }
+                        if (updateData.combined_bet_rate !== undefined) {
+                            const userCombinedRate = updateData.combined_bet_rate || 0;
+                            if (userCombinedRate > partnerCombinedRate) {
+                                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Combined", userCombinedRate, partnerCombinedRate));
+                            }
+                        }
+                        if (updateData.match_num_bet_rate !== undefined) {
+                            const userMatchNumRate = updateData.match_num_bet_rate || 0;
+                            if (userMatchNumRate > partnerMatchNumRate) {
+                                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Number", userMatchNumRate, partnerMatchNumRate));
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -736,24 +763,6 @@ export const updateMemberList = async (req, res) => {
             }
         }
 
-        if (updateData.user_email !== undefined) {
-            const email = updateData.user_email?.trim();
-            if (!email) {
-                return responseBadRequest(res, t("email_required"));
-            }
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                return responseBadRequest(res, t("invalid_email_format"));
-            }
-            const existingUserByEmail = await UserModel.findOne({ 
-                user_email: email,
-                _id: { $ne: user._id }
-            });
-            if (existingUserByEmail) {
-                return responseBadRequest(res, t("user_email_already_exists"));
-            }
-        }
-
         if (updateData.user_name !== undefined) {
             const userName = updateData.user_name?.trim();
             if (!userName) {
@@ -768,6 +777,10 @@ export const updateMemberList = async (req, res) => {
                 _id: { $ne: user._id }
             });
             if (existingUserByName) {
+                return responseBadRequest(res, t("user_name_already_exists"));
+            }
+            const existingPartnerByPartnerId = await PartnerModel.findOne({ partner_id: userName });
+            if (existingPartnerByPartnerId) {
                 return responseBadRequest(res, t("user_name_already_exists"));
             }
         }
@@ -819,10 +832,10 @@ export const createMemberList = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        const { user_nickname, user_email, password, exchange_secure_number, partner_id, ...otherData } = req.body;
+        const { user_nickname, user_name, password, exchange_secure_number, partner_id, ...otherData } = req.body;
 
-        if (!user_nickname || !user_email) {
-            return responseBadRequest(res, t("user_nickname_email_required"));
+        if (!user_nickname || !user_name) {
+            return responseBadRequest(res, t("user_nickname_user_name_required"));
         }
 
         if (!password) {
@@ -833,9 +846,14 @@ export const createMemberList = async (req, res) => {
             return responseBadRequest(res, t("password_min_length_6"));
         }
 
-        const existingUser = await UserModel.findOne({ user_email });
+        const existingUser = await UserModel.findOne({ user_name });
         if (existingUser) {
-            return responseBadRequest(res, t("user_email_already_exists"));
+            return responseBadRequest(res, t("user_name_already_exists"));
+        }
+
+        const existingPartnerByPartnerId = await PartnerModel.findOne({ partner_id: user_name });
+        if (existingPartnerByPartnerId) {
+            return responseBadRequest(res, t("user_name_already_exists"));
         }
 
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
@@ -879,7 +897,7 @@ export const createMemberList = async (req, res) => {
 
         await UserModel.create({
             user_nickname,
-            user_email,
+            user_name,
             password: hashedPassword,
             exchange_secure_number: hashedExchangePassword,
             ownpartner_id: partner_id || undefined,

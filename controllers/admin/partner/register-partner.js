@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import mongoose from 'mongoose';
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from '../../../helper/response.js';
 import PartnerModel from '../../../models/Partner.js';
+import UserModel from '../../../models/User.js';
 import { partnerType } from '../../../const/type.js';
 import { t } from '../../../helper/translation.js';
 
@@ -40,8 +41,9 @@ export const registerPartner = async (req, res) => {
         }
 
         let parentPartnerId = currentPartnerId;
+        let parentPartner = null;
         if (payload.parentPartnerId) {
-            const parentPartner = await PartnerModel.findOne({ partner_id: payload.parentPartnerId.trim() });
+            parentPartner = await PartnerModel.findOne({ partner_id: payload.parentPartnerId.trim() });
             if (!parentPartner) {
                 return responseBadRequest(res, t("parent_partner_not_found"));
             }
@@ -87,6 +89,26 @@ export const registerPartner = async (req, res) => {
         const hashedExchangePassword = await bcrypt.hash(payload.exchangePassword.trim(), salt);
 
         const role = payload.role || partnerType.branchOffice;
+
+        if (canSetSettlementRates && parentPartner) {
+            const simpleBetRate = payload.dapol !== undefined && payload.dapol !== null && payload.dapol !== '' ? Number(payload.dapol) : 0;
+            const combinedBetRate = payload.danpol !== undefined && payload.danpol !== null && payload.danpol !== '' ? Number(payload.danpol) : 0;
+            const matchNumBetRate = payload.numberMatch !== undefined && payload.numberMatch !== null && payload.numberMatch !== '' ? Number(payload.numberMatch) : 0;
+
+            const parentSimpleRate = parentPartner.simple_bet_rate || 0;
+            const parentCombinedRate = parentPartner.combined_bet_rate || 0;
+            const parentMatchNumRate = parentPartner.match_num_bet_rate || 0;
+
+            if (simpleBetRate > parentSimpleRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "OEUO", simpleBetRate, parentSimpleRate));
+            }
+            if (combinedBetRate > parentCombinedRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Combined", combinedBetRate, parentCombinedRate));
+            }
+            if (matchNumBetRate > parentMatchNumRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Number", matchNumBetRate, parentMatchNumRate));
+            }
+        }
 
         const createPartnerData = (partnerIdValue, nicknameValue) => {
             const partnerData = {
@@ -187,6 +209,12 @@ export const registerPartner = async (req, res) => {
                     continue;
                 }
 
+                const existingUserByUserName = await UserModel.findOne({ user_name: numberedPartnerId });
+                if (existingUserByUserName) {
+                    errors.push(t("partner_id_exists_with_value", numberedPartnerId));
+                    continue;
+                }
+
                 const existingPartnerByNickname = await PartnerModel.findOne({ nickname: numberedNickname });
                 if (existingPartnerByNickname) {
                     errors.push(t("partner_nickname_exists_with_value", numberedNickname));
@@ -222,6 +250,11 @@ export const registerPartner = async (req, res) => {
 
         const existingPartner = await PartnerModel.findOne({ partner_id: payload.partnerId.trim() });
         if (existingPartner) {
+            return responseBadRequest(res, t("partner_id_exists"));
+        }
+
+        const existingUserByUserName = await UserModel.findOne({ user_name: payload.partnerId.trim() });
+        if (existingUserByUserName) {
             return responseBadRequest(res, t("partner_id_exists"));
         }
 
@@ -301,6 +334,13 @@ export const checkPartnerAvailability = async (req, res) => {
         if (existing) {
             const messageKey = type === "partnerId" ? "partner_id_exists" : "partner_nickname_exists";
             return responseSuccess(res, { available: false }, t(messageKey));
+        }
+
+        if (type === "partnerId") {
+            const existingUserByUserName = await UserModel.findOne({ user_name: trimmedValue });
+            if (existingUserByUserName) {
+                return responseSuccess(res, { available: false }, t("partner_id_exists"));
+            }
         }
 
         return responseSuccess(res, { available: true }, t("available"));

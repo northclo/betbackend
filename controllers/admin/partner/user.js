@@ -43,13 +43,13 @@ export const registerUser = async (req, res) => {
             return responseBadRequest(res, t("user_nickname_invalid_format"));
         }
 
-        if (!payload.email || !payload.email.trim()) {
-            return responseBadRequest(res, t("email_required"));
+        if (!payload.userName || !payload.userName.trim()) {
+            return responseBadRequest(res, t("user_name_required"));
         }
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(payload.email.trim())) {
-            return responseBadRequest(res, t("invalid_email_format"));
+        const userNameRegex = /^[a-zA-Z0-9]{4,12}$/;
+        if (!userNameRegex.test(payload.userName.trim())) {
+            return responseBadRequest(res, t("invalid_user_name_format"));
         }
 
         if (!payload.password || !payload.password.trim()) {
@@ -76,15 +76,6 @@ export const registerUser = async (req, res) => {
             return responseBadRequest(res, t("bank_owner_name_required"));
         }
 
-        if (!payload.userName || !payload.userName.trim()) {
-            return responseBadRequest(res, t("user_name_required"));
-        }
-
-        const userNameRegex = /^[a-zA-Z0-9]{4,12}$/;
-        if (!userNameRegex.test(payload.userName.trim())) {
-            return responseBadRequest(res, t("invalid_user_name_format"));
-        }
-
         if (!payload.partner || !payload.partner.trim()) {
             return responseBadRequest(res, t("partner_required"));
         }
@@ -103,6 +94,26 @@ export const registerUser = async (req, res) => {
 
             if (isHeadquater || hasSettlementRatePermission) {
                 canSetSettlementRates = true;
+            }
+        }
+
+        if (canSetSettlementRates && partner) {
+            const partnerSimpleRate = partner.simple_bet_rate || 0;
+            const partnerCombinedRate = partner.combined_bet_rate || 0;
+            const partnerMatchNumRate = partner.match_num_bet_rate || 0;
+
+            const userSimpleRate = payload.simpleBetRate ? Number(payload.simpleBetRate) : 0;
+            const userCombinedRate = payload.combinedBetRate ? Number(payload.combinedBetRate) : 0;
+            const userMatchNumRate = payload.matchNumberBetRate ? Number(payload.matchNumberBetRate) : 0;
+
+            if (userSimpleRate > partnerSimpleRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "OEUO", userSimpleRate, partnerSimpleRate));
+            }
+            if (userCombinedRate > partnerCombinedRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Combined", userCombinedRate, partnerCombinedRate));
+            }
+            if (userMatchNumRate > partnerMatchNumRate) {
+                return responseBadRequest(res, t("sub_partner_rate_cannot_exceed_parent", "Number", userMatchNumRate, partnerMatchNumRate));
             }
         }
 
@@ -128,16 +139,12 @@ export const registerUser = async (req, res) => {
 
             const baseUserName = payload.userName.trim();
             const baseNickname = payload.nickname.trim();
-            const baseEmail = payload.email.trim();
             const createdUsers = [];
             const errors = [];
 
             for (let i = startNum; i <= endNum; i++) {
                 const numberedUserName = `${baseUserName}${i}`;
                 const numberedNickname = `${baseNickname}${i}`;
-                const numberedEmail = baseEmail.includes('@') 
-                    ? baseEmail.replace('@', `${i}@`)
-                    : `${baseEmail}${i}`;
 
                 if (!userNameRegex.test(numberedUserName)) {
                     errors.push(t("user_name_invalid_format_with_value", numberedUserName));
@@ -154,16 +161,21 @@ export const registerUser = async (req, res) => {
                     continue;
                 }
 
-                const existingUserByEmail = await UserModel.findOne({ user_email: numberedEmail });
-                if (existingUserByEmail) {
-                    errors.push(t("email_already_exists_with_value", numberedEmail));
+                const existingUserByUserName = await UserModel.findOne({ user_name: numberedUserName });
+                if (existingUserByUserName) {
+                    errors.push(t("user_name_already_exists_with_value", numberedUserName));
+                    continue;
+                }
+
+                const existingPartnerByPartnerId = await PartnerModel.findOne({ partner_id: numberedUserName });
+                if (existingPartnerByPartnerId) {
+                    errors.push(t("user_name_already_exists_with_value", numberedUserName));
                     continue;
                 }
 
                 try {
                     const userData = {
                         user_nickname: numberedNickname,
-                        user_email: numberedEmail,
                         password: hashedPassword,
                         exchange_secure_number: hashedExchangePassword,
                         user_name: numberedUserName,
@@ -217,14 +229,18 @@ export const registerUser = async (req, res) => {
             return responseBadRequest(res, t("user_nickname_exists"));
         }
 
-        const existingUserByEmail = await UserModel.findOne({ user_email: payload.email.trim() });
-        if (existingUserByEmail) {
-            return responseBadRequest(res, t("user_email_already_exists"));
+        const existingUserByUserName = await UserModel.findOne({ user_name: payload.userName.trim() });
+        if (existingUserByUserName) {
+            return responseBadRequest(res, t("user_name_already_exists"));
+        }
+
+        const existingPartnerByPartnerId = await PartnerModel.findOne({ partner_id: payload.userName.trim() });
+        if (existingPartnerByPartnerId) {
+            return responseBadRequest(res, t("user_name_already_exists"));
         }
 
         const userData = {
             user_nickname: payload.nickname.trim(),
-            user_email: payload.email.trim(),
             password: hashedPassword,
             exchange_secure_number: hashedExchangePassword,
             user_name: payload.userName.trim(),
@@ -290,11 +306,7 @@ export const checkUserAvailability = async (req, res) => {
         let regex;
         let invalidKey = "";
 
-        if (type === "email") {
-            fieldName = "user_email";
-            regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            invalidKey = "invalid_email_format";
-        } else if (type === "nickname") {
+        if (type === "nickname") {
             fieldName = "user_nickname";
             regex = /^[a-zA-Z0-9]{2,10}$/;
             invalidKey = "user_nickname_invalid_format";
@@ -313,11 +325,17 @@ export const checkUserAvailability = async (req, res) => {
         const existing = await UserModel.findOne({ [fieldName]: trimmedValue });
 
         if (existing) {
-            if (type === "email") {
-                return responseSuccess(res, { available: false }, t("user_email_already_exists"));
-            } else if (type === "nickname") {
+            if (type === "nickname") {
                 return responseSuccess(res, { available: false }, t("user_nickname_exists"));
             } else {
+                return responseSuccess(res, { available: false }, t("user_name_already_exists"));
+            }
+        }
+
+        console.log(type, trimmedValue)
+        if (type === "userName") {
+            const existingPartnerByPartnerId = await PartnerModel.findOne({ partner_id: trimmedValue });
+            if (existingPartnerByPartnerId) {
                 return responseSuccess(res, { available: false }, t("user_name_already_exists"));
             }
         }

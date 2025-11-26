@@ -31,12 +31,18 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("game_not_available_cancellation"));
         }
 
-        const user = await UserModel.findOne({ _id: userId }).lean();
+        let user = await UserModel.findOne({ _id: userId }).lean();
+        let partnerObjectId = null;
         if (!user) {
-            return responseBadRequest(res, t("user_not_found"));
+            user = await PartnerModel.findById(userId).lean();
+            if (!user) {
+                return responseBadRequest(res, t("user_not_found"));
+            }
+            partnerObjectId = user._id;
+        } else {
+            partnerObjectId = user.partner_id || user.ownpartner_id;
         }
 
-        const partnerObjectId = user.partner_id || user.ownpartner_id;
         let partner = null;
         if (partnerObjectId) {
             partner = await PartnerModel.findOne({ _id: partnerObjectId }).lean();

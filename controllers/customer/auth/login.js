@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 import BlockIpModel from "../../../models/BlockIp.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
@@ -12,7 +13,7 @@ import { userStatus } from "../../../const/status.js";
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { user_name, password } = req.body;
 
     const loginInfo = getLoginInfo(req);
     const ipAddress = loginInfo.ip_address;
@@ -25,20 +26,25 @@ export const login = async (req, res) => {
     }
 
     let user = await UserModel.findOne({
-      user_email: email,
+      user_name: user_name.trim(),
     });
 
     if (!user) {
-      return responseBadRequest(res, t("cannot_find_user"));
-    }
-
-    if (
-      user.user_status === userStatus.wait ||
-      user.user_status === userStatus.stop ||
-      user.user_status === userStatus.cancel ||
-      user.user_status === userStatus.danger
-    ) {
-      return responseBadRequest(res, t("user_account_restricted"));
+      user = await PartnerModel.findOne({
+        partner_id: user_name.trim(),
+      });
+      if (!user) {
+        return responseBadRequest(res, t("cannot_find_user"));
+      }
+    } else {
+      if (
+        user.user_status === userStatus.wait ||
+        user.user_status === userStatus.stop ||
+        user.user_status === userStatus.cancel ||
+        user.user_status === userStatus.danger
+      ) {
+        return responseBadRequest(res, t("user_account_restricted"));
+      }
     }
 
     let isMatch = await bcrypt.compare(password, user.password);

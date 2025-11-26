@@ -1,5 +1,6 @@
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 
@@ -32,9 +33,10 @@ export const getExchangeHistory = async (req, res) => {
         if (transaction.user_id) {
           try {
             const user = await UserModel.findById(transaction.user_id).select('user_nickname').lean();
-            if (user) {
-              userNickname = user.user_nickname || null;
+            if (!user) {
+              user = await PartnerModel.findById(transaction.user_id).select('nickname').lean();
             }
+            userNickname = user.user_nickname || user.nickname || null;
           } catch (error) {
             console.error("Error fetching user nickname:", error);
           }

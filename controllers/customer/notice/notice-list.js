@@ -7,6 +7,7 @@ import {
   responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import mongoose from "mongoose";
 
 const toNoticeDto = async (notice) => {
   let writerName = t("admin");
@@ -39,9 +40,12 @@ export const getNoticeList = async (req, res) => {
       return responseUnAutherized(res);
     }
 
-    const user = await UserModel.findById(userId).lean();
+    let user = await UserModel.findById(userId).lean();
     if (!user) {
-      return responseUnAutherized(res);
+      user = await PartnerModel.findById(userId).lean();
+      if (!user) {
+        return responseUnAutherized(res);
+      }
     }
 
     const { page = 1, limit = 10 } = req.query;
@@ -58,7 +62,7 @@ export const getNoticeList = async (req, res) => {
       ]
     };
 
-    if (user.partner_id) {
+    if (user.partner_id && mongoose.Types.ObjectId.isValid(user.partner_id)) {
       filter.$or.push({
         partner_ids: { $in: [user.partner_id] }
       });

@@ -4,7 +4,6 @@ const SupportMessageSchema = new mongoose.Schema(
   {
     writer: {
       type: mongoose.Types.ObjectId,
-      ref: "user",
       index: true,
     },
     title: {

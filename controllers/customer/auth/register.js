@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import SettingModel from "../../../models/Setting.js";
 import { responseBadRequest, responseSuccess, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
@@ -8,30 +9,37 @@ import { membershipType } from "../../../const/type.js";
 
 export const register = async (req, res) => {
   try {
-    const { email, password, nickname, real_name, recommender_code, captcha, bank_id, bank_number, bank_owner_name } = req.body;
+    const { user_name, password, nickname, recommender_code, captcha, bank_id, bank_number, bank_owner_name } = req.body;
 
-    if (!email || !password || !nickname || !real_name) {
-      return responseBadRequest(res, t("email_password_nickname_real_name_required"));
+    if (!user_name || !password || !nickname) {
+      return responseBadRequest(res, t("user_name_password_nickname_required"));
     }
 
     if (!bank_id || !bank_number || !bank_owner_name) {
       return responseBadRequest(res, t("bank_information_required"));
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return responseBadRequest(res, t("invalid_email_format"));
+    const userNameRegex = /^[a-zA-Z0-9]{4,12}$/;
+    if (!userNameRegex.test(user_name)) {
+      return responseBadRequest(res, t("invalid_user_name_format"));
     }
 
     if (password.length < 6) {
       return responseBadRequest(res, t("password_min_length_6"));
     }
 
-    const existingUserByEmail = await UserModel.findOne({
-      user_email: email.toLowerCase(),
+    const existingUserByUserName = await UserModel.findOne({
+      user_name: user_name.trim(),
     });
-    if (existingUserByEmail) {
-      return responseBadRequest(res, t("email_already_exists"));
+    if (existingUserByUserName) {
+      return responseBadRequest(res, t("user_name_already_exists"));
+    }
+
+    const existingPartnerByPartnerId = await PartnerModel.findOne({
+      partner_id: user_name.trim(),
+    });
+    if (existingPartnerByPartnerId) {
+      return responseBadRequest(res, t("user_name_already_exists"));
     }
 
     const existingUserByNickname = await UserModel.findOne({
@@ -97,11 +105,10 @@ export const register = async (req, res) => {
     const status = membershipApproval ? userStatus.wait : userStatus.normal;
 
     const newUser = await UserModel.create({
-      user_email: email.toLowerCase(),
+      user_name: user_name.trim(),
       user_nickname: nickname,
       password: hashedPassword,
       exchange_secure_number: hashedExchangePassword,
-      user_name: real_name,
       user_status: status,
       user_level: 1,
       own_money: 0,

@@ -27,7 +27,6 @@ const buildSearchMatch = (field, regex) => {
             return {
                 $or: [
                     { user_name: regex },
-                    { user_email: regex },
                     { user_id_text: regex },
                 ],
             };
@@ -51,7 +50,6 @@ const buildSearchMatch = (field, regex) => {
                 $or: [
                     { user_nickname: regex },
                     { user_name: regex },
-                    { user_email: regex },
                     { user_id_text: regex },
                     { "partner.nickname": regex },
                     { "partner.nickname": regex },

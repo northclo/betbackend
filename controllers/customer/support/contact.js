@@ -1,6 +1,7 @@
 import requestIp from "request-ip";
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import SettingModel from "../../../models/Setting.js";
 import {
   responseBadRequest,
@@ -28,9 +29,12 @@ export const submitContact = async (req, res) => {
       return responseBadRequest(res, t("question_required"));
     }
 
-    const user = await UserModel.findById(userId).lean();
+    let user = await UserModel.findById(userId).lean();
     if (!user) {
-      return responseUnAutherized(res);
+      user = await PartnerModel.findById(userId).lean();
+      if (!user) {
+        return responseUnAutherized(res);
+      }
     }
 
     const setting = await SettingModel.findOne().lean();

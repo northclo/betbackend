@@ -98,10 +98,16 @@ export const exchangeFund = async (req, res) => {
                 return responseBadRequest(res, t("exchange_not_available_after_recent_charge"));
             }
         }
-
+        let partnerId = null;
         const user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number partner_id ownpartner_id");
         if (!user) {
-            return responseBadRequest(res, t("user_not_found"));
+            user = await PartnerModel.findById(userId).select("own_money exchange_secure_number bank_number parent_partner_id");
+            if (!user) {
+                return responseBadRequest(res, t("user_not_found"));
+            }
+            partnerId = user._id;
+        } else {
+            partnerId = user.partner_id || user.ownpartner_id;
         }
 
         if (!user.exchange_secure_number) {
@@ -125,7 +131,6 @@ export const exchangeFund = async (req, res) => {
             return responseBadRequest(res, t("insufficient_balance"));
         }
 
-        const partnerId = user.partner_id || user.ownpartner_id;
         if (partnerId) {
             const partner = await PartnerModel.findById(partnerId).select("currency_rolling rollover_percentage").lean();
             if (partner && partner.currency_rolling && partner.rollover_percentage > 0) {
@@ -167,14 +172,21 @@ export const exchangeFund = async (req, res) => {
             }
         }
 
-        const updatedUser = await UserModel.findByIdAndUpdate(
+        let updatedUser = await UserModel.findByIdAndUpdate(
             userId,
             { $inc: { own_money: -normalizedAmount } },
             { new: true, select: "own_money" }
         );
-
         if (!updatedUser) {
-            return responseBadRequest(res, t("failed_update_user_balance"));
+            updatedUser = await PartnerModel.findByIdAndUpdate(
+                userId,
+                { $inc: { own_money: -normalizedAmount } },
+                { new: true, select: "own_money" }
+            );
+
+            if (!updatedUser) {
+                return responseBadRequest(res, t("failed_update_user_balance"));
+            }
         }
 
         const transaction = await TransactionModel.create({

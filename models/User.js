@@ -5,11 +5,9 @@ import { userStatus } from "../const/status.js";
 const UserSchema = new Schema(
     {
         user_nickname: { type: String, required: true, unique: true, index: true },
-        user_email: { type: String, required: true, unique: true, index: true },
         password: { type: String, required: true },
         exchange_secure_number: { type: String, required: true },
-        exchange_bank_number: { type: String },
-        user_name: { type: String },
+        user_name: { type: String, required: true, unique: true, index: true },
         partner_id: { type: mongoose.Types.ObjectId },
         ownpartner_id: { type: mongoose.Types.ObjectId },
         phone_number: {

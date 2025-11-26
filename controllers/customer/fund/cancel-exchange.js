@@ -1,4 +1,5 @@
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
@@ -32,11 +33,27 @@ export const cancelExchange = async (req, res) => {
     }
 
     const refundAmount = transaction.fund_amount || 0;
-    const updatedUser = await UserModel.findByIdAndUpdate(
-      userId,
-      { $inc: { own_money: refundAmount } },
-      { new: true, select: "own_money" }
-    );
+    
+    let user = await UserModel.findById(userId);
+    let updatedUser = null;
+    if (!user) {
+      user = await PartnerModel.findById(userId);
+      if (!user) {
+        return responseBadRequest(res, t("user_not_found"));
+      }
+
+      updatedUser = await PartnerModel.findByIdAndUpdate(
+        userId,
+        { $inc: { own_money: refundAmount } },
+        { new: true, select: "own_money" }
+      );
+    } else {
+      updatedUser = await UserModel.findByIdAndUpdate(
+        userId,
+        { $inc: { own_money: refundAmount } },
+        { new: true, select: "own_money" }
+      );
+    }
 
     if (!updatedUser) {
       return responseBadRequest(res, t("user_not_found"));

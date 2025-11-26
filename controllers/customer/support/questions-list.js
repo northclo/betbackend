@@ -1,5 +1,6 @@
 import SupportMessage from "../../../models/SupportMessage.js";
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
   responseUnAutherized,
@@ -15,9 +16,12 @@ export const getQuestionsList = async (req, res) => {
       return responseUnAutherized(res);
     }
 
-    const user = await UserModel.findById(userId).lean();
+    let user = await UserModel.findById(userId).lean();
     if (!user) {
-      return responseUnAutherized(res);
+      user = await PartnerModel.findById(userId).lean();
+      if (!user) {
+        return responseUnAutherized(res);
+      }
     }
 
     const { page = 1, limit = 10 } = req.query;
@@ -30,7 +34,6 @@ export const getQuestionsList = async (req, res) => {
 
     const [questions, total] = await Promise.all([
       SupportMessage.find(filter)
-        .populate('writer', 'user_nickname')
         .sort({ first_message_date: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -40,17 +43,39 @@ export const getQuestionsList = async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSize) || 1;
 
-    const items = questions.map((item) => ({
-      _id: item._id.toString(),
-      id: item._id.toString(),
-      title: item.title || "",
-      writer: item.writer?.user_nickname || "",
-      date: item.createdAt || new Date(),
-      createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : null,
-      status: item.status || "PENDING",
-      question: item.question || "",
-      answer: item.answer || "",
-    }));
+    const items = await Promise.all(
+      questions.map(async (item) => {
+        let writerName = "";
+        
+        if (item.writer) {
+          try {
+            const user = await UserModel.findById(item.writer).select('user_nickname').lean();
+            if (user) {
+              writerName = user.user_nickname || "";
+            } else {
+              const partner = await PartnerModel.findById(item.writer).select('nickname').lean();
+              if (partner) {
+                writerName = partner.nickname || "";
+              }
+            }
+          } catch (error) {
+            console.error("Error fetching writer:", error);
+          }
+        }
+
+        return {
+          _id: item._id.toString(),
+          id: item._id.toString(),
+          title: item.title || "",
+          writer: writerName,
+          date: item.createdAt || new Date(),
+          createdAt: item.createdAt ? new Date(item.createdAt).toISOString() : null,
+          status: item.status || "PENDING",
+          question: item.question || "",
+          answer: item.answer || "",
+        };
+      })
+    );
 
     return responseSuccess(res, {
       questions: items,

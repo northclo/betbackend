@@ -198,7 +198,6 @@ export const listSupportTickets = async (req, res) => {
             }
             
             userConditions.push(
-              { user_email: keywordRegex },
               { user_name: keywordRegex }
             );
             

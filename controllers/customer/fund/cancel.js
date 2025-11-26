@@ -1,4 +1,5 @@
 import UserModel from "../../../models/User.js";
+import PartnerModel from "../../../models/Partner.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
@@ -31,10 +32,12 @@ export const cancelFund = async (req, res) => {
       return responseBadRequest(res, t("failed_to_cancel_transaction"));
     }
 
-    const user = await UserModel.findById(userId).select("own_money");
-
+    let user = await UserModel.findById(userId).select("own_money");
     if (!user) {
-      return responseBadRequest(res, t("user_not_found"));
+      user = await PartnerModel.findById(userId).select("own_money");
+      if (!user) {
+        return responseBadRequest(res, t("user_not_found"));
+      }
     }
 
     return responseSuccess(
