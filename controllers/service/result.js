@@ -52,7 +52,7 @@ export const startGame = async (req, res) => {
             total_no: total_no,
             today_no: today_no
         })
-    }, 0);
+    }, 2000);
     // }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
@@ -96,14 +96,13 @@ export const endGame = async (req, res) => {
     const nextGameTimestamp = availableGames.length > 0 ? availableGames[0].start_time_stamp : null;
 
     setTimeout(() => {
-        const serverCurrentTime = getCurrentTime();
         io.emit('end_game', { 
             time_stamp: time_stamp, 
             game_id,
             total_no: total_no,
             today_no: new_today_no
         });
-    }, 0);
+    }, 2000);
 
     return res.status(200).json({ result: 0 });
 }
