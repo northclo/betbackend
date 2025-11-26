@@ -46,17 +46,8 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("bet_cancellation_disabled"));
         }
 
-        const secondsUntilStart = Math.floor((game.start_time_stamp - getCurrentTime()) / 1000);
-        
         const cancelBetRange = partner.cancel_bet_range || {};
-        const endTime = cancelBetRange.end_time;
         
-        const cancellationEndTime = (endTime !== undefined && endTime !== null && endTime > 0) ? endTime : 90;
-        
-        if (secondsUntilStart < cancellationEndTime || secondsUntilStart > 180) {
-            return responseBadRequest(res, t("cancellation_window_closed"));
-        }
-
         if (cancelBetRange.max_time && cancelBetRange.max_time > 0) {
             const roundCancellations = await BettingResultModel.countDocuments({
                 user_id: userId,
