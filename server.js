@@ -95,6 +95,8 @@ app.set("io", io);
 // Track online users: userId (string) -> socket.id
 const onlineUsers = new Map();
 
+app.set("onlineUsers", onlineUsers);
+
 io.on("connection", (socket) => {
   // When a user comes online
   socket.on("user_online", async (userToken) => {

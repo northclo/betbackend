@@ -4,6 +4,7 @@ import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import { messageType, partnerType } from "../../../const/type.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const sendMessage = async (req, res) => {
     try {
@@ -86,7 +87,7 @@ export const sendMessage = async (req, res) => {
             }
         }
 
-        await PartnerMessageModel.create({
+        const message = await PartnerMessageModel.create({
             sender: senderId,
             receiver: receiverId,
             title: title.trim(),
@@ -94,6 +95,45 @@ export const sendMessage = async (req, res) => {
             expire_at: expireAt,
             type: type
         });
+
+        if (type === messageType.groupMessasge && receiverId) {
+            try {
+                const io = req.app.get("io");
+                const onlineUsers = req.app.get("onlineUsers");
+                
+                if (io && onlineUsers) {
+                    const accessiblePartnerIds = await fetchAccessiblePartnerIds(receiverId);
+                    
+                    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+                    
+                    const sender = await PartnerModel.findById(senderId).select("nickname").lean();
+                    const senderName = sender?.nickname || t("admin");
+                    
+                    const notificationData = {
+                        messageId: message._id.toString(),
+                        title: message.title,
+                        content: message.content,
+                        sender: senderName,
+                        receiverPartnerId: receiverId.toString(),
+                        createdAt: message.createdAt,
+                    };
+                    
+                    let notifiedCount = 0;
+                    for (const userId of accessibleUserIds) {
+                        const userIdStr = userId.toString();
+                        if (onlineUsers.has(userIdStr)) {
+                            const socketId = onlineUsers.get(userIdStr);
+                            io.to(socketId).emit("new_group_message", notificationData);
+                            notifiedCount++;
+                        }
+                    }
+                    
+                    console.log(`Sent group message notification to ${notifiedCount} online users`);
+                }
+            } catch (socketError) {
+                console.error("Error emitting socket event for group message:", socketError);
+            }
+        }
 
         return responseSuccess(res);
     } catch (error) {
