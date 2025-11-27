@@ -28,6 +28,11 @@ const BettingResultSchema = new Schema(
     { timestamps: true }
 );
 
+BettingResultSchema.index({ game_id: 1, betting_status: 1, betting_type: 1 });
+BettingResultSchema.index({ game_id: 1 });
+BettingResultSchema.index({ user_id: 1, game_id: 1 });
+BettingResultSchema.index({ betting_status: 1 });
+
 const BettingResultModel = mongoose.model("betting_result", BettingResultSchema);
 
 export default BettingResultModel;

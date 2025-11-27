@@ -7,11 +7,6 @@ export const partnerType = {
     store: 'store'
 }
 
-export const messageType = {
-    groupMessasge: 'groupMessage',
-    notice: 'notice'
-}
-
 export const siteDisableType = {
 
     simple_text: 'simple_text',

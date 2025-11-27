@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 
 import { catchError } from "../../middleware/error.js";
-import { createMemberList, deleteMemberList, getMemberList, updateMemberList, getMemberById } from "../../controllers/admin/member/member-list.js";
+import { createMemberList, deleteMemberList, getMemberList, updateMemberList, getMemberById, sendNotesToUsers } from "../../controllers/admin/member/member-list.js";
 import { getMemberLoginInformation } from "../../controllers/admin/member/login-information.js";
 import { bulkDeleteLoginInformation } from "../../controllers/admin/member/login-information-bulk-delete.js";
 import { blockIp, getBlockedIps, removeBlockedIp } from "../../controllers/admin/member/block-ip.js";
@@ -20,6 +20,7 @@ router.put('/block-ip', catchError(blockIp));
 router.get('/block-ip', catchError(getBlockedIps));
 router.delete('/block-ip/:id', catchError(removeBlockedIp));
 router.get('/current-login', catchError(getCurrentLoginUser));
-router.post('/logout', catchError(logoutUser))
+router.post('/logout', catchError(logoutUser));
+router.post('/send-notes', catchError(sendNotesToUsers));
 
 export default router;

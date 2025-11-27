@@ -36,15 +36,15 @@ export const login = async (req, res) => {
       if (!user) {
         return responseBadRequest(res, t("cannot_find_user"));
       }
-    } else {
-      if (
-        user.user_status === userStatus.wait ||
-        user.user_status === userStatus.stop ||
-        user.user_status === userStatus.cancel ||
-        user.user_status === userStatus.danger
-      ) {
-        return responseBadRequest(res, t("user_account_restricted"));
-      }
+    }
+
+    if (
+      user.user_status === userStatus.wait ||
+      user.user_status === userStatus.stop ||
+      user.user_status === userStatus.cancel ||
+      user.user_status === userStatus.danger
+    ) {
+      return responseBadRequest(res, t("user_account_restricted"));
     }
 
     let isMatch = await bcrypt.compare(password, user.password);

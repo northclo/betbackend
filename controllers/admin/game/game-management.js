@@ -151,38 +151,83 @@ export const getGameManagement = async (req, res) => {
         const pageSizeNumber = Math.min(Math.max(1, parseInt(pageSize, 10) || 10), 100);
         const skip = (pageNumber - 1) * pageSizeNumber;
 
-        let allGames = await GameResultModel.find(filter)
-            .sort({ start_time_stamp: -1 });
-
-        const gamesByStartTime = new Map();
-        allGames.forEach(game => {
-            const startTime = game.start_time_stamp;
-            const existingGame = gamesByStartTime.get(startTime);
-            
-            if (!existingGame) {
-                gamesByStartTime.set(startTime, game);
-            } else {
-                const hasRoundNumbers = game.total_no != null && game.today_no != null;
-                const existingHasRoundNumbers = existingGame.total_no != null && existingGame.today_no != null;
-                
-                if (hasRoundNumbers && !existingHasRoundNumbers) {
-                    gamesByStartTime.set(startTime, game);
-                } else if (hasRoundNumbers && existingHasRoundNumbers) {
-                    const hasResults = game.list && Array.isArray(game.list) && game.list.length > 0;
-                    const existingHasResults = existingGame.list && Array.isArray(existingGame.list) && existingGame.list.length > 0;
-                    
-                    if (hasResults && !existingHasResults) {
-                        gamesByStartTime.set(startTime, game);
+        const aggregationPipeline = [
+            { $match: filter },
+            {
+                $addFields: {
+                    hasRoundNumbers: {
+                        $and: [
+                            { $ne: ["$total_no", null] },
+                            { $ne: ["$today_no", null] }
+                        ]
+                    },
+                    hasResults: {
+                        $and: [
+                            { $ne: ["$list", null] },
+                            { $gt: [{ $size: { $ifNull: ["$list", []] } }, 0] }
+                        ]
                     }
                 }
+            },
+            {
+                $addFields: {
+                    priority: {
+                        $add: [
+                            { $cond: ["$hasRoundNumbers", 2, 0] },
+                            { $cond: ["$hasResults", 1, 0] }
+                        ]
+                    }
+                }
+            },
+            {
+                $sort: {
+                    start_time_stamp: -1,
+                    priority: -1
+                }
+            },
+            {
+                $group: {
+                    _id: "$start_time_stamp",
+                    doc: { $first: "$$ROOT" }
+                }
+            },
+            {
+                $replaceRoot: { newRoot: "$doc" }
+            },
+            {
+                $sort: { start_time_stamp: -1 }
+            },
+            {
+                $facet: {
+                    paginatedResults: [
+                        { $skip: skip },
+                        { $limit: pageSizeNumber }
+                    ],
+                    totalCount: [
+                        { $count: "count" }
+                    ]
+                }
             }
-        });
+        ];
 
-        const deduplicatedGames = Array.from(gamesByStartTime.values());
-        const total = deduplicatedGames.length;
-        const gameResult = deduplicatedGames
-            .slice(skip)
-            .slice(0, pageSizeNumber);
+        const aggregationResult = await GameResultModel.aggregate(aggregationPipeline, { maxTimeMS: 30000 });
+        
+        if (!aggregationResult || aggregationResult.length === 0) {
+            return responseSuccess(res, {
+                items: [],
+                pagination: {
+                    total: 0,
+                    page: pageNumber,
+                    pageSize: pageSizeNumber
+                }
+            });
+        }
+
+        const resultData = aggregationResult[0];
+        const gameResult = resultData.paginatedResults || [];
+        const total = resultData.totalCount && resultData.totalCount.length > 0 
+            ? resultData.totalCount[0].count 
+            : 0;
 
         const gameIds = gameResult.map(g => g.game_id).filter(Boolean);
 
@@ -210,7 +255,7 @@ export const getGameManagement = async (req, res) => {
                     count: { $sum: 1 }
                 }
             }
-        ]) : [];
+        ], { maxTimeMS: 30000 }) : [];
 
         const bettingCountMap = {};
         bettingCounts.forEach(item => {

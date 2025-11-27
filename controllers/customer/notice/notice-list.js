@@ -1,5 +1,4 @@
 import PartnerMessageModel from "../../../models/PartnerMessage.js";
-import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import {
   responseSuccess,
@@ -7,33 +6,7 @@ import {
   responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
-import { messageType } from "../../../const/type.js";
 import mongoose from "mongoose";
-
-const getAllParentPartnerIds = async (partnerId) => {
-  if (!partnerId || !mongoose.Types.ObjectId.isValid(partnerId)) {
-    return [];
-  }
-
-  const partnerIds = [];
-  let currentPartnerId = new mongoose.Types.ObjectId(partnerId);
-
-  while (currentPartnerId) {
-    partnerIds.push(currentPartnerId);
-    
-    const partner = await PartnerModel.findById(currentPartnerId)
-      .select("parent_partner_id")
-      .lean();
-    
-    if (!partner || !partner.parent_partner_id) {
-      break;
-    }
-    
-    currentPartnerId = partner.parent_partner_id;
-  }
-
-  return partnerIds;
-};
 
 const toNoticeDto = async (message) => {
   let writerName = t("admin");
@@ -66,16 +39,14 @@ export const getNoticeList = async (req, res) => {
       return responseUnAutherized(res);
     }
 
-    let user = await UserModel.findById(userId).lean();
-    let customerPartnerId = null;
-    if (!user) {
-      user = await PartnerModel.findById(userId).lean();
-      customerPartnerId = user._id;
-      if (!user) {
-        return responseUnAutherized(res);
-      }
-    } else {
-      customerPartnerId = user.ownpartner_id;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return responseSuccess(res, {
+        notices: [],
+        page: 1,
+        totalPages: 1,
+        total: 0,
+        limit: 10,
+      });
     }
 
     const { page = 1, limit = 10 } = req.query;
@@ -84,26 +55,19 @@ export const getNoticeList = async (req, res) => {
     const pageSize = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const skip = (pageNumber - 1) * pageSize;
 
-    if (!customerPartnerId || !mongoose.Types.ObjectId.isValid(customerPartnerId)) {
-      return responseSuccess(res, {
-        notices: [],
-        page: pageNumber,
-        totalPages: 1,
-        total: 0,
-        limit: pageSize,
-      });
-    }
-
-    const relevantPartnerIds = await getAllParentPartnerIds(customerPartnerId);
+    const userIdObjectId = new mongoose.Types.ObjectId(userId);
 
     const now = Date.now();
     const filter = {
-      type: messageType.groupMessasge,
-      receiver: { $in: relevantPartnerIds },
-      $or: [
-        { expire_at: null },
-        { expire_at: { $exists: false } },
-        { expire_at: { $gt: now } }
+      receivers: { $in: [userIdObjectId] },
+      $and: [
+        {
+          $or: [
+            { expire_at: null },
+            { expire_at: { $exists: false } },
+            { expire_at: { $gt: now } }
+          ]
+        }
       ]
     };
 

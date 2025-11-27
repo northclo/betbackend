@@ -3,7 +3,7 @@ import PartnerMessageModel from "../../../models/PartnerMessage.js";
 import PartnerModel from "../../../models/Partner.js";
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized, responsePermissionDenied } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
-import { messageType, partnerType } from "../../../const/type.js";
+import { partnerType } from "../../../const/type.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const sendMessage = async (req, res) => {
@@ -25,7 +25,7 @@ export const sendMessage = async (req, res) => {
             return responsePermissionDenied(res);
         }
 
-        const { id, title, content, expire, type } = req.body;
+        const { id, title, content, expire } = req.body;
         const senderId = req.session._id;
 
         if (!title || !title.trim()) {
@@ -36,22 +36,15 @@ export const sendMessage = async (req, res) => {
             return responseBadRequest(res, t("content_required"));
         }
 
-        if (!type) {
-            return responseBadRequest(res, t("type_required"));
-        }
-
-        const validTypes = [messageType.groupMessasge, messageType.notice];
-        if (!validTypes.includes(type)) {
-            return responseBadRequest(res, t("invalid_message_type"));
-        }
-
-        let receiverId = null;
-        if (id && type === messageType.groupMessasge) {
+        let receiverIds = [];
+        if (id) {
             const targetPartner = await PartnerModel.findOne({ partner_id: id.trim() });
             if (!targetPartner) {
                 return responseBadRequest(res, t("partner_not_found"));
             }
-            receiverId = targetPartner._id;
+            const accessiblePartnerIds = await fetchAccessiblePartnerIds(targetPartner._id);
+            const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+            receiverIds = [...accessibleUserIds, ...accessiblePartnerIds];
         }
 
         let expireAt = null;
@@ -89,23 +82,18 @@ export const sendMessage = async (req, res) => {
 
         const message = await PartnerMessageModel.create({
             sender: senderId,
-            receiver: receiverId,
+            receivers: receiverIds,
             title: title.trim(),
             content: content.trim(),
-            expire_at: expireAt,
-            type: type
+            expire_at: expireAt
         });
 
-        if (type === messageType.groupMessasge && receiverId) {
+        if (receiverIds.length > 0) {
             try {
                 const io = req.app.get("io");
                 const onlineUsers = req.app.get("onlineUsers");
                 
                 if (io && onlineUsers) {
-                    const accessiblePartnerIds = await fetchAccessiblePartnerIds(receiverId);
-                    
-                    const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
-                    
                     const sender = await PartnerModel.findById(senderId).select("nickname").lean();
                     const senderName = sender?.nickname || t("admin");
                     
@@ -114,21 +102,18 @@ export const sendMessage = async (req, res) => {
                         title: message.title,
                         content: message.content,
                         sender: senderName,
-                        receiverPartnerId: receiverId.toString(),
                         createdAt: message.createdAt,
                     };
                     
-                    let notifiedCount = 0;
-                    for (const userId of accessibleUserIds) {
-                        const userIdStr = userId.toString();
-                        if (onlineUsers.has(userIdStr)) {
-                            const socketId = onlineUsers.get(userIdStr);
+                    for (const receiverId of receiverIds) {
+                        const receiverIdStr = receiverId.toString();
+                        const socketId = onlineUsers.get(receiverIdStr);
+                        if (socketId) {
                             io.to(socketId).emit("new_group_message", notificationData);
-                            notifiedCount++;
                         }
                     }
                     
-                    console.log(`Sent group message notification to ${notifiedCount} online users`);
+                    console.log(`Sent group message notification to all ${receiverIds.length} receivers`);
                 }
             } catch (socketError) {
                 console.error("Error emitting socket event for group message:", socketError);

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { partnerType } from "../const/type.js";
+import { userStatus } from "../const/status.js";
 const { Schema, model } = mongoose;
 
 const PartnerSchema = new Schema(
@@ -63,7 +64,13 @@ const PartnerSchema = new Schema(
                 slot_bet_max: { type: Number, min: 0, default: 0 },
                 public: { type: Boolean, default: false }
             }
-        ]
+        ],
+        user_status: {
+            type: String,
+            enum: [userStatus.wait, userStatus.normal, userStatus.stop, userStatus.cancel, userStatus.danger, userStatus.tester],
+            default: userStatus.normal
+        },
+        consider_user: { type: Boolean, default: false }
     },
     { timestamps: true }
 );
