@@ -53,4 +53,4 @@ jobs:
             # npm run build
 
             # Restart your app (adjust the command as needed)
-            pm2 restart betgame-backend-dev || pm2 start npm --name "betgame-backend-dev" -- start
+            pm2 restart betgame-backend || pm2 start npm --name "betgame-backend" -- start
