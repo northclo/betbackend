@@ -1,0 +1,56 @@
+name: CI to deploy backend to server
+
+on:
+  push:
+    branches: [ dev ]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main'
+
+    strategy:
+      matrix:
+        node-version: [24.x]
+
+    steps:
+      - uses: actions/checkout@v2
+      
+      - run: npm install
+      
+      - name: rsync deployments
+        uses: burnett01/rsync-deployments@5.1
+        with:
+          switches: -avzr --delete
+          path: ./*
+          remote_path: ${{ secrets.DEV_PATH }}
+          remote_host: ${{ secrets.MAIN_ACEESS_HOST }}
+          remote_user: ${{ secrets.MAIN_USER_NAME }}
+          remote_key: "${{ secrets.MAIN_SSH_PRIVATE_KEY }}"
+
+      - name: SSH into EC2 instance
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.MAIN_ACEESS_HOST }}
+          username: ${{ secrets.MAIN_USER_NAME }}
+          key: ${{ secrets.MAIN_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            # Navigate to your app directory
+
+            cd ${{ secrets.DEV_PATH }}
+
+
+            # Set up nvm
+            export NVM_DIR="/home/ubuntu/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+            # build your Next.js app
+            # npm run build
+
+            # Restart your app (adjust the command as needed)
+            pm2 restart betgame-backend-dev || pm2 start npm --name "betgame-backend-dev" -- start
