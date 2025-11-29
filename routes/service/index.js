@@ -16,14 +16,14 @@ const allowedGameIPs = process.env.ALLOWED_GAME_IPS
 const ipAllowlist = (req, res, next) => {
   const clientIp = requestIp.getClientIp(req); // works behind proxies
   
-  const chinaTime = moment().tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
+  const ChinaTimenow = moment().tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
 
   if (allowedGameIPs.includes(clientIp)) {
-    console.log(`[${chinaTime}] Allowed clientIP ----> ${clientIp}`);
+    console.log(`[${ChinaTimenow}] Allowed clientIP ----> ${clientIp}`);
     return next();
   }
 
-  console.warn(`Blocked request from IP: ${clientIp}`);
+  console.warn(`[${ChinaTimenow}] ❌ Blocked request from IP: ${clientIp}`);
   return res.status(403).json({ message: "Access denied: unauthorized IP" });
 };
 
