@@ -1,7 +1,13 @@
 import express from "express";
-const router = express.Router();
+
 import requestIp from "request-ip";
 import gameResultRoute from "./result.js";
+
+import moment from "moment-timezone";
+
+const router = express.Router();
+
+const chinaTime = moment().tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
 
 const allowedGameIPs = process.env.ALLOWED_GAME_IPS
   ? process.env.ALLOWED_GAME_IPS.split(",").map(ip => ip.trim())
@@ -11,7 +17,7 @@ const ipAllowlist = (req, res, next) => {
   const clientIp = requestIp.getClientIp(req); // works behind proxies
   
   if (allowedGameIPs.includes(clientIp)) {
-    console.log("Allowed clientIP---->", clientIp);
+    console.log(`[${chinaTime}] Allowed clientIP ----> ${clientIp}`);
     return next();
   }
 
