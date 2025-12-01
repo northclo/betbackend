@@ -18,6 +18,9 @@ const BettingResultSchema = new Schema(
         bet_amount: { type: Number },
         earning_amount: { type: Number, default: 0 },
         final_amount: {type: Number, default: 0},
+        betting_point_rate: { type: Number },
+        betting_point_value: { type: Number },
+        partner_bet_benefit: { type: Number },
         betting_status: {
             type: String,
             enum: ["WAIT", "PROGRESS", "COMPLETE", "CANCEL"],

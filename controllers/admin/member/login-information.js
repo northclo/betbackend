@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
+import PartnerModel from "../../../models/Partner.js";
 import { responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
@@ -19,13 +21,23 @@ const buildSearchStage = (searchField, searchRegex) => {
 
     switch (searchField) {
         case "user_nickname":
-            return [{ $match: { "user.user_nickname": searchRegex } }];
+            return [
+                {
+                    $match: {
+                        $or: [
+                            { "user.user_nickname": searchRegex },
+                            { "partner_direct.nickname": searchRegex },
+                        ],
+                    },
+                },
+            ];
         case "user_id":
             return [
                 {
                     $match: {
                         $or: [
                             { "user.user_name": searchRegex },
+                            { "partner_direct.partner_id": searchRegex },
                             { user_id_text: searchRegex },
                         ],
                     },
@@ -55,6 +67,8 @@ const buildSearchStage = (searchField, searchRegex) => {
                         $or: [
                             { "user.user_nickname": searchRegex },
                             { "user.user_name": searchRegex },
+                            { "partner_direct.nickname": searchRegex },
+                            { "partner_direct.partner_id": searchRegex },
                             { user_id_text: searchRegex },
                             { ip_address: searchRegex },
                             { location: searchRegex },
@@ -77,6 +91,20 @@ export const getMemberLoginInformation = async (req, res) => {
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
         const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
+        const allAccessibleUserIds = [
+            ...accessibleUserIds,
+            ...accessiblePartnerIds
+        ];
+
+        const uniqueUserIdsSet = new Set();
+        allAccessibleUserIds.forEach(id => {
+            if (id) {
+                uniqueUserIdsSet.add(id.toString());
+            }
+        });
+        
+        const uniqueUserIds = Array.from(uniqueUserIdsSet).map(id => new mongoose.Types.ObjectId(id));
+
         const {
             startDate,
             endDate,
@@ -97,8 +125,8 @@ export const getMemberLoginInformation = async (req, res) => {
             filter.login_date = dateFilter;
         }
 
-        if (accessibleUserIds.length > 0) {
-            filter.user_id = { $in: accessibleUserIds };
+        if (uniqueUserIds.length > 0) {
+            filter.user_id = { $in: uniqueUserIds };
         } else {
             return responseSuccess(res, {
                 list: [],
@@ -124,7 +152,16 @@ export const getMemberLoginInformation = async (req, res) => {
                     as: "user",
                 },
             },
+            {
+                $lookup: {
+                    from: "partners",
+                    localField: "user_id",
+                    foreignField: "_id",
+                    as: "partner_direct",
+                },
+            },
             { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+            { $unwind: { path: "$partner_direct", preserveNullAndEmptyArrays: true } },
             {
                 $lookup: {
                     from: "block_ips",
@@ -138,19 +175,33 @@ export const getMemberLoginInformation = async (req, res) => {
                     from: "partners",
                     localField: "user.partner_id",
                     foreignField: "_id",
-                    as: "partner",
+                    as: "partner_from_user",
                 },
             },
             {
                 $addFields: {
-                    partner: { $arrayElemAt: ["$partner", 0] },
+                    // If user_id points to a Partner directly, use that partner
+                    // Otherwise, use the partner from the user
+                    partner: {
+                        $cond: {
+                            if: { $ifNull: ["$partner_direct._id", false] },
+                            then: "$partner_direct",
+                            else: { $arrayElemAt: ["$partner_from_user", 0] },
+                        },
+                    },
                     block_ip: { $gt: [{ $size: "$block_ip" }, 0] },
                     user_id_text: {
-                        $cond: [
-                            { $ifNull: ["$user._id", false] },
-                            { $toString: "$user._id" },
-                            ""
-                        ]
+                        $cond: {
+                            if: { $ifNull: ["$user._id", false] },
+                            then: { $toString: "$user._id" },
+                            else: {
+                                $cond: {
+                                    if: { $ifNull: ["$partner_direct._id", false] },
+                                    then: { $toString: "$partner_direct._id" },
+                                    else: ""
+                                }
+                            }
+                        }
                     },
                 },
             },
@@ -173,7 +224,19 @@ export const getMemberLoginInformation = async (req, res) => {
                                 key: { $toString: "$_id" },
                                 history_id: { $toString: "$_id" },
                                 user_id: "$user_id_text",
-                                user_nickname: { $ifNull: ["$user.user_nickname", ""] },
+                                user_nickname: {
+                                    $cond: {
+                                        if: { $ifNull: ["$user.user_nickname", false] },
+                                        then: "$user.user_nickname",
+                                        else: {
+                                            $cond: {
+                                                if: { $ifNull: ["$partner_direct.nickname", false] },
+                                                then: "$partner_direct.nickname",
+                                                else: ""
+                                            }
+                                        }
+                                    }
+                                },
                                 partner_id: "$partner.partner_id",
                                 partner_nickname: "$partner.nickname",
                                 partner_role: "$partner.role",

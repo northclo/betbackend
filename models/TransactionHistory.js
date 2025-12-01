@@ -5,7 +5,7 @@ const TransactionSchema = new Schema(
     {
         user_id: { type: mongoose.Types.ObjectId },
         fund_type: { type: String, enum: ['CHARGE', 'EXCHANGE', 'BETTING', 'PARTNER_INCREASE', 'PARTNER_DECREASE'] },
-        fund_status: { type: String, enum: ['WAIT', 'COMPLETE', 'CANCEL'], default: 'WAIT' },
+        fund_status: { type: String, enum: ['NEW', 'WAIT', 'COMPLETE', 'CANCEL'], default: 'NEW' },
         fund_amount: { type: Number, default: 0 },
         action_user_id: { type: mongoose.Types.ObjectId, default: null },
         request_send_date: { type: Date, default: Date.now },

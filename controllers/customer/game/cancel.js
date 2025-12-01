@@ -117,11 +117,19 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("bet_cancellation_failed"));
         }
 
-        await UserModel.updateOne(
+        const updateUser = await UserModel.updateOne(
             { _id: userId },
             { $inc: { own_money: bettingHistory.bet_amount } },
             { session }
         );
+
+        if (!updateUser) {
+            await PartnerModel.updateOne(
+                { _id: userId },
+                { $inc: { own_money: bettingHistory.bet_amount } },
+                { session }
+            );
+        }
 
         await session.commitTransaction();
 

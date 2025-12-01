@@ -51,11 +51,35 @@ const buildTree = (root) => {
     return root;
 };
 
+const calculateLowerMoneySum = (node) => {
+    let totalMoney = node.own_money || 0;
+    let totalPoint = node.point || 0;
+
+    if (node.subs && Array.isArray(node.subs)) {
+        node.subs.forEach(sub => {
+            const subSum = calculateLowerMoneySum(sub);
+            totalMoney += subSum.money;
+            totalPoint += subSum.point;
+        });
+    }
+
+    if (node.members && Array.isArray(node.members)) {
+        node.members.forEach(member => {
+            totalMoney += member.own_money || 0;
+            totalPoint += member.point || 0;
+        });
+    }
+
+    return { money: totalMoney, point: totalPoint };
+};
+
 const cleanData = (node, search) => {
     const matchesSearch = !search || node.nickname.includes(search) || node.partner_id.includes(search);
     let data = [];
 
     if (matchesSearch) {
+        const lowerSum = node.role !== 'user' ? calculateLowerMoneySum(node) : { money: 0, point: 0 };
+        
         data.push({
             role: node.role,
             nickname: node.nickname,
@@ -64,6 +88,8 @@ const cleanData = (node, search) => {
             members: node.members.length,
             money: node.own_money || 0,
             point: node.point || 0,
+            lowerMoneySum: lowerSum.money,
+            lowerPointSum: lowerSum.point,
             simpleBetRate: node.simple_bet_rate !== undefined && node.simple_bet_rate !== null ? node.simple_bet_rate : 0,
             combinedBetRate: node.combined_bet_rate !== undefined && node.combined_bet_rate !== null ? node.combined_bet_rate : 0,
             matchNumberBetRate: node.match_num_bet_rate !== undefined && node.match_num_bet_rate !== null ? node.match_num_bet_rate : 0,
@@ -80,6 +106,8 @@ const cleanData = (node, search) => {
                 members: 0,
                 money: member.own_money || 0,
                 point: member.point || 0,
+                lowerMoneySum: 0,
+                lowerPointSum: 0,
                 simpleBetRate: member.simple_bet_rate,
                 combinedBetRate: member.combined_bet_rate,
                 matchNumberBetRate: member.match_num_bet_rate,

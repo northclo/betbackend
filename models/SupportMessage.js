@@ -47,8 +47,8 @@ const SupportMessageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "RESOLVED", "REJECTED"],
-      default: "PENDING",
+      enum: ["NEW", "PENDING", "RESOLVED", "REJECTED"],
+      default: "NEW",
       trim: true,
     },
   },

@@ -91,13 +91,13 @@ export const sendMessage = async (req, res) => {
         if (receiverIds.length > 0) {
             try {
                 const io = req.app.get("io");
-                const onlineUsers = req.app.get("onlineUsers");
                 
-                if (io && onlineUsers) {
+                if (io) {
                     const sender = await PartnerModel.findById(senderId).select("nickname").lean();
                     const senderName = sender?.nickname || t("admin");
                     
                     const notificationData = {
+                        targetIds: receiverIds,
                         messageId: message._id.toString(),
                         title: message.title,
                         content: message.content,
@@ -105,15 +105,7 @@ export const sendMessage = async (req, res) => {
                         createdAt: message.createdAt,
                     };
                     
-                    for (const receiverId of receiverIds) {
-                        const receiverIdStr = receiverId.toString();
-                        const socketId = onlineUsers.get(receiverIdStr);
-                        if (socketId) {
-                            io.to(socketId).emit("new_group_message", notificationData);
-                        }
-                    }
-                    
-                    console.log(`Sent group message notification to all ${receiverIds.length} receivers`);
+                    io.emit("new_group_message", notificationData);
                 }
             } catch (socketError) {
                 console.error("Error emitting socket event for group message:", socketError);

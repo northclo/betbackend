@@ -1,5 +1,4 @@
 export default {
-  // Common
   available: "Available",
   api_not_found: "Requested API not found (404)",
   unauthorized_user: "Unautherized user",
@@ -7,8 +6,6 @@ export default {
   server_error: "Server error (500). Please try again later.",
   invalid_request: "Invalid request!",
   internal_server_error: "internal_server_error",
-  
-  // Auth
   id_password_required: "ID and password are required.",
   invalid_credentials: "Invalid credentials.",
   login_successful: "Login successful.",
@@ -27,13 +24,9 @@ export default {
   invalid_bank_selected: "Invalid bank selected. Please select a valid bank.",
   registration_success: "Registration successful! You can now login.",
   registration_success_pending_approval: "Registration submitted! Your account is pending approval. You will be notified once approved.",
-  
-  // Betting
   invalid_start_date_format: "Invalid start date format. Please use YYYY-MM-DD format.",
   invalid_end_date_format: "Invalid end date format. Please use YYYY-MM-DD format.",
   invalid_search_pattern: "Invalid search pattern. Please check your search input.",
-  
-  // Popup
   title_content_required: "Title and content are required.",
   invalid_status_value: "Invalid status value. Must be 'active' or 'inactive'.",
   start_date_before_end_date: "Start date must be before end date.",
@@ -50,8 +43,6 @@ export default {
   invalid_startdate_format: "Invalid startDate format.",
   invalid_enddate_format: "Invalid endDate format.",
   failed_process_popup_data: "Failed to process popup data.",
-  
-  // Exchange
   transaction_id_required: "Transaction ID is required",
   invalid_action: "Invalid action. Must be 'approve' or 'reject'",
   transaction_not_found_or_not_pending: "Transaction not found or not pending",
@@ -72,15 +63,11 @@ export default {
   same_exchange_amount_not_allowed_within_restriction_period: "Same exchange amount is not allowed within the restriction period",
   exchange_not_available_after_recent_charge: "Exchange is not available after a recent charge",
   withdrawal_not_allowed_insufficient_betting: "Withdrawal is not allowed. You must bet at least {0}% of your last deposit amount before withdrawing",
-  
-  // Charging
   transaction_not_found: "Transaction not found",
   transaction_not_pending: "Transaction is not pending",
   only_import_transactions: "Only deposit (IMPORT) transactions can be processed in Charging Management",
   transaction_approved_successfully: "Transaction approved successfully",
   transaction_rejected_successfully: "Transaction rejected successfully",
-  
-  // Game
   invalid_status_filter: "Invalid status filter.",
   both_searchfield_search_required: "Both searchField and search must be provided.",
   invalid_search_field: "Invalid search field.",
@@ -116,8 +103,6 @@ export default {
   cancellation_limit_per_day_reached: "You have reached the maximum number of cancellations allowed per day",
   game_is_currently_disabled: "Game is currently disabled",
   duplicate_betting_not_allowed: "Duplicate betting is not allowed within the specified time limit",
-  
-  // Fund
   amount_required: "Amount is required",
   invalid_amount_number: "Invalid amount. Please enter a valid number",
   minimum_amount: "Minimum amount is",
@@ -129,8 +114,6 @@ export default {
   charging_not_available_at_this_time: "Charging is not available at this time",
   bank_number_required: "Bank number is required",
   bank_number_mismatch: "Bank number does not match",
-  
-  // Support
   ticket_id_required: "Ticket ID is required.",
   invalid_ticket_id_format: "Invalid ticket ID format.",
   reply_message_required: "Reply message is required.",
@@ -152,8 +135,6 @@ export default {
   no_valid_question_ids: "No valid question IDs provided.",
   successfully_deleted_questions: "Successfully deleted {0} question(s).",
   cannot_submit_new_inquiry_with_pending: "You cannot submit a new inquiry while you have a pending inquiry. Please wait for a response to your existing inquiry before submitting a new one.",
-  
-  // Partner
   title_required: "Title is required.",
   content_required: "Content is required.",
   type_required: "Type is required.",
@@ -186,8 +167,6 @@ export default {
   cannot_delete_partner_with_sub_partners: "Cannot delete partner with sub-partners",
   cannot_delete_partner_with_members: "Cannot delete partner with members",
   sub_partner_rate_cannot_exceed_parent: "Sub-partner {0} rate ({1}%) cannot exceed parent partner rate ({2}%)",
-  
-  // Bank Account
   bank_name_required: "Bank name is required",
   bank_name_already_exists: "Bank name already exists",
   bank_account_id_required: "Bank account ID is required",
@@ -196,11 +175,7 @@ export default {
   bank_account_updated_successfully: "Bank account updated successfully",
   bank_account_deleted_successfully: "Bank account deleted successfully",
   no_update_data_provided: "No update data provided",
-  
-  // Account
   administrator_password_min_length: "Administrator password must be at least 6 characters long.",
-  
-  // Announcement
   title_description_required: "Title and description are required.",
   announcement_id_required: "Announcement id is required.",
   description_cannot_empty: "Description cannot be empty.",
@@ -210,14 +185,10 @@ export default {
   announcement_updated_successfully: "Announcement updated successfully.",
   announcement_deleted_successfully: "Announcement deleted successfully.",
   unknown: "Unknown",
-  
-  // Game Result
   date_parameter_required: "Date query parameter is required",
   failed_get_results: "Failed to get results",
   index_parameter_required: "index query parameter is required",
   days_parameter_required: "days query parameter is required",
-  
-  // Notice
   notice_id_required: "Notice id is required.",
   invalid_partner_id: "Invalid partner ID. Partner must be a sub partner of current logged in partner.",
   invalid_start_date: "Invalid start date format.",
@@ -227,14 +198,9 @@ export default {
   notice_updated_successfully: "Notice updated successfully.",
   notice_deleted_successfully: "Notice deleted successfully.",
   all_partners: "All partners",
-  
-  // Fund History
   fund_history_retrieved_successfully: "Fund history retrieved successfully",
   exchange_history_retrieved_successfully: "Exchange history retrieved successfully",
-  
   start_date_before_or_equal_end_date: "Start date must be before or equal to end date.",
-  
-  // Member management
   user_id_required: "User ID is required",
   invalid_user_id_format: "Invalid user ID format",
   invalid_user_id_format_list: "Invalid user ID format: {0}",
@@ -266,8 +232,6 @@ export default {
   failed_to_create_partner_with_value: "Failed to create partner {0}: {1}",
   successfully_created_partners: "Successfully created {0} partner(s).",
   successfully_created_partners_with_errors: "Successfully created {0} partner(s). Some errors occurred: {1}",
-  
-  // IP blocking
   ip_address_required: "IP address is required.",
   block_status_must_be_boolean: "Block status must be a boolean value.",
   ip_address_blocked_successfully: "IP address blocked successfully.",
@@ -278,14 +242,10 @@ export default {
   blocked_ip_not_found: "Blocked IP not found.",
   blocked_ip_removed_successfully: "Blocked IP removed successfully.",
   ip_address_blocked: "Your IP address has been blocked. Please contact support.",
-  
-  // User logout
   user_nickname_required: "User nickname is required.",
   failed_update_user_login_status: "Failed to update user login status.",
   user_logged_out_successfully: "User logged out successfully.",
   you_have_been_logged_out: "You have been logged out",
-  
-  // Game setting
   game_setting_name_required: "Game setting name is required",
   activate_must_be_boolean: "activate must be a boolean",
   inactive_message_must_be_string: "inactive_message must be a string",
@@ -300,13 +260,9 @@ export default {
   option_index_field_must_be_non_negative: "option[{0}].{1} must be a non-negative number",
   game_setting_not_found: "Game setting not found",
   game_setting_updated_successfully: "Game setting updated successfully",
-  
-  // Customer auth
   cannot_find_user: "Cannot find user",
   password_incorrect: "Password isn't correct!",
   user_account_restricted: "Your account is currently restricted. Please contact support.",
-  
-  // Site setting validation
   field_must_be_valid_number: "{0} must be a valid number.",
   field_must_be_integer: "{0} must be an integer.",
   field_must_be_greater_than_or_equal: "{0} must be greater than or equal to {1}.",
@@ -318,32 +274,28 @@ export default {
   exchange_settings_payload_required: "Exchange settings payload is required.",
   exchange_min_cannot_be_greater_than_max: "exchangeMin cannot be greater than exchangeMax.",
   exchange_start_time_must_be_earlier_than_end: "exchangeStartTime must be earlier than exchangeEndTime.",
-  
-  // Login Information
   login_information_ids_required: "Login information IDs are required.",
   no_valid_login_information_ids: "No valid login information IDs provided.",
   successfully_deleted_login_information_records: "Successfully deleted {0} login information record(s).",
-  
-  // Charging Transaction
   charging_transaction_deleted_successfully: "Charging transaction deleted successfully.",
   transaction_ids_required: "Transaction IDs are required.",
   no_valid_transaction_ids: "No valid transaction IDs provided.",
   successfully_deleted_charging_transactions: "Successfully deleted {0} charging transaction(s).",
   successfully_deleted_exchange_transactions: "Successfully deleted {0} exchange transaction(s).",
   comment_updated_successfully: "Comment updated successfully.",
-  
-  // Exchange Transaction
   exchange_transaction_deleted_successfully: "Exchange transaction deleted successfully.",
   only_exchange_transactions: "Only exchange transactions can be processed in Exchange Management",
-  
   invalid_transaction_id: "Invalid transaction ID format.",
   transaction_deleted_successfully: "Transaction deleted successfully.",
-
   question_not_found: "Question not found",
-  
   betting_ids_required: "Betting IDs are required.",
   no_valid_betting_ids: "No valid betting IDs provided.",
   successfully_deleted_betting_records: "Successfully deleted {0} betting record(s).",
   no_users_to_delete: "No users to delete",
   no_records_to_delete: "No records to delete",
+  successfully_deleted_money_usage_transactions: "Successfully deleted money usage transactions.",
+  successfully_deleted_point_usage_transactions: "Successfully deleted point usage transactions.",
+  alarm_type_required: "Alarm type is required",
+  invalid_alarm_type: "Invalid alarm type",
+  volume_must_be_between_0_and_100: "Volume must be between 0 and 100",
 };

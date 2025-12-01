@@ -3,9 +3,6 @@ import moment from "moment";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import PartnerMessageModel from "../../../models/PartnerMessage.js";
-import TransactionModel from "../../../models/TransactionHistory.js";
-import BettingResultModel from "../../../models/BettingResult.js";
-import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
 import { responseSuccess, responseServerError, responseUnAutherized, responseBadRequest } from "../../../helper/response.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
@@ -222,7 +219,11 @@ export const getMemberList = async (req, res) => {
                     from: "user_login_histories",
                     let: { uid: "$_id" },
                     pipeline: [
-                        { $match: { $expr: { $eq: ["$user_id", "$$uid"] } } },
+                        { 
+                            $match: { 
+                                $expr: { $eq: ["$user_id", "$$uid"] }
+                            } 
+                        },
                         { $sort: { createdAt: -1 } },
                         { $limit: 1 },
                     ],
@@ -236,8 +237,12 @@ export const getMemberList = async (req, res) => {
                     pipeline: [
                         {
                             $match: {
-                                $expr: { $eq: ["$user_id", "$$uid"] },
-                                fund_status: "COMPLETE",
+                                $expr: { 
+                                    $and: [
+                                        { $eq: ["$user_id", "$$uid"] },
+                                        { $eq: ["$fund_status", "COMPLETE"] }
+                                    ]
+                                },
                             },
                         },
                         {
@@ -283,8 +288,12 @@ export const getMemberList = async (req, res) => {
                     pipeline: [
                         {
                             $match: {
-                                $expr: { $eq: ["$user_id", "$$uid"] },
-                                betting_status: { $ne: "CANCEL" },
+                                $expr: { 
+                                    $and: [
+                                        { $eq: ["$user_id", "$$uid"] },
+                                        { $eq: ["$betting_status", "COMPLETE"] }
+                                    ]
+                                },
                             },
                         },
                         {
@@ -381,7 +390,7 @@ export const getMemberList = async (req, res) => {
                         $cond: {
                             if: { $gt: [{ $size: "$linked_user" }, 0] },
                             then: { $arrayElemAt: ["$linked_user.login_status", 0] },
-                            else: false,
+                            else: { $ifNull: ["$login_status", false] },
                         },
                     },
                     own_money: { $ifNull: ["$own_money", 0] },
@@ -422,6 +431,7 @@ export const getMemberList = async (req, res) => {
                         },
                     },
                     partner: "$$ROOT",
+                    original_partner_id: "$_id",
                     _id: {
                         $cond: {
                             if: { $gt: [{ $size: "$linked_user" }, 0] },
@@ -446,36 +456,14 @@ export const getMemberList = async (req, res) => {
             },
             {
                 $lookup: {
-                    from: "user_login_histories",
-                    let: { uid: "$user_id" },
-                    pipeline: [
-                        { 
-                            $match: { 
-                                $expr: { 
-                                    $and: [
-                                        { $ne: ["$$uid", null] },
-                                        { $eq: ["$user_id", "$$uid"] }
-                                    ]
-                                } 
-                            } 
-                        },
-                        { $sort: { createdAt: -1 } },
-                        { $limit: 1 },
-                    ],
-                    as: "login_history",
-                },
-            },
-            {
-                $lookup: {
                     from: "transaction_histories",
-                    let: { uid: "$user_id" },
+                    let: { partnerId: "$original_partner_id" },
                     pipeline: [
                         {
                             $match: {
                                 $expr: { 
                                     $and: [
-                                        { $ne: ["$$uid", null] },
-                                        { $eq: ["$user_id", "$$uid"] },
+                                        { $eq: ["$user_id", "$$partnerId"] },
                                         { $eq: ["$fund_status", "COMPLETE"] }
                                     ]
                                 },
@@ -502,6 +490,24 @@ export const getMemberList = async (req, res) => {
                                         ],
                                     },
                                 },
+                                totalPartnerIncrease: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$fund_type", "PARTNER_INCREASE"] },
+                                            "$fund_amount",
+                                            0,
+                                        ],
+                                    },
+                                },
+                                totalPartnerDecrease: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$fund_type", "PARTNER_DECREASE"] },
+                                            "$fund_amount",
+                                            0,
+                                        ],
+                                    },
+                                },
                                 lastImportTime: {
                                     $max: {
                                         $cond: [
@@ -520,15 +526,14 @@ export const getMemberList = async (req, res) => {
             {
                 $lookup: {
                     from: "betting_results",
-                    let: { uid: "$user_id" },
+                    let: { partnerId: "$original_partner_id" },
                     pipeline: [
                         {
                             $match: {
                                 $expr: { 
                                     $and: [
-                                        { $ne: ["$$uid", null] },
-                                        { $eq: ["$user_id", "$$uid"] },
-                                        { $ne: ["$betting_status", "CANCEL"] }
+                                        { $eq: ["$user_id", "$$partnerId"] },
+                                        { $eq: ["$betting_status", "COMPLETE"] }
                                     ]
                                 },
                             },
@@ -550,13 +555,106 @@ export const getMemberList = async (req, res) => {
                 },
             },
             {
+                $lookup: {
+                    from: "user_login_histories",
+                    let: { partnerId: "$original_partner_id" },
+                    pipeline: [
+                        { 
+                            $match: { 
+                                $expr: { $eq: ["$user_id", "$$partnerId"] }
+                            } 
+                        },
+                        { $sort: { createdAt: -1 } },
+                        { $limit: 1 },
+                    ],
+                    as: "user_login_history",
+                },
+            },
+            {
+                $lookup: {
+                    from: "partner_login_histories",
+                    let: { partnerId: "$original_partner_id" },
+                    pipeline: [
+                        { 
+                            $match: { 
+                                $expr: { $eq: ["$partner_id", "$$partnerId"] }
+                            } 
+                        },
+                        { $sort: { createdAt: -1 } },
+                        { $limit: 1 },
+                    ],
+                    as: "partner_login_history",
+                },
+            },
+            {
                 $addFields: {
-                    login_history: { $arrayElemAt: ["$login_history", 0] },
+                    login_history: {
+                        $cond: {
+                            if: {
+                                $and: [
+                                    { $gt: [{ $size: "$user_login_history" }, 0] },
+                                    { $gt: [{ $size: "$partner_login_history" }, 0] }
+                                ]
+                            },
+                            then: {
+                                $let: {
+                                    vars: {
+                                        userLogin: { $arrayElemAt: ["$user_login_history", 0] },
+                                        partnerLogin: { $arrayElemAt: ["$partner_login_history", 0] }
+                                    },
+                                    in: {
+                                        $cond: {
+                                            if: {
+                                                $gt: [
+                                                    "$$userLogin.createdAt",
+                                                    "$$partnerLogin.createdAt"
+                                                ]
+                                            },
+                                            then: "$$userLogin",
+                                            else: {
+                                                createdAt: "$$partnerLogin.createdAt",
+                                                ip_address: "$$partnerLogin.ip_address"
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            else: {
+                                $cond: {
+                                    if: { $gt: [{ $size: "$user_login_history" }, 0] },
+                                    then: { $arrayElemAt: ["$user_login_history", 0] },
+                                    else: {
+                                        $cond: {
+                                            if: { $gt: [{ $size: "$partner_login_history" }, 0] },
+                                            then: {
+                                                $let: {
+                                                    vars: {
+                                                        partnerLogin: { $arrayElemAt: ["$partner_login_history", 0] }
+                                                    },
+                                                    in: {
+                                                        createdAt: "$$partnerLogin.createdAt",
+                                                        ip_address: "$$partnerLogin.ip_address"
+                                                    }
+                                                }
+                                            },
+                                            else: null
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     totalImportAmount: {
                         $ifNull: [{ $arrayElemAt: ["$fund_stats.totalImportAmount", 0] }, 0],
                     },
                     totalExchangeAmount: {
                         $ifNull: [{ $arrayElemAt: ["$fund_stats.totalExchangeAmount", 0] }, 0],
+                    },
+                    totalPartnerIncrease: {
+                        $ifNull: [{ $arrayElemAt: ["$fund_stats.totalPartnerIncrease", 0] }, 0],
+                    },
+                    totalPartnerDecrease: {
+                        $ifNull: [{ $arrayElemAt: ["$fund_stats.totalPartnerDecrease", 0] }, 0],
                     },
                     last_import_time: {
                         $arrayElemAt: ["$fund_stats.lastImportTime", 0],
@@ -606,9 +704,9 @@ export const getMemberList = async (req, res) => {
                     $cond: {
                         if: { $and: [{ $ne: ["$partner", null] }, { $ne: ["$partner._id", null] }] },
                         then: {
-                            $multiply: [
-                                { $ifNull: ["$totalBettingAmount", 0] },
-                                0.1,
+                            $subtract: [
+                                { $ifNull: ["$totalPartnerIncrease", 0] },
+                                { $ifNull: ["$totalPartnerDecrease", 0] }
                             ],
                         },
                         else: 0,
@@ -979,29 +1077,21 @@ export const sendNotesToUsers = async (req, res) => {
         if (targetIds.length > 0) {
             try {
                 const io = req.app.get("io");
-                const onlineUsers = req.app.get("onlineUsers");
                 
-                if (io && onlineUsers) {
+                if (io) {
                     const sender = await PartnerModel.findById(adminId).select("nickname").lean();
                     const senderName = sender?.nickname || t("admin");
                     
                     const notificationData = {
+                        targetIds,
                         messageId: message._id.toString(),
                         title: message.title,
                         content: message.content,
                         sender: senderName,
                         createdAt: message.createdAt,
                     };
-                    
-                    for (const receiverId of targetIds) {
-                        const receiverIdStr = receiverId.toString();
-                        const socketId = onlineUsers.get(receiverIdStr);
-                        if (socketId) {
-                            io.to(socketId).emit("new_group_message", notificationData);
-                        }
-                    }
-                    
-                    console.log(`Sent notes notification to all ${targetIds.length} receivers`);
+
+                    io.emit("new_group_message", notificationData);
                 }
             } catch (socketError) {
                 console.error("Error emitting socket event for notes:", socketError);

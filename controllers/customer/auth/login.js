@@ -63,7 +63,7 @@ export const login = async (req, res) => {
     });
 
     let token = jwt.sign({ id: user._id }, config.JWT_SECRET_KEY, { expiresIn: '1h' });
-    responseSuccess(res, { token });
+    responseSuccess(res, { token, id: user._id });
   } catch (error) {
     console.error("Error during customer login:", error);
     return responseServerError(res);

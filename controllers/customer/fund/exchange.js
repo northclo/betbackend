@@ -6,6 +6,7 @@ import BettingResultModel from "../../../models/BettingResult.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
 import bcrypt from "bcrypt";
+import { getAllParentPartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const isWithinTimeRange = (startTime, endTime) => {
     if (!startTime || !endTime) return true;
@@ -192,10 +193,23 @@ export const exchangeFund = async (req, res) => {
         const transaction = await TransactionModel.create({
             user_id: userId,
             fund_type: "EXCHANGE",
-            fund_status: "WAIT",
+            fund_status: "NEW",
             fund_amount: normalizedAmount,
             request_send_date: new Date()
         });
+
+        try {
+            const io = req.app.get("io");
+            if (io) {
+                const parentPartnerIds = await getAllParentPartnerIds(userId);
+
+                io.emit("new_exchange_request", {
+                    parentPartnerIds: parentPartnerIds,
+                });
+            }
+        } catch (socketError) {
+            console.error("Error emitting socket event:", socketError);
+        }
 
         const exchangeCompleteMessage = settings?.exchange_complete_message || t("exchange_request_submitted");
         
@@ -205,7 +219,7 @@ export const exchangeFund = async (req, res) => {
                 transaction_id: transaction._id,
                 amount: normalizedAmount,
                 balance: updatedUser.own_money,
-                status: "WAIT",
+                status: "NEW",
                 message: exchangeCompleteMessage
             },
             exchangeCompleteMessage

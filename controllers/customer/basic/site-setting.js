@@ -9,7 +9,7 @@ export const getSiteSetting = async (req, res) => {
 
     const bankAccounts = await BankAccountModel.find({})
       .select('bank_name')
-      .sort({ bank_name: 1 })
+      .sort({ order: 1, bank_name: 1 })
       .lean();
 
     const bankAccountInfos = bankAccounts.map(account => account.bank_name);

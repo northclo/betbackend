@@ -288,6 +288,16 @@ export const StartGame = async (req, res) => {
         session.startTransaction();
 
         try {
+            let bettingPointRate = 0;
+            
+            if (['odd', 'even', 'under', 'over'].includes(bettingType)) {
+                bettingPointRate = user.simple_bet_rate || 0;
+            } else if (['odd_under', 'odd_over', 'even_under', 'even_over'].includes(bettingType)) {
+                bettingPointRate = user.combined_bet_rate || 0;
+            } else if (['number_13', 'number_14', 'number_16'].includes(bettingType)) {
+                bettingPointRate = user.match_num_bet_rate || 0;
+            }
+            
             const result = await BettingResultModel.create([{
                 user_id: userId,
                 game_id,
@@ -298,6 +308,9 @@ export const StartGame = async (req, res) => {
                 betting_status: "WAIT",
                 win: false,
                 earning_amount: 0,
+                betting_point_rate: bettingPointRate,
+                betting_point_value: 0,
+                partner_bet_benefit: 0,
                 history_view: true,
             }], { session });
 

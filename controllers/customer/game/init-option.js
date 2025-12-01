@@ -25,45 +25,19 @@ export const getGameOption = async (req, res) => {
         }
 
         const gameSetting = await GameSettingModel.findOne({ name: 'PowerballGame' }).lean();
-        
-        const applyUserRates = (baseRates) => {
-            const simpleBetRateMultiplier = (user?.simple_bet_rate && user.simple_bet_rate > 0) 
-                ? user.simple_bet_rate / 100 
-                : 1;
-            const combinedBetRateMultiplier = (user?.combined_bet_rate && user.combined_bet_rate > 0) 
-                ? user.combined_bet_rate / 100 
-                : 1;
-            const matchNumBetRateMultiplier = (user?.match_num_bet_rate && user.match_num_bet_rate > 0) 
-                ? user.match_num_bet_rate / 100 
-                : 1;
-
-            return {
-                odd: Math.round(baseRates.odd * simpleBetRateMultiplier),
-                even: Math.round(baseRates.even * simpleBetRateMultiplier),
-                under: Math.round(baseRates.under * simpleBetRateMultiplier),
-                over: Math.round(baseRates.over * simpleBetRateMultiplier),
-                odd_under: Math.round(baseRates.odd_under * combinedBetRateMultiplier),
-                odd_over: Math.round(baseRates.odd_over * combinedBetRateMultiplier),
-                even_under: Math.round(baseRates.even_under * combinedBetRateMultiplier),
-                even_over: Math.round(baseRates.even_over * combinedBetRateMultiplier),
-                match_number1: Math.round(baseRates.match_number1 * matchNumBetRateMultiplier),
-                match_number2: Math.round(baseRates.match_number2 * matchNumBetRateMultiplier),
-                match_number3: Math.round(baseRates.match_number3 * matchNumBetRateMultiplier),
-            };
-        };
 
         const defaultRates = {
-            odd: 195,
-            even: 195,
-            under: 195,
-            over: 195,
-            odd_under: 245,
-            odd_over: 245,
-            even_under: 245,
-            even_over: 245,
-            match_number1: 950,
-            match_number2: 1950,
-            match_number3: 99900,
+            odd: 1.95,
+            even: 1.95,
+            under: 1.95,
+            over: 1.95,
+            odd_under: 2.45,
+            odd_over: 2.45,
+            even_under: 2.45,
+            even_over: 2.45,
+            match_number1: 9.5,
+            match_number2: 19.5,
+            match_number3: 19.5,
         };
 
         const bettingLimits = partner ? {
@@ -80,14 +54,14 @@ export const getGameOption = async (req, res) => {
         
         if (!gameSetting) {
             return responseSuccess(res, {
-                ...applyUserRates(defaultRates),
+                ...defaultRates,
                 bettingLimits
             });
         }
 
         if (!gameSetting.option || gameSetting.option.length === 0) {
             return responseSuccess(res, {
-                ...applyUserRates(defaultRates),
+                ...defaultRates,
                 bettingLimits
             });
         }
@@ -100,25 +74,25 @@ export const getGameOption = async (req, res) => {
             const firstOption = gameSetting.option[0];
             if (firstOption) {
                 const fallbackRates = {
-                    odd: firstOption.odd || 195,
-                    even: firstOption.even || 195,
-                    under: firstOption.under || 195,
-                    over: firstOption.over || 195,
-                    odd_under: firstOption.odd_under || 245,
-                    odd_over: firstOption.odd_over || 245,
-                    even_under: firstOption.even_under || 245,
-                    even_over: firstOption.even_over || 245,
-                    match_number1: firstOption.match_number1 || 950,
-                    match_number2: firstOption.match_number2 || 1950,
-                    match_number3: firstOption.match_number3 || 99900,
+                    odd: firstOption.odd || 1.95,
+                    even: firstOption.even || 1.95,
+                    under: firstOption.under || 1.95,
+                    over: firstOption.over || 1.95,
+                    odd_under: firstOption.odd_under || 2.45,
+                    odd_over: firstOption.odd_over || 2.45,
+                    even_under: firstOption.even_under || 2.45,
+                    even_over: firstOption.even_over || 2.45,
+                    match_number1: firstOption.match_number1 || 2.45,
+                    match_number2: firstOption.match_number2 || 2.45,
+                    match_number3: firstOption.match_number3 || 2.45,
                 };
                 return responseSuccess(res, {
-                    ...applyUserRates(fallbackRates),
+                    ...fallbackRates,
                     bettingLimits
                 });
             } else {
                 return responseSuccess(res, {
-                    ...applyUserRates(defaultRates),
+                    ...defaultRates,
                     bettingLimits
                 });
             }
@@ -127,22 +101,21 @@ export const getGameOption = async (req, res) => {
         const selectedOption = option[0];
 
         const baseRates = {
-            odd: selectedOption.odd || 195,
-            even: selectedOption.even || 195,
-            under: selectedOption.under || 195,
-            over: selectedOption.over || 195,
-            odd_under: selectedOption.odd_under || 245,
-            odd_over: selectedOption.odd_over || 245,
-            even_under: selectedOption.even_under || 245,
-            even_over: selectedOption.even_over || 245,
-            match_number1: selectedOption.match_number1 || 950,
-            match_number2: selectedOption.match_number2 || 1950,
-            match_number3: selectedOption.match_number3 || 99900,
+            odd: selectedOption.odd || 1.95,
+            even: selectedOption.even || 1.95,
+            under: selectedOption.under || 1.95,
+            over: selectedOption.over || 1.95,
+            odd_under: selectedOption.odd_under || 2.45,
+            odd_over: selectedOption.odd_over || 2.45,
+            even_under: selectedOption.even_under || 2.45,
+            even_over: selectedOption.even_over || 2.45,
+            match_number1: selectedOption.match_number1 || 2.45,
+            match_number2: selectedOption.match_number2 || 2.45,
+            match_number3: selectedOption.match_number3 || 2.45,
         };
 
-
         return responseSuccess(res, {
-            ...applyUserRates(baseRates),
+            ...baseRates,
             bettingLimits
         });
     } catch (error) {

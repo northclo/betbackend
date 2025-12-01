@@ -4,6 +4,7 @@ import TransactionModel from "../../../models/TransactionHistory.js";
 import SettingModel from "../../../models/Setting.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { getAllParentPartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const isWithinTimeRange = (startTime, endTime) => {
   if (!startTime || !endTime) return true;
@@ -95,10 +96,23 @@ export const addFund = async (req, res) => {
     await TransactionModel.create({
       user_id: userId,
       fund_type: "CHARGE",
-      fund_status: "WAIT",
+      fund_status: "NEW",
       fund_amount: normalizedAmount,
       request_send_date: new Date()
     });
+
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        const parentPartnerIds = await getAllParentPartnerIds(userId);
+
+        io.emit("new_charge_request", {
+          parentPartnerIds: parentPartnerIds,
+        });
+      }
+    } catch (socketError) {
+      console.error("Error emitting socket event:", socketError);
+    }
 
     const chargeCompleteMessage = setting?.charge_complete_message || t("fund_request_submitted");
     
@@ -107,7 +121,7 @@ export const addFund = async (req, res) => {
       {
         amount: normalizedAmount,
         balance: user.own_money,
-        status: "WAIT",
+        status: "NEW",
         message: chargeCompleteMessage,
       },
       chargeCompleteMessage

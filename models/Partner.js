@@ -22,6 +22,7 @@ const PartnerSchema = new Schema(
         bank_id: { type: mongoose.Types.ObjectId },
         bank_number: { type: String, required: true },
         bank_owner_name: { type: String, required: true },
+        memo_note: { type: String },
         simple_bet_rate: { type: Number, default: 0 },
         combined_bet_rate: { type: Number, default: 0 },
         match_num_bet_rate: { type: Number, default: 0 },
@@ -65,12 +66,19 @@ const PartnerSchema = new Schema(
                 public: { type: Boolean, default: false }
             }
         ],
+        user_level: {
+            type: Number,
+            enum: [1, 2, 3, 4, 5, 6],
+            default: 1
+        },
+        api_key: { type: String },
         user_status: {
             type: String,
             enum: [userStatus.wait, userStatus.normal, userStatus.stop, userStatus.cancel, userStatus.danger, userStatus.tester],
             default: userStatus.normal
         },
-        consider_user: { type: Boolean, default: false }
+        consider_user: { type: Boolean, default: false },
+        login_status: { type: Boolean, default: false }
     },
     { timestamps: true }
 );

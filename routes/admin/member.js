@@ -7,7 +7,6 @@ import { getMemberLoginInformation } from "../../controllers/admin/member/login-
 import { bulkDeleteLoginInformation } from "../../controllers/admin/member/login-information-bulk-delete.js";
 import { blockIp, getBlockedIps, removeBlockedIp } from "../../controllers/admin/member/block-ip.js";
 import { getCurrentLoginUser } from "../../controllers/admin/member/current-login-user.js";
-import { logoutUser } from "../../controllers/admin/member/logout-user.js";
 
 router.get("/list", catchError(getMemberList));
 router.get("/by-id", catchError(getMemberById));
@@ -20,7 +19,6 @@ router.put('/block-ip', catchError(blockIp));
 router.get('/block-ip', catchError(getBlockedIps));
 router.delete('/block-ip/:id', catchError(removeBlockedIp));
 router.get('/current-login', catchError(getCurrentLoginUser));
-router.post('/logout', catchError(logoutUser));
 router.post('/send-notes', catchError(sendNotesToUsers));
 
 export default router;

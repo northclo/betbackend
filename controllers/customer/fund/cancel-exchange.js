@@ -16,7 +16,7 @@ export const cancelExchange = async (req, res) => {
       _id: transactionId,
       user_id: userId,
       fund_type: "EXCHANGE",
-      fund_status: "WAIT",
+      fund_status: { $in: ["NEW", "WAIT"] },
     });
 
     if (!transaction) {
@@ -24,7 +24,7 @@ export const cancelExchange = async (req, res) => {
     }
 
     const updateResult = await TransactionModel.updateOne(
-      { _id: transactionId, user_id: userId, fund_status: "WAIT" },
+      { _id: transactionId, user_id: userId, fund_status: { $in: ["NEW", "WAIT"] } },
       { $set: { fund_status: "CANCEL", fund_status_update_date: new Date() } }
     );
 

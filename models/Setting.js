@@ -48,6 +48,20 @@ const SettingSchema = new Schema(
         charge_restriction_limit: { type: Number },
         exchange_complete_message: { type: String },
         customer_center: { type: Boolean, default: true },
+        alarm_settings: {
+            withdrawal_alarm: {
+                sound_file: { type: String, default: "alarm1.mp3" },
+                volume: { type: Number, default: 100, min: 0, max: 100 }
+            },
+            deposit_alarm: {
+                sound_file: { type: String, default: "alarm2.mp3" },
+                volume: { type: Number, default: 100, min: 0, max: 100 }
+            },
+            customer_alert: {
+                sound_file: { type: String, default: "alarm3.mp3" },
+                volume: { type: Number, default: 100, min: 0, max: 100 }
+            }
+        }
     },
     { timestamps: true }
 );
