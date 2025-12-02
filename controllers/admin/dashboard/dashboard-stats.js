@@ -375,6 +375,37 @@ export const getSidebarSummary = async (req, res) => {
 
         const totalUserPoints = totalPointsResult.length > 0 ? totalPointsResult[0].totalPoints : 0;
 
+        const userOwnedAmountResult = accessibleUserIds.length > 0
+            ? await UserModel.aggregate([
+                {
+                    $match: userPointsFilter
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalOwnedAmount: { $sum: { $ifNull: ["$own_money", 0] } }
+                    }
+                }
+            ])
+            : [];
+
+        const userOwnedAmount = userOwnedAmountResult.length > 0 ? userOwnedAmountResult[0].totalOwnedAmount : 0;
+
+        const partnerFilter = accessiblePartnerIds.length > 0
+            ? { _id: { $in: accessiblePartnerIds } }
+            : {};
+
+        const partners = accessiblePartnerIds.length > 0
+            ? await PartnerModel.find(partnerFilter).select("nickname own_money").lean()
+            : [];
+
+        const partnerBreakdown = partners.map(p => ({
+            nickname: p.nickname || '',
+            ownMoney: p.own_money || 0
+        }));
+
+        const totalPartnerMoney = partnerBreakdown.reduce((sum, p) => sum + (p.ownMoney || 0), 0);
+
         const activeUserIdsFilter = accessibleUserIds.length > 0
             ? {
                 user_id: { $in: accessibleUserIds },
@@ -579,12 +610,15 @@ export const getSidebarSummary = async (req, res) => {
 
         responseSuccess(res, {
             bettingSettlementProfit: bettingProfit,
+            userOwnedAmount: userOwnedAmount,
             userPoints: totalUserPoints,
             currentSiteUsers: currentSiteUsers,
             todayDeposit: todayDeposit,
             todayWithdrawal: todayWithdrawal,
             entireGame,
-            minigames
+            minigames,
+            partnerBreakdown: partnerBreakdown,
+            totalPartnerMoney: totalPartnerMoney
         });
     } catch (error) {
         console.error("Error fetching sidebar summary:", error);
