@@ -9,13 +9,14 @@ const allowedGameIPs = process.env.ALLOWED_GAME_IPS
 
 const ipAllowlist = (req, res, next) => {
   const clientIp = requestIp.getClientIp(req); // works behind proxies
+  const endpoint = req.originalUrl; // requested API endpoint
   
   if (allowedGameIPs.includes(clientIp)) {
-    console.log("Allowed clientIP---->", clientIp);
+    console.log(`✔ Allowed IP: ${clientIp} for endpoint ${endpoint}`);
     return next();
   }
 
-  console.warn(`Blocked request from IP: ${clientIp}`);
+  console.warn(`✖ Blocked IP: ${clientIp} attempting to access ${endpoint}`);
   return res.status(403).json({ message: "Access denied: unauthorized IP" });
 };
 
