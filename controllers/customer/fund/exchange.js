@@ -28,7 +28,7 @@ const isWithinTimeRange = (startTime, endTime) => {
 
 export const exchangeFund = async (req, res) => {
     try {
-    const { amount, secure_code, bank_number } = req.body;
+    const { amount, secure_code } = req.body;
     const userId = req.session._id;
 
     if (amount === undefined || amount === null || amount === '') {
@@ -42,10 +42,6 @@ export const exchangeFund = async (req, res) => {
 
     if (!secure_code || !secure_code.trim()) {
         return responseBadRequest(res, t("exchange_password_required"));
-    }
-
-    if (!bank_number || !bank_number.trim()) {
-        return responseBadRequest(res, t("bank_number_required"));
     }
         const settings = await SettingModel.findOne();
         if (!settings) {
@@ -100,9 +96,9 @@ export const exchangeFund = async (req, res) => {
             }
         }
         let partnerId = null;
-        let user = await UserModel.findById(userId).select("own_money exchange_secure_number bank_number partner_id ownpartner_id");
+        let user = await UserModel.findById(userId).select("own_money exchange_secure_number partner_id ownpartner_id");
         if (!user) {
-            user = await PartnerModel.findById(userId).select("own_money exchange_secure_number bank_number parent_partner_id");
+            user = await PartnerModel.findById(userId).select("own_money exchange_secure_number parent_partner_id");
             if (!user) {
                 return responseBadRequest(res, t("user_not_found"));
             }
@@ -122,10 +118,6 @@ export const exchangeFund = async (req, res) => {
         const isSecureCodeMatch = await bcrypt.compare(secure_code.trim(), user.exchange_secure_number);
         if (!isSecureCodeMatch) {
             return responseBadRequest(res, t("exchange_password_incorrect"));
-        }
-
-        if (!user.bank_number || user.bank_number.trim() !== bank_number.trim()) {
-            return responseBadRequest(res, t("bank_number_mismatch"));
         }
 
         if (normalizedAmount > (user.own_money || 0)) {

@@ -26,7 +26,7 @@ const isWithinTimeRange = (startTime, endTime) => {
 
 export const addFund = async (req, res) => {
   try {
-    const { amount, bank_number } = req.body;
+    const { amount } = req.body;
     const userId = req.session._id;
 
     if (amount === undefined || amount === null || amount === '') {
@@ -36,10 +36,6 @@ export const addFund = async (req, res) => {
     const normalizedAmount = Number(amount);
     if (isNaN(normalizedAmount) || !isFinite(normalizedAmount)) {
       return responseBadRequest(res, t("invalid_amount_number"));
-    }
-
-    if (!bank_number || !bank_number.trim()) {
-      return responseBadRequest(res, t("bank_number_required"));
     }
 
     const setting = await SettingModel.findOne().lean();
@@ -79,18 +75,14 @@ export const addFund = async (req, res) => {
         return responseBadRequest(res, `${t("maximum_amount")} 10,000,000`);
       }
     }
-    let user = await UserModel.findById(userId).select("own_money bank_number");
+    let user = await UserModel.findById(userId).select("own_money");
 
     if (!user) {
-      user = await PartnerModel.findById(userId).select("own_money bank_number");
+      user = await PartnerModel.findById(userId).select("own_money");
       
       if (!user) {
         return responseBadRequest(res, t("user_not_found"));
       }
-    }
-
-    if (!user.bank_number || user.bank_number.trim() !== bank_number.trim()) {
-      return responseBadRequest(res, t("bank_number_mismatch"));
     }
 
     await TransactionModel.create({
