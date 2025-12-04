@@ -8,6 +8,11 @@ const BankAccountSchema = new Schema(
             required: true,
             unique: true,
             index: true
+        },
+        order: {
+            type: Number,
+            default: 0,
+            index: true
         }
     },
     { timestamps: true }

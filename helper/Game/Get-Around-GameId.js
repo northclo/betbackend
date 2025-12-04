@@ -5,19 +5,48 @@ export const getAroundGameId = async (gameId) => {
     let previousGameId = null;
     let nextGameId = null;
 
-    const gameIdLists = await GameResultModel
-        .find({
-            start_time_stamp: { $lt: getCurrentTime() + 180000 }
+    const currentGame = await GameResultModel
+        .findOne({ game_id: gameId })
+        .select({ start_time_stamp: 1 })
+        .lean();
+
+    if (!currentGame || !currentGame.start_time_stamp) {
+        return { previousGameId, nextGameId };
+    }
+
+    const currentTimestamp = currentGame.start_time_stamp;
+    const maxTimestamp = getCurrentTime() + 180000;
+
+    const previousGame = await GameResultModel
+        .findOne({
+            start_time_stamp: {
+                $lt: Math.min(currentTimestamp, maxTimestamp)
+            }
         })
         .sort({ start_time_stamp: -1 })
-        .select({ _id: 0, game_id: 1 });
+        .select({ game_id: 1 })
+        .limit(1)
+        .lean();
 
-    gameIdLists.forEach((element, idx) => {
-        if (element.game_id === gameId) {
-            if (idx !== gameIdLists.length - 1) previousGameId = gameIdLists[idx + 1].game_id
-            if (idx !== 0) nextGameId = gameIdLists[idx - 1].game_id
-        }
-    });
+    if (previousGame) {
+        previousGameId = previousGame.game_id;
+    }
 
-    return { previousGameId, nextGameId }
+    const nextGame = await GameResultModel
+        .findOne({
+            start_time_stamp: {
+                $gt: currentTimestamp,
+                $lte: maxTimestamp
+            }
+        })
+        .sort({ start_time_stamp: 1 })
+        .select({ game_id: 1 })
+        .limit(1)
+        .lean();
+
+    if (nextGame) {
+        nextGameId = nextGame.game_id;
+    }
+
+    return { previousGameId, nextGameId };
 }

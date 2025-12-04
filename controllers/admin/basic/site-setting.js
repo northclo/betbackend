@@ -231,8 +231,8 @@ export const getSiteSetting = async (req, res) => {
         );
 
         const bankAccounts = await BankAccountModel.find({})
-            .select('_id bank_name')
-            .sort({ bank_name: 1 })
+            .select('_id bank_name order')
+            .sort({ order: 1, bank_name: 1 })
             .lean();
 
         const responseData = result.toObject ? result.toObject() : result;
@@ -335,18 +335,18 @@ export const updateSiteSetting = async (req, res) => {
         if (bankAccounts !== undefined && Array.isArray(bankAccounts)) {
             const currentBankAccounts = await BankAccountModel.find({}).lean();
             const currentBankAccountMap = new Map(
-                currentBankAccounts.map(acc => [acc._id.toString(), acc.bank_name])
+                currentBankAccounts.map(acc => [acc._id.toString(), acc])
             );
 
             const newBankAccountMap = new Map();
             const newBankAccountNames = new Set();
             
-            bankAccounts.forEach(bank => {
+            bankAccounts.forEach((bank, index) => {
                 const bankName = typeof bank === 'string' ? bank.trim() : (bank?.bank_name || '').trim();
                 if (!bankName) return;
                 
                 if (bank._id) {
-                    newBankAccountMap.set(bank._id.toString(), bankName);
+                    newBankAccountMap.set(bank._id.toString(), { ...bank, order: index });
                 }
                 newBankAccountNames.add(bankName.toLowerCase());
             });
@@ -359,30 +359,45 @@ export const updateSiteSetting = async (req, res) => {
                 await BankAccountModel.deleteOne({ _id: bankAccount._id });
             }
 
-            for (const bank of bankAccounts) {
+            for (let index = 0; index < bankAccounts.length; index++) {
+                const bank = bankAccounts[index];
                 const bankName = typeof bank === 'string' ? bank.trim() : (bank?.bank_name || '').trim();
                 if (!bankName) continue;
 
                 if (bank._id) {
                     const existingBank = currentBankAccountMap.get(bank._id.toString());
-                    if (existingBank && existingBank !== bankName) {
+                    const updateData = {
+                        order: index
+                    };
+                    
+                    if (existingBank && existingBank.bank_name !== bankName) {
                         const duplicate = await BankAccountModel.findOne({
                             bank_name: bankName,
                             _id: { $ne: bank._id }
                         });
                         if (!duplicate) {
-                            await BankAccountModel.findOneAndUpdate(
-                                { _id: bank._id },
-                                { bank_name: bankName }
-                            );
+                            updateData.bank_name = bankName;
                         }
                     }
+                    
+                    await BankAccountModel.findOneAndUpdate(
+                        { _id: bank._id },
+                        { $set: updateData }
+                    );
                 } else {
                     const existingBank = await BankAccountModel.findOne({
                         bank_name: bankName
                     });
                     if (!existingBank) {
-                        await BankAccountModel.create({ bank_name: bankName });
+                        await BankAccountModel.create({ 
+                            bank_name: bankName,
+                            order: index
+                        });
+                    } else {
+                        await BankAccountModel.findOneAndUpdate(
+                            { _id: existingBank._id },
+                            { $set: { order: index } }
+                        );
                     }
                 }
             }

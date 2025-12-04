@@ -106,6 +106,21 @@ export const listSupportTickets = async (req, res) => {
     const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
     const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
+    const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+    if (allAccessibleIds.length > 0) {
+      await SupportMessage.updateMany(
+        {
+          status: 'NEW',
+          writer: { $in: allAccessibleIds }
+        },
+        {
+          $set: {
+            status: 'PENDING'
+          }
+        }
+      );
+    }
+
     const { 
       status, 
       searchType,
@@ -307,10 +322,16 @@ export const listSupportTickets = async (req, res) => {
 
     const items = await Promise.all(tickets.map((ticket) => toSupportTicketDto(ticket)));
     
-    items.forEach((item, index) => {
-      item.no = (pageNumber - 1) * pageSize + index + 1;
-    });
-
+    try {
+      const io = req.app.get("io");
+      if (io) {
+          io.emit("new_support_message", {
+              parentPartnerIds: [adminId],
+          });
+      }
+    } catch (socketError) {
+        console.error("Error emitting socket event:", socketError);
+    }
     return responseSuccess(res, {
       list: items,
       items: items,

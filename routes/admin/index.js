@@ -21,6 +21,7 @@ import popupRoute from "./popup.js";
 import noticeRoute from "./notice.js";
 import dashboardRoute from "./dashboard.js";
 import bankAccountRoute from "./bank-account.js";
+import notificationRoute from "./notification.js";
 
 router.use("/auth", authRoute);
 router.use("/member", checkAuth, memberRoute);
@@ -41,5 +42,6 @@ router.use("/popup", checkAuth, popupRoute);
 router.use("/notice", checkAuth, noticeRoute);
 router.use("/dashboard", checkAuth, dashboardRoute);
 router.use("/bank-account", checkAuth, bankAccountRoute);
+router.use("/notification", checkAuth, notificationRoute);
 
 export default router;

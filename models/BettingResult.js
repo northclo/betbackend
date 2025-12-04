@@ -18,6 +18,9 @@ const BettingResultSchema = new Schema(
         bet_amount: { type: Number },
         earning_amount: { type: Number, default: 0 },
         final_amount: {type: Number, default: 0},
+        betting_point_rate: { type: Number },
+        betting_point_value: { type: Number },
+        partner_bet_benefit: { type: Number },
         betting_status: {
             type: String,
             enum: ["WAIT", "PROGRESS", "COMPLETE", "CANCEL"],
@@ -32,6 +35,10 @@ BettingResultSchema.index({ game_id: 1, betting_status: 1, betting_type: 1 });
 BettingResultSchema.index({ game_id: 1 });
 BettingResultSchema.index({ user_id: 1, game_id: 1 });
 BettingResultSchema.index({ betting_status: 1 });
+
+BettingResultSchema.index({ user_id: 1, createdAt: -1 });
+BettingResultSchema.index({ user_id: 1, total_no: 1, today_no: 1, createdAt: -1 });
+BettingResultSchema.index({ user_id: 1, game_id: 1, createdAt: -1 });
 
 const BettingResultModel = mongoose.model("betting_result", BettingResultSchema);
 

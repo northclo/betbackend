@@ -27,6 +27,23 @@ export const getExchangeList = async (req, res) => {
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
         const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
+        if (allAccessibleIds.length > 0) {
+            await TransactionModel.updateMany(
+                {
+                    fund_type: 'EXCHANGE',
+                    fund_status: 'NEW',
+                    user_id: { $in: allAccessibleIds }
+                },
+                {
+                    $set: {
+                        fund_status: 'WAIT',
+                        fund_status_update_date: new Date()
+                    }
+                }
+            );
+        }
+
         let {
             startDate,
             endDate,
@@ -67,7 +84,6 @@ export const getExchangeList = async (req, res) => {
             }
         }
 
-        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
         if (allAccessibleIds.length > 0) {
             filter.user_id = { $in: allAccessibleIds };
         } else {
@@ -446,6 +462,17 @@ export const getExchangeList = async (req, res) => {
         );
 
         const aggregation = await TransactionModel.aggregate(pipeline);
+
+        try {
+            const io = req.app.get("io");
+            if (io) {
+                io.emit("new_exchange_request", {
+                    parentPartnerIds: [adminId],
+                });
+            }
+        } catch (socketError) {
+            console.error("Error emitting socket event:", socketError);
+        }
 
         const list = aggregation[0]?.data || [];
         const total =

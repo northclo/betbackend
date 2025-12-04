@@ -27,7 +27,7 @@ jobs:
         with:
           switches: -avzr --delete
           path: ./*
-          remote_path: /var/www/live-server/backend
+          remote_path: ${{ secrets.MAIN_PATH }}
           remote_host: ${{ secrets.MAIN_ACEESS_HOST }}
           remote_user: ${{ secrets.MAIN_USER_NAME }}
           remote_key: "${{ secrets.MAIN_SSH_PRIVATE_KEY }}"
@@ -42,7 +42,7 @@ jobs:
           script: |
             # Navigate to your app directory
 
-            cd /var/www/live-server/backend
+            cd ${{ secrets.MAIN_PATH }}
 
 
             # Set up nvm

@@ -10,6 +10,7 @@ import {
   responseServerError,
 } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { getAllParentPartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 export const submitContact = async (req, res) => {
   try {
@@ -64,7 +65,7 @@ export const submitContact = async (req, res) => {
       writer: userId,
       title: String(title).trim(),
       question: String(question).trim(),
-      status: "PENDING",
+      status: "NEW",
       first_message_date: firstMessageDate,
       send_date: new Date(),
       ip_address: cleanIp,
@@ -73,13 +74,10 @@ export const submitContact = async (req, res) => {
     try {
       const io = req.app.get("io");
       if (io) {
+        const parentPartnerIds = await getAllParentPartnerIds(userId);
+
         io.emit("new_support_message", {
-          id: supportMessage._id.toString(),
-          title: supportMessage.title,
-          writer: userId.toString(),
-          status: supportMessage.status,
-          createdAt: supportMessage.createdAt,
-          send_date: supportMessage.send_date,
+          parentPartnerIds: parentPartnerIds,
         });
       }
     } catch (socketError) {

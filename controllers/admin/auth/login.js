@@ -55,7 +55,7 @@ export const login = async (req, res) => {
     sub_partner_money_change: partner.sub_partner_money_change || false,
   };
 
-  return responseSuccess(res, { token, permissions, role: partner.role }, t("login_successful"));
+  return responseSuccess(res, { token, permissions, role: partner.role, id: partner._id }, t("login_successful"));
   } catch (error) {
     console.error("Error during login:", error);
     return responseServerError(res);

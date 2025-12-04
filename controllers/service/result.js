@@ -3,7 +3,6 @@ import { responseBadRequest } from "../../helper/response.js";
 import { config } from "../../config/index.js";
 import { io } from '../../server.js'
 import { updateBetting } from "../../helper/Betting/Update-Betting.js";
-import { getCurrentTime } from "../../helper/Time/Get-Current-Time.js";
 import { getAvailableGame } from "../../helper/Game/Get-Available-Game.js";
 import { getLastGame } from "../../helper/Game/Get-Last-Game.js";
 import moment from "moment-timezone";
@@ -45,7 +44,6 @@ export const startGame = async (req, res) => {
     }
 
     setTimeout(() => {
-        const serverCurrentTime = getCurrentTime();
         io.emit('start_game', { 
             game_id: game_id,
             start_time_stamp: time_stamp,

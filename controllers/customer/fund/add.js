@@ -4,6 +4,7 @@ import TransactionModel from "../../../models/TransactionHistory.js";
 import SettingModel from "../../../models/Setting.js";
 import { responseSuccess, responseBadRequest, responseServerError } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
+import { getAllParentPartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const isWithinTimeRange = (startTime, endTime) => {
   if (!startTime || !endTime) return true;
@@ -25,7 +26,7 @@ const isWithinTimeRange = (startTime, endTime) => {
 
 export const addFund = async (req, res) => {
   try {
-    const { amount, bank_number } = req.body;
+    const { amount } = req.body;
     const userId = req.session._id;
 
     if (amount === undefined || amount === null || amount === '') {
@@ -35,10 +36,6 @@ export const addFund = async (req, res) => {
     const normalizedAmount = Number(amount);
     if (isNaN(normalizedAmount) || !isFinite(normalizedAmount)) {
       return responseBadRequest(res, t("invalid_amount_number"));
-    }
-
-    if (!bank_number || !bank_number.trim()) {
-      return responseBadRequest(res, t("bank_number_required"));
     }
 
     const setting = await SettingModel.findOne().lean();
@@ -78,27 +75,36 @@ export const addFund = async (req, res) => {
         return responseBadRequest(res, `${t("maximum_amount")} 10,000,000`);
       }
     }
-    let user = await UserModel.findById(userId).select("own_money bank_number");
+    let user = await UserModel.findById(userId).select("own_money");
 
     if (!user) {
-      user = await PartnerModel.findById(userId).select("own_money bank_number");
+      user = await PartnerModel.findById(userId).select("own_money");
       
       if (!user) {
         return responseBadRequest(res, t("user_not_found"));
       }
     }
 
-    if (!user.bank_number || user.bank_number.trim() !== bank_number.trim()) {
-      return responseBadRequest(res, t("bank_number_mismatch"));
-    }
-
     await TransactionModel.create({
       user_id: userId,
       fund_type: "CHARGE",
-      fund_status: "WAIT",
+      fund_status: "NEW",
       fund_amount: normalizedAmount,
       request_send_date: new Date()
     });
+
+    try {
+      const io = req.app.get("io");
+      if (io) {
+        const parentPartnerIds = await getAllParentPartnerIds(userId);
+
+        io.emit("new_charge_request", {
+          parentPartnerIds: parentPartnerIds,
+        });
+      }
+    } catch (socketError) {
+      console.error("Error emitting socket event:", socketError);
+    }
 
     const chargeCompleteMessage = setting?.charge_complete_message || t("fund_request_submitted");
     
@@ -107,7 +113,7 @@ export const addFund = async (req, res) => {
       {
         amount: normalizedAmount,
         balance: user.own_money,
-        status: "WAIT",
+        status: "NEW",
         message: chargeCompleteMessage,
       },
       chargeCompleteMessage

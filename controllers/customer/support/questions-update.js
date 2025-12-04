@@ -45,7 +45,7 @@ export const updateQuestion = async (req, res) => {
       return responseNotFound(res, t("question_not_found"));
     }
 
-    if (existingQuestion.status !== "PENDING") {
+    if (existingQuestion.status !== "PENDING" && existingQuestion.status !== "NEW") {
       return responseBadRequest(
         res,
         t("cannot_edit_resolved_question")

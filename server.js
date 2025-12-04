@@ -121,7 +121,6 @@ io.on("connection", (socket) => {
       }
       const userId = await onlineUser(userToken, false);
       onlineUsers.delete(userId);
-      console.log(`User ${userId} went offline`);
     } catch (err) {
       console.error("Error in user_offline handler:", err.message);
     }
@@ -132,7 +131,6 @@ io.on("connection", (socket) => {
     for (const [userId, id] of onlineUsers.entries()) {
       if (id === socket.id) {
         onlineUsers.delete(userId);
-        console.log(`User ${userId} disconnected (socket: ${socket.id})`);
       }
     }
   });
