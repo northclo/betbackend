@@ -10,5 +10,6 @@ export const getAvailableGame = async () => {
                 $lte: getCurrentTime() + 180000
             }
         })
-        .sort({ start_time_stamp: 1 });
+        .sort({ start_time_stamp: 1 })
+        .lean();
 }

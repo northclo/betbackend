@@ -36,6 +36,10 @@ BettingResultSchema.index({ game_id: 1 });
 BettingResultSchema.index({ user_id: 1, game_id: 1 });
 BettingResultSchema.index({ betting_status: 1 });
 
+BettingResultSchema.index({ user_id: 1, createdAt: -1 });
+BettingResultSchema.index({ user_id: 1, total_no: 1, today_no: 1, createdAt: -1 });
+BettingResultSchema.index({ user_id: 1, game_id: 1, createdAt: -1 });
+
 const BettingResultModel = mongoose.model("betting_result", BettingResultSchema);
 
 export default BettingResultModel;

@@ -1,44 +1,68 @@
 import BettingResultModel from "../../models/BettingResult.js";
 import GameResultModel from "../../models/GameResult.js";
 import { getCurrentTime } from "../Time/Get-Current-Time.js";
+import mongoose from "mongoose";
 
 export const getAroundBettingHistory = async (gameId, userId) => {
     let previousGameId = null;
     let nextGameId = null;
 
-    const userBettingGames = await BettingResultModel
-        .find({ user_id: userId })
-        .distinct('game_id');
+    const userBettingGamesResult = await BettingResultModel.aggregate([
+        { $match: { user_id: new mongoose.Types.ObjectId(userId) } },
+        { $group: { _id: "$game_id" } },
+        { $project: { _id: 0, game_id: "$_id" } }
+    ]);
+
+    const userBettingGames = userBettingGamesResult.map(item => item.game_id);
 
     if (userBettingGames.length === 0) {
         return { previousGameId: null, nextGameId: null };
     }
 
-    const gameIdsToSearch = [...new Set([...userBettingGames, gameId])];
-
-    const gamesWithTimestamps = await GameResultModel
-        .find({
-            game_id: { $in: gameIdsToSearch },
-            start_time_stamp: { $lt: getCurrentTime() + 180000 }
-        })
-        .sort({ start_time_stamp: -1 })
-        .select({ _id: 0, game_id: 1, start_time_stamp: 1 })
+    const currentGame = await GameResultModel
+        .findOne({ game_id: gameId })
+        .select({ start_time_stamp: 1 })
         .lean();
 
-    const currentIndex = gamesWithTimestamps.findIndex(game => game.game_id === gameId);
+    if (!currentGame || !currentGame.start_time_stamp) {
+        return { previousGameId, nextGameId };
+    }
 
-    if (currentIndex !== -1) {
-        if (currentIndex < gamesWithTimestamps.length - 1) {
-            const previousGame = gamesWithTimestamps[currentIndex + 1];
-            if (userBettingGames.includes(previousGame.game_id)) {
-                previousGameId = previousGame.game_id;
-            }
+    const currentTimestamp = currentGame.start_time_stamp;
+    const maxTimestamp = getCurrentTime() + 180000;
+
+    if (userBettingGames.length > 0) {
+        const previousGame = await GameResultModel
+            .findOne({
+                game_id: { $in: userBettingGames },
+                start_time_stamp: {
+                    $lt: Math.min(currentTimestamp, maxTimestamp)
+                }
+            })
+            .sort({ start_time_stamp: -1 })
+            .select({ game_id: 1 })
+            .limit(1)
+            .lean();
+
+        if (previousGame) {
+            previousGameId = previousGame.game_id;
         }
-        if (currentIndex > 0) {
-            const nextGame = gamesWithTimestamps[currentIndex - 1];
-            if (userBettingGames.includes(nextGame.game_id)) {
-                nextGameId = nextGame.game_id;
-            }
+
+        const nextGame = await GameResultModel
+            .findOne({
+                game_id: { $in: userBettingGames },
+                start_time_stamp: {
+                    $gt: currentTimestamp,
+                    $lte: maxTimestamp
+                }
+            })
+            .sort({ start_time_stamp: 1 })
+            .select({ game_id: 1 })
+            .limit(1)
+            .lean();
+
+        if (nextGame) {
+            nextGameId = nextGame.game_id;
         }
     }
 

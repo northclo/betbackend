@@ -13,7 +13,7 @@ export const getGameInitInfo = async (req, res) => {
     const { gameId } = req.query;
     const userId = req.session._id;
 
-    let user = await UserModel.findOne({ _id: userId });
+    let user = await UserModel.findOne({ _id: userId }).lean();
     if (!user) {
         user = await PartnerModel.findById(userId).lean();
         if (!user) {
@@ -76,7 +76,7 @@ export const getGameInitInfo = async (req, res) => {
 
     const _gameId = game.game_id;
 
-    const aroundGameId = await getAroundGameId(_gameId, userId);
+    const aroundGameId = await getAroundGameId(_gameId);
     const lastGame = await getLastGame();
 
     const todayNo = (game.list?.length === 0) ? lastGame.today_no + 1 : game.today_no;
