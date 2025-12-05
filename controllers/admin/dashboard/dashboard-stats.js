@@ -1,6 +1,4 @@
-import mongoose from "mongoose";
 import UserLoginHistoryModel from "../../../models/UserLoginHistory.js";
-import PartnerLoginHistoryModel from "../../../models/PartnerLoginHistory.js";
 import TransactionModel from "../../../models/TransactionHistory.js";
 import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
@@ -10,6 +8,7 @@ import {
   responseSuccess,
   responseServerError,
   responseUnAutherized,
+  responseBadRequest,
 } from "../../../helper/response.js";
 import { userStatus } from "../../../const/status.js";
 import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
@@ -20,9 +19,6 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
-
-        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
-        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -37,30 +33,13 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
             }
         };
 
-        const userLoginHistoryFilter = accessibleUserIds.length > 0
-            ? { ...loginHistoryFilter, user_id: { $in: accessibleUserIds } }
-            : loginHistoryFilter;
-
-        const userLoginHistory = accessibleUserIds.length > 0
-            ? await UserLoginHistoryModel.find(userLoginHistoryFilter)
-                .select("user_id createdAt").lean()
-            : [];
-
-        const partnerLoginHistoryFilter = accessiblePartnerIds.length > 0
-            ? { ...loginHistoryFilter, partner_id: { $in: accessiblePartnerIds } }
-            : loginHistoryFilter;
-
-        const partnerLoginHistory = accessiblePartnerIds.length > 0
-            ? await PartnerLoginHistoryModel.find(partnerLoginHistoryFilter)
-                .select("partner_id createdAt").lean()
-            : [];
+        const userLoginHistory = await UserLoginHistoryModel.find(loginHistoryFilter)
+            .select("user_id createdAt").lean();
 
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
         const allLoggedIn = new Array(daysInMonth).fill(0);
-        const partnerLoggedIn = new Array(daysInMonth).fill(0);
 
         const dailyUsers = {};
-        const dailyPartners = {};
 
         userLoginHistory.forEach(login => {
             const day = new Date(login.createdAt).getDate() - 1;
@@ -77,25 +56,9 @@ export const getMonthlyLoggedInUsers = async (req, res) => {
             }
         });
 
-        partnerLoginHistory.forEach(login => {
-            const day = new Date(login.createdAt).getDate() - 1;
-            const partnerId = login.partner_id?.toString();
-
-            if (partnerId) {
-                if (!dailyPartners[day]) {
-                    dailyPartners[day] = new Set();
-                }
-                if (!dailyPartners[day].has(partnerId)) {
-                    dailyPartners[day].add(partnerId);
-                    partnerLoggedIn[day]++;
-                }
-            }
-        });
-
         responseSuccess(res, {
             days: Array.from({ length: daysInMonth }, (_, i) => i + 1),
-            allLoggedIn,
-            partnerLoggedIn
+            allLoggedIn
         });
     } catch (error) {
         console.error("Error to fetch monthly logged in users:", error);
@@ -109,9 +72,6 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
-
-        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
-        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -128,15 +88,10 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             }
         };
 
-        const userFilter = accessibleUserIds.length > 0
-            ? { user_id: { $in: accessibleUserIds } }
-            : {};
-
         const chargeData = await TransactionModel.aggregate([
             {
                 $match: {
                     ...baseMatchFilter,
-                    ...userFilter,
                     fund_type: 'CHARGE',
                     fund_status: 'COMPLETE'
                 }
@@ -159,7 +114,6 @@ export const getMonthlyChargeAndExchange = async (req, res) => {
             {
                 $match: {
                     ...baseMatchFilter,
-                    ...userFilter,
                     fund_type: 'EXCHANGE',
                     fund_status: 'COMPLETE'
                 }
@@ -314,7 +268,37 @@ export const getSidebarSummary = async (req, res) => {
             return responseUnAutherized(res);
         }
 
-        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const selectedPartnerId = req.query?.partnerId;
+        const includeSubPartners = req.query?.includeSubPartners === 'true';
+
+        let accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        
+        if (selectedPartnerId && typeof selectedPartnerId === 'string' && selectedPartnerId.trim().length > 0) {
+            const selectedPartner = await PartnerModel.findOne({ 
+                partner_id: selectedPartnerId.trim() 
+            }).select('_id').lean();
+            
+            if (!selectedPartner) {
+                return responseBadRequest(res, "Partner not found");
+            }
+            
+            const selectedPartnerObjectId = selectedPartner._id;
+            
+            const isAccessible = accessiblePartnerIds.some(id => 
+                id.equals(selectedPartnerObjectId)
+            );
+            
+            if (!isAccessible) {
+                return responseUnAutherized(res);
+            }
+
+            if (includeSubPartners) {
+                accessiblePartnerIds = await fetchAccessiblePartnerIds(selectedPartnerObjectId.toString());
+            } else {
+                accessiblePartnerIds = [selectedPartnerObjectId];
+            }
+        }
+
         const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const now = new Date();
