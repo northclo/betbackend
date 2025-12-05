@@ -298,4 +298,7 @@ export default {
   alarm_type_required: "Alarm type is required",
   invalid_alarm_type: "Invalid alarm type",
   volume_must_be_between_0_and_100: "Volume must be between 0 and 100",
+  no_valid_pending_transactions: "No valid waiting transactions",
+  transactions_approved_successfully: "Successfully approved {0} transaction(s).",
+  transactions_rejected_successfully: "Successfully rejected {0} transaction(s).",
 };
