@@ -13,7 +13,7 @@ const ipAllowlist = (req, res, next) => {
   const endpoint = req.originalUrl; // requested API endpoint
 
   const ChinaTimenow = moment().tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
-  
+
   if (allowedGameIPs.includes(clientIp)) {
     console.log(`[${ChinaTimenow}] ✔ Allowed IP: ${clientIp} for endpoint ${endpoint}`);
     return next();
