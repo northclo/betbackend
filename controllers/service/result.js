@@ -11,6 +11,7 @@ export const startGame = async (req, res) => {
     if (!req.headers["authorization"] || req.headers["authorization"] !== config.AUTH_KEY) return responseBadRequest(res);
 
     const { game_id, device_id, time_stamp } = req.body;
+    console.log("start time_stamp--->", time_stamp);
 
     const gameResult = await GameResultModel.findOne({ game_id: game_id });
 
@@ -50,7 +51,7 @@ export const startGame = async (req, res) => {
             total_no: total_no,
             today_no: today_no
         })
-    }, 2000);
+    }, 0);
     // }, time_stamp - getCurrentTime())
 
     return res.status(200).json({ result: 0 });
@@ -62,6 +63,7 @@ export const endGame = async (req, res) => {
     const { list, manual_valid, total_no, today_no, current_no, time_stamp, game_id, device_id } = req.body;
 
     const updated_TokyoTime = moment.tz(time_stamp, "Asia/Tokyo");
+    console.log("end updated_TokyoTime--->", updated_TokyoTime);
     var new_today_no = today_no;
 
     if (updated_TokyoTime) {
@@ -100,7 +102,7 @@ export const endGame = async (req, res) => {
             total_no: total_no,
             today_no: new_today_no
         });
-    }, 2000);
+    }, 0);
 
     return res.status(200).json({ result: 0 });
 }
