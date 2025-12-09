@@ -5,7 +5,7 @@ import UserModel from "../../../models/User.js";
 import PartnerModel from "../../../models/Partner.js";
 import moment from "moment-timezone";
 import { config } from "../../../config/index.js";
-import { fetchAccessiblePartnerIds } from "../../../helper/Partner/fetch-accessible-partners.js";
+import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const normalizeDate = (value, isEnd = false) => {
     if (!value) return null;
@@ -54,6 +54,7 @@ export const getBettingSettlementProfit = async (req, res) => {
         const skip = (pageNumber - 1) * limit;
 
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
+        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         let partnerIds = [];
         let userPartnerIds = [];
@@ -82,14 +83,18 @@ export const getBettingSettlementProfit = async (req, res) => {
             partnerIds = accessiblePartnerIds;
         }
 
-        if (partnerIds.length > 0) {
-            const users = await UserModel.find({
-                $or: [
-                    { partner_id: { $in: partnerIds } },
-                    { ownpartner_id: { $in: partnerIds } }
-                ]
-            }).select('_id').lean();
-            userPartnerIds = users.map(u => u._id);
+        if (partnerId) {
+            if (partnerIds.length > 0) {
+                const users = await UserModel.find({
+                    $or: [
+                        { partner_id: { $in: partnerIds } },
+                        { ownpartner_id: { $in: partnerIds } }
+                    ]
+                }).select('_id').lean();
+                userPartnerIds = users.map(u => u._id);
+            }
+        } else {
+            userPartnerIds = accessibleUserIds;
         }
 
         const dateFilter = {};

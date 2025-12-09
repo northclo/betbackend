@@ -78,6 +78,8 @@ export const getBettingList = async (req, res) => {
 
         const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
         const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
+        
+        const allAccessibleIds = [...accessibleUserIds, ...accessiblePartnerIds];
 
         let partnerIds = [];
         if (partnerId) {
@@ -115,7 +117,20 @@ export const getBettingList = async (req, res) => {
         }
 
         const basePipeline = [
-            { $match: filter },
+            { $match: filter }
+        ];
+
+        if (allAccessibleIds.length > 0) {
+            basePipeline.push({
+                $match: {
+                    user_id: { $in: allAccessibleIds }
+                }
+            });
+        } else {
+            basePipeline.push({ $match: { _id: { $exists: false } } });
+        }
+
+        basePipeline.push(
             {
                 $lookup: {
                     from: "users",
@@ -144,20 +159,22 @@ export const getBettingList = async (req, res) => {
                     }
                 }
             }
-        ];
+        );
 
-        if (partnerIds.length > 0) {
-            basePipeline.push({
-                $match: {
-                    $or: [
-                        { "user.partner_id": { $in: partnerIds } },
-                        { "user.ownpartner_id": { $in: partnerIds } },
-                        { "bettingPartner._id": { $in: partnerIds } }
-                    ]
-                }
-            });
-        } else {
-            basePipeline.push({ $match: { _id: { $exists: false } } });
+        if (partnerId) {
+            if (partnerIds.length === 0) {
+                basePipeline.push({ $match: { _id: { $exists: false } } });
+            } else {
+                basePipeline.push({
+                    $match: {
+                        $or: [
+                            { "user.partner_id": { $in: partnerIds } },
+                            { "user.ownpartner_id": { $in: partnerIds } },
+                            { "bettingPartner._id": { $in: partnerIds } }
+                        ]
+                    }
+                });
+            }
         }
 
         if (search && searchField) {

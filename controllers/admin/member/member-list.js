@@ -171,22 +171,6 @@ export const getMemberList = async (req, res) => {
         
         if (accessibleUserIds.length > 0) {
             userMatchStage._id = { $in: accessibleUserIds };
-        } else {
-            return responseSuccess(res, {
-                list: [],
-                total: 0,
-                page: pageNumber,
-                pageSize: limit,
-                statusCounts: {
-                    all: 0,
-                    normal: 0,
-                    wait: 0,
-                    stop: 0,
-                    cancel: 0,
-                    danger: 0,
-                    tester: 0,
-                },
-            });
         }
 
         if (filterPartnerIds.length > 0) {
@@ -194,6 +178,8 @@ export const getMemberList = async (req, res) => {
                 { partner_id: { $in: filterPartnerIds } },
                 { ownpartner_id: { $in: filterPartnerIds } },
             ];
+        } else if (accessibleUserIds.length === 0) {
+            userMatchStage._id = { $in: [] };
         }
 
         if (userStatus) {
@@ -266,6 +252,24 @@ export const getMemberList = async (req, res) => {
                                         ],
                                     },
                                 },
+                                totalPartnerIncrease: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$fund_type", "PARTNER_INCREASE"] },
+                                            "$fund_amount",
+                                            0,
+                                        ],
+                                    },
+                                },
+                                totalPartnerDecrease: {
+                                    $sum: {
+                                        $cond: [
+                                            { $eq: ["$fund_type", "PARTNER_DECREASE"] },
+                                            "$fund_amount",
+                                            0,
+                                        ],
+                                    },
+                                },
                                 lastImportTime: {
                                     $max: {
                                         $cond: [
@@ -321,6 +325,12 @@ export const getMemberList = async (req, res) => {
                     },
                     totalExchangeAmount: {
                         $ifNull: [{ $arrayElemAt: ["$fund_stats.totalExchangeAmount", 0] }, 0],
+                    },
+                    totalPartnerIncrease: {
+                        $ifNull: [{ $arrayElemAt: ["$fund_stats.totalPartnerIncrease", 0] }, 0],
+                    },
+                    totalPartnerDecrease: {
+                        $ifNull: [{ $arrayElemAt: ["$fund_stats.totalPartnerDecrease", 0] }, 0],
                     },
                     last_import_time: {
                         $arrayElemAt: ["$fund_stats.lastImportTime", 0],
@@ -701,16 +711,10 @@ export const getMemberList = async (req, res) => {
         combinedPipeline.push({
             $addFields: {
                 totalPartnerEarning: {
-                    $cond: {
-                        if: { $and: [{ $ne: ["$partner", null] }, { $ne: ["$partner._id", null] }] },
-                        then: {
-                            $subtract: [
-                                { $ifNull: ["$totalPartnerIncrease", 0] },
-                                { $ifNull: ["$totalPartnerDecrease", 0] }
-                            ],
-                        },
-                        else: 0,
-                    },
+                    $subtract: [
+                        { $ifNull: ["$totalPartnerIncrease", 0] },
+                        { $ifNull: ["$totalPartnerDecrease", 0] }
+                    ],
                 },
             },
         });

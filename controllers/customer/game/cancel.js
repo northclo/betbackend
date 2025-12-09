@@ -7,6 +7,7 @@ import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import { getLastGame } from "../../../helper/Game/Get-Last-Game.js";
 import mongoose from "mongoose";
 import { t } from "../../../helper/translation.js";
+import TransactionModel from "../../../models/TransactionHistory.js";
 
 export const cancelGame = async (req, res) => {
     try {
@@ -117,13 +118,44 @@ export const cancelGame = async (req, res) => {
             return responseBadRequest(res, t("bet_cancellation_failed"));
         }
 
+        const existingTransaction = await TransactionModel.findOne({
+            user_id: userId,
+            fund_type: "BETTING",
+            fund_status: "WAIT",
+            fund_amount: -bettingHistory.bet_amount,
+            comment: { $regex: `Bet ID: ${id}` }
+        }).session(session);
+
+        if (existingTransaction) {
+            await TransactionModel.updateOne(
+                { _id: existingTransaction._id },
+                {
+                    $set: {
+                        fund_status: "CANCEL",
+                        fund_status_update_date: new Date()
+                    }
+                },
+                { session }
+            );
+        } else {
+            await TransactionModel.create([{
+                user_id: userId,
+                fund_type: "BETTING",
+                fund_status: "CANCEL",
+                fund_amount: bettingHistory.bet_amount,
+                request_send_date: new Date(),
+                fund_status_update_date: new Date(),
+                comment: `Bet ID: ${id} - Cancelled`
+            }], { session });
+        }
+
         const updateUser = await UserModel.updateOne(
             { _id: userId },
             { $inc: { own_money: bettingHistory.bet_amount } },
             { session }
         );
 
-        if (!updateUser) {
+        if (!updateUser.modifiedCount) {
             await PartnerModel.updateOne(
                 { _id: userId },
                 { $inc: { own_money: bettingHistory.bet_amount } },

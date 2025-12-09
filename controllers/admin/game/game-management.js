@@ -3,7 +3,6 @@ import GameResultModel from "../../../models/GameResult.js";
 import BettingResultModel from "../../../models/BettingResult.js";
 import { responseBadRequest, responseSuccess, responseServerError, responseUnAutherized } from "../../../helper/response.js";
 import { t } from "../../../helper/translation.js";
-import { fetchAccessiblePartnerIds, fetchAccessibleUserIds } from "../../../helper/Partner/fetch-accessible-partners.js";
 
 const ALLOWED_STATUS = ["", "register", "under", "end", "finish", "cancel"];
 const ALLOWED_SEARCH_FIELDS = ["total_no", "today_no"];
@@ -93,9 +92,6 @@ export const getGameManagement = async (req, res) => {
         if (!adminId) {
             return responseUnAutherized(res);
         }
-
-        const accessiblePartnerIds = await fetchAccessiblePartnerIds(adminId);
-        const accessibleUserIds = await fetchAccessibleUserIds(accessiblePartnerIds);
 
         const { status = "", searchField, search, page = 1, pageSize = 10 } = req.query;
         const normalizedStatus = (status || "").toString().trim().toLowerCase();
@@ -235,12 +231,6 @@ export const getGameManagement = async (req, res) => {
             game_id: { $in: gameIds },
             betting_status: { $ne: "CANCEL" }
         };
-
-        if (accessibleUserIds.length > 0) {
-            bettingMatchFilter.user_id = { $in: accessibleUserIds };
-        } else {
-            bettingMatchFilter.user_id = { $in: [] };
-        }
 
         const bettingCounts = gameIds.length > 0 ? await BettingResultModel.aggregate([
             {

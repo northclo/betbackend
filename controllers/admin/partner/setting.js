@@ -63,10 +63,6 @@ export const updateGameSetting = async (req, res) => {
             }
         }
 
-        if (activate === false && (!inactive_message || typeof inactive_message !== 'string' || inactive_message.trim() === '')) {
-            return responseBadRequest(res, t("inactive_message_required_when_disabled"));
-        }
-
         if (option !== undefined) {
             if (!Array.isArray(option)) {
                 return responseBadRequest(res, t("option_must_be_array"));
@@ -110,6 +106,13 @@ export const updateGameSetting = async (req, res) => {
         const existingSetting = await GameSettingModel.findOne({ name: name.trim() });
         if (!existingSetting) {
             return responseBadRequest(res, t("game_setting_not_found"));
+        }
+
+        if (activate === false) {
+            const finalInactiveMessage = inactive_message !== undefined ? inactive_message : existingSetting.inactive_message;
+            if (!finalInactiveMessage || typeof finalInactiveMessage !== 'string' || finalInactiveMessage.trim() === '') {
+                return responseBadRequest(res, t("inactive_message_required_when_disabled"));
+            }
         }
 
         const updateData = {};

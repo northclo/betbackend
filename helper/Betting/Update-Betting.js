@@ -1,6 +1,8 @@
 import BettingResultModel from "../../models/BettingResult.js";
 import UserModel from "../../models/User.js";
 import PartnerModel from "../../models/Partner.js";
+import TransactionModel from "../../models/TransactionHistory.js";
+import PointTransactionModel from "../../models/PointTransaction.js";
 import mongoose from "mongoose";
 
 export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) => {
@@ -9,6 +11,7 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
 
     const userEarnings = new Map();
     const userPoints = new Map();
+    const bettingResultMap = new Map();
 
     const bulkOps = bettingHistory.reduce((ops, element) => {
         if (element.betting_status === "CANCEL") {
@@ -50,6 +53,14 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
                 userPoints.set(userId, (userPoints.get(userId) || 0) + bettingPointValue);
             }
         }
+
+        bettingResultMap.set(element._id.toString(), {
+            user_id: element.user_id,
+            bet_amount: element.bet_amount,
+            earning_amount: earningAmount,
+            win: win,
+            betting_point_value: bettingPointValue
+        });
 
         const updateData = {
             today_no: todayNo,
@@ -160,6 +171,91 @@ export const updateBetting = async (gameId, odd, under, list, todayNo, totalNo) 
         
         if (partnerPointUpdates.length > 0) {
             await PartnerModel.bulkWrite(partnerPointUpdates, { ordered: false });
+        }
+    }
+
+    if (bettingResultMap.size > 0) {
+        const transactionHistoryOps = [];
+        const pointHistoryOps = [];
+        const bettingResultIds = Array.from(bettingResultMap.keys());
+        const userIds = Array.from(new Set(Array.from(bettingResultMap.values()).map(b => b.user_id.toString())));
+
+        const existingTransactions = await TransactionModel.find({
+            user_id: { $in: userIds.map(id => new mongoose.Types.ObjectId(id)) },
+            fund_type: "BETTING",
+            fund_status: "WAIT",
+            comment: { $regex: new RegExp(`Bet ID: (${bettingResultIds.join('|')})`) }
+        }).lean();
+
+        const transactionMap = new Map();
+        for (const trans of existingTransactions) {
+            const match = trans.comment?.match(/Bet ID: ([a-f0-9]{24})/);
+            if (match) {
+                transactionMap.set(match[1], trans);
+            }
+        }
+
+        for (const [bettingResultId, betData] of bettingResultMap.entries()) {
+            const userId = betData.user_id;
+            const betAmount = betData.bet_amount;
+            const earningAmount = betData.earning_amount;
+            const isWin = betData.win;
+            const pointValue = betData.betting_point_value;
+
+            const existingTransaction = transactionMap.get(bettingResultId);
+            if (existingTransaction && Math.abs(existingTransaction.fund_amount) === betAmount) {
+                transactionHistoryOps.push({
+                    updateOne: {
+                        filter: { _id: existingTransaction._id },
+                        update: {
+                            $set: {
+                                fund_status: "COMPLETE",
+                                fund_status_update_date: new Date()
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (isWin && earningAmount > 0) {
+                transactionHistoryOps.push({
+                    insertOne: {
+                        document: {
+                            user_id: userId,
+                            fund_type: "BETTING",
+                            fund_status: "COMPLETE",
+                            fund_amount: earningAmount,
+                            request_send_date: new Date(),
+                            fund_status_update_date: new Date(),
+                            comment: `Bet ID: ${bettingResultId} - Win`
+                        }
+                    }
+                });
+            }
+
+            if (!isWin && pointValue > 0) {
+                pointHistoryOps.push({
+                    insertOne: {
+                        document: {
+                            user_id: userId,
+                            fund_type: "BETTING",
+                            fund_status: "COMPLETE",
+                            fund_amount: pointValue,
+                            request_send_date: new Date(),
+                            fund_status_update_date: new Date(),
+                            comment: `Bet ID: ${bettingResultId} - Points`
+                        }
+                    }
+                });
+            }
+        }
+
+        if (transactionHistoryOps.length > 0) {
+            await TransactionModel.bulkWrite(transactionHistoryOps, { ordered: false });
+        }
+
+        if (pointHistoryOps.length > 0) {
+            await PointTransactionModel.bulkWrite(pointHistoryOps, { ordered: false });
         }
     }
 };

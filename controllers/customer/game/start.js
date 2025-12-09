@@ -7,6 +7,7 @@ import UserModel from "../../../models/User.js";
 import { getCurrentTime } from "../../../helper/Time/Get-Current-Time.js";
 import mongoose from "mongoose";
 import { t } from "../../../helper/translation.js";
+import TransactionModel from "../../../models/TransactionHistory.js";
 
 const VALID_BET_TYPES = new Set([
     "odd",
@@ -312,6 +313,17 @@ export const StartGame = async (req, res) => {
                 betting_point_value: 0,
                 partner_bet_benefit: 0,
                 history_view: true,
+            }], { session });
+
+            const bettingResultId = result[0]._id.toString();
+
+            await TransactionModel.create([{
+                user_id: userId,
+                fund_type: "BETTING",
+                fund_status: "WAIT",
+                fund_amount: -amount,
+                request_send_date: new Date(),
+                comment: `Bet ID: ${bettingResultId}`
             }], { session });
 
             let updateBalance = await UserModel.updateOne(
